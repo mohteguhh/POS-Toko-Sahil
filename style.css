@@ -1279,6 +1279,9 @@ svg.icon-empty {
 .cart-item-selected .cart-item-price {
   color: #ffffff !important;
 }
+.cart-item-selected .cart-item-unit-price {
+  color: #fef08a !important;
+}
 .cart-item-info {
   flex: 1;
 }
@@ -1299,9 +1302,9 @@ svg.icon-empty {
   flex-wrap: wrap;
 }
 .cart-item-unit-price {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  font-weight: 500;
+  font-size: 0.85rem;
+  color: #0284c7;
+  font-weight: 600;
 }
 .cart-promo-badge {
   display: inline-flex;

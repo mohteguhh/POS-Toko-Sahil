@@ -93,10 +93,10 @@ if (receiptSettings.fontSizeHeader === undefined) receiptSettings.fontSizeHeader
 if (receiptSettings.fontSizeItems === undefined) receiptSettings.fontSizeItems = receiptSettings.fontSize || 12;
 if (receiptSettings.fontSizeFooter === undefined) receiptSettings.fontSizeFooter = receiptSettings.fontSize || 12;
 if (receiptSettings.printFormat === undefined) receiptSettings.printFormat = 'text';
-if (receiptSettings.textFontSize === undefined) receiptSettings.textFontSize = 12.5;
+if (receiptSettings.textFontSize === undefined) receiptSettings.textFontSize = 12;
 if (receiptSettings.textTitleFontSize === undefined) receiptSettings.textTitleFontSize = 16;
-if (receiptSettings.textPaddingLeft === undefined) receiptSettings.textPaddingLeft = 0;
-if (receiptSettings.textWidth === undefined) receiptSettings.textWidth = 20;
+if (receiptSettings.textPaddingLeft === undefined) receiptSettings.textPaddingLeft = 1;
+if (receiptSettings.textWidth === undefined) receiptSettings.textWidth = 25;
 if (receiptSettings.headerPaddingLR === undefined) receiptSettings.headerPaddingLR = 0;
 if (receiptSettings.logoMarginLR === undefined) receiptSettings.logoMarginLR = 0;
 if (receiptSettings.nameMarginLR === undefined) receiptSettings.nameMarginLR = 0;
@@ -104,16 +104,16 @@ if (receiptSettings.addressMarginLR === undefined) receiptSettings.addressMargin
 if (receiptSettings.phoneMarginLR === undefined) receiptSettings.phoneMarginLR = 0;
 
 let labelSettings = JSON.parse(localStorage.getItem('kasir_label_settings')) || {
-  width: 60,
+  width: 65,
   height: 30,
   marginLeft: 0,
   chars: 25,
-  showBarcode: true,
+  showBarcode: false,
   showPrice: true,
-  priceFontSize: 24,
-  priceFontWeight: 900,
+  priceFontSize: 30,
+  priceFontWeight: 1300,
   nameFontSize: 12,
-  nameFontWeight: 800
+  nameFontWeight: 900
 };
 
 let productLabelSettings = JSON.parse(localStorage.getItem('kasir_product_label_settings')) || {
@@ -434,14 +434,14 @@ function loadReceiptSettings() {
   document.getElementById('receipt-print-format').value = receiptSettings.printFormat || 'html';
   
   // Load Text Format Settings
-  document.getElementById('receipt-text-title-font-size').value = receiptSettings.textTitleFontSize || 14;
-  document.getElementById('text-title-font-preview-val').textContent = `${receiptSettings.textTitleFontSize || 14}pt`;
-  document.getElementById('receipt-text-font-size').value = receiptSettings.textFontSize || 11;
-  document.getElementById('text-font-preview-val').textContent = `${receiptSettings.textFontSize || 11}pt`;
-  document.getElementById('receipt-text-padding-left').value = receiptSettings.textPaddingLeft !== undefined ? receiptSettings.textPaddingLeft : 0;
-  document.getElementById('text-padding-preview-val').textContent = `${receiptSettings.textPaddingLeft !== undefined ? receiptSettings.textPaddingLeft : 0}mm`;
-  document.getElementById('receipt-text-width').value = receiptSettings.textWidth || 25;
-  document.getElementById('text-width-preview-val').textContent = `${receiptSettings.textWidth || 25} karakter`;
+  document.getElementById('receipt-text-title-font-size').value = receiptSettings.textTitleFontSize !== undefined ? receiptSettings.textTitleFontSize : 16;
+  document.getElementById('text-title-font-preview-val').textContent = `${receiptSettings.textTitleFontSize !== undefined ? receiptSettings.textTitleFontSize : 16}pt`;
+  document.getElementById('receipt-text-font-size').value = receiptSettings.textFontSize !== undefined ? receiptSettings.textFontSize : 12;
+  document.getElementById('text-font-preview-val').textContent = `${receiptSettings.textFontSize !== undefined ? receiptSettings.textFontSize : 12}pt`;
+  document.getElementById('receipt-text-padding-left').value = receiptSettings.textPaddingLeft !== undefined ? receiptSettings.textPaddingLeft : 1;
+  document.getElementById('text-padding-preview-val').textContent = `${receiptSettings.textPaddingLeft !== undefined ? receiptSettings.textPaddingLeft : 1}mm`;
+  document.getElementById('receipt-text-width').value = receiptSettings.textWidth !== undefined ? receiptSettings.textWidth : 25;
+  document.getElementById('text-width-preview-val').textContent = `${receiptSettings.textWidth !== undefined ? receiptSettings.textWidth : 25} karakter`;
   
   // Load Individual Header Element Margins
   ['logo', 'name', 'address', 'phone'].forEach(item => {
@@ -657,10 +657,10 @@ function applyReceiptSettings() {
   }
   
   // Set CSS Variables for Plain Text Format dynamic values
-  const textTitleFontSize = receiptSettings.textTitleFontSize || 14; // in pt
-  const textFontSize = receiptSettings.textFontSize || 11; // in pt
+  const textTitleFontSize = receiptSettings.textTitleFontSize !== undefined ? receiptSettings.textTitleFontSize : 16; // in pt
+  const textFontSize = receiptSettings.textFontSize !== undefined ? receiptSettings.textFontSize : 12; // in pt
   const textPaddingLeft = receiptSettings.textPaddingLeft !== undefined ? receiptSettings.textPaddingLeft : 1; // in mm
-  const textWidth = receiptSettings.textWidth || 25; // character columns
+  const textWidth = receiptSettings.textWidth !== undefined ? receiptSettings.textWidth : 25; // character columns
   
   document.documentElement.style.setProperty('--print-text-title-size', `${textTitleFontSize}pt`);
   document.documentElement.style.setProperty('--print-text-font-size', `${textFontSize}pt`);
@@ -695,13 +695,13 @@ function updateReceiptFontSizePreview(val) {
 
 function updateTextTitleFontPreview(val) {
   document.getElementById('text-title-font-preview-val').textContent = `${val}pt`;
-  const textTitleFontSize = parseFloat(val) || 14;
+  const textTitleFontSize = parseFloat(val) || 16;
   document.documentElement.style.setProperty('--print-text-title-size', `${textTitleFontSize}pt`);
 }
 
 function updateTextFontPreview(val) {
   document.getElementById('text-font-preview-val').textContent = `${val}pt`;
-  const textFontSize = parseFloat(val) || 11;
+  const textFontSize = parseFloat(val) || 12;
   document.documentElement.style.setProperty('--print-text-font-size', `${textFontSize}pt`);
 }
 
@@ -781,8 +781,8 @@ function saveReceiptSettings() {
   receiptSettings.printFormat = document.getElementById('receipt-print-format').value;
   
   // Save Text Format Settings
-  receiptSettings.textTitleFontSize = parseFloat(document.getElementById('receipt-text-title-font-size').value) || 14;
-  receiptSettings.textFontSize = parseFloat(document.getElementById('receipt-text-font-size').value) || 11;
+  receiptSettings.textTitleFontSize = parseFloat(document.getElementById('receipt-text-title-font-size').value) || 16;
+  receiptSettings.textFontSize = parseFloat(document.getElementById('receipt-text-font-size').value) || 12;
   receiptSettings.textPaddingLeft = parseFloat(document.getElementById('receipt-text-padding-left').value) || 1;
   receiptSettings.textWidth = parseInt(document.getElementById('receipt-text-width').value) || 25;
   
@@ -795,31 +795,33 @@ function saveReceiptSettings() {
 }
 
 function loadLabelSettings() {
-  document.getElementById('setting-label-width').value = labelSettings.width || 60;
+  document.getElementById('setting-label-width').value = labelSettings.width || 65;
   document.getElementById('setting-label-height').value = labelSettings.height || 30;
-  document.getElementById('setting-label-margin-left').value = labelSettings.marginLeft || 0;
+  document.getElementById('setting-label-margin-left').value = labelSettings.marginLeft !== undefined ? labelSettings.marginLeft : 0;
   document.getElementById('setting-label-chars').value = labelSettings.chars || 25;
-  document.getElementById('setting-label-show-barcode').checked = labelSettings.showBarcode !== false;
+  const barcodeEl = document.getElementById('setting-label-show-barcode');
+  if (barcodeEl) barcodeEl.checked = !!labelSettings.showBarcode;
   document.getElementById('setting-label-show-price').checked = labelSettings.showPrice !== false;
-  document.getElementById('setting-label-price-fontsize').value = labelSettings.priceFontSize || 24;
-  document.getElementById('label-price-fontsize-val').textContent = `${labelSettings.priceFontSize || 24}pt`;
-  document.getElementById('setting-label-price-fontweight').value = labelSettings.priceFontWeight || 900;
+  document.getElementById('setting-label-price-fontsize').value = labelSettings.priceFontSize || 30;
+  document.getElementById('label-price-fontsize-val').textContent = `${labelSettings.priceFontSize || 30}pt`;
+  document.getElementById('setting-label-price-fontweight').value = labelSettings.priceFontWeight || 1300;
   document.getElementById('setting-label-name-fontsize').value = labelSettings.nameFontSize || 12;
   document.getElementById('label-name-fontsize-val').textContent = `${labelSettings.nameFontSize || 12}pt`;
-  document.getElementById('setting-label-name-fontweight').value = labelSettings.nameFontWeight || 800;
+  document.getElementById('setting-label-name-fontweight').value = labelSettings.nameFontWeight || 900;
 }
 
 function saveLabelSettings() {
-  labelSettings.width = parseFloat(document.getElementById('setting-label-width').value) || 60;
+  labelSettings.width = parseFloat(document.getElementById('setting-label-width').value) || 65;
   labelSettings.height = parseFloat(document.getElementById('setting-label-height').value) || 30;
   labelSettings.marginLeft = parseFloat(document.getElementById('setting-label-margin-left').value) || 0;
   labelSettings.chars = parseInt(document.getElementById('setting-label-chars').value) || 25;
-  labelSettings.showBarcode = document.getElementById('setting-label-show-barcode').checked;
+  const barcodeEl = document.getElementById('setting-label-show-barcode');
+  labelSettings.showBarcode = barcodeEl ? barcodeEl.checked : false;
   labelSettings.showPrice = document.getElementById('setting-label-show-price').checked;
-  labelSettings.priceFontSize = parseInt(document.getElementById('setting-label-price-fontsize').value) || 24;
-  labelSettings.priceFontWeight = parseInt(document.getElementById('setting-label-price-fontweight').value) || 900;
+  labelSettings.priceFontSize = parseInt(document.getElementById('setting-label-price-fontsize').value) || 30;
+  labelSettings.priceFontWeight = parseInt(document.getElementById('setting-label-price-fontweight').value) || 1300;
   labelSettings.nameFontSize = parseInt(document.getElementById('setting-label-name-fontsize').value) || 12;
-  labelSettings.nameFontWeight = parseInt(document.getElementById('setting-label-name-fontweight').value) || 800;
+  labelSettings.nameFontWeight = parseInt(document.getElementById('setting-label-name-fontweight').value) || 900;
   
   localStorage.setItem('kasir_label_settings', JSON.stringify(labelSettings));
   alert('Pengaturan Cetak Label Rak berhasil disimpan!');
@@ -3319,6 +3321,9 @@ function renderCart() {
     }
     
     const subLabel = freeLabel || boxLabel;
+    const unitPrice = (item.qty > 1 && !item.isBox)
+      ? Math.round(item.subtotal / Math.max(paidQty, 1))
+      : item.subtotal;
     
     const div = document.createElement('div');
     div.className = 'cart-item';
@@ -3326,8 +3331,8 @@ function renderCart() {
       <div class="cart-item-info">
         <div class="cart-item-name">${item.nama}</div>
         <div class="cart-item-price-row">
-          <span class="cart-item-price">Rp ${formatRupiah(item.subtotal)}</span>
-          ${item.qty > 1 && !item.isBox ? `<span class="cart-item-unit-price">(Bayar ${paidQty} pcs @Rp ${formatRupiah(Math.round(item.subtotal / Math.max(paidQty, 1)))})</span>` : ''}
+          <span class="cart-item-price">Rp ${formatRupiah(unitPrice)}</span>
+          ${item.qty > 1 && !item.isBox ? `<span class="cart-item-unit-price">(Bayar ${paidQty} pcs = Rp ${formatRupiah(item.subtotal)})</span>` : ''}
         </div>
       </div>
       <div class="cart-item-controls">
@@ -5342,10 +5347,10 @@ function clearLocalCache() {
       phone: '0896-3649-2890',
       address: 'Desa Sumurber Rt 21 Rw 07 Panceng Gresik',
       fontSize: 12,
-      textFontSize: 12.5,
+      textFontSize: 12,
       textTitleFontSize: 16,
-      textPaddingLeft: 3,
-      textWidth: 20
+      textPaddingLeft: 1,
+      textWidth: 25
     };
     
     document.getElementById('gas-url-input').value = '';

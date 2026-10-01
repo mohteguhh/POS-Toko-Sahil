@@ -1192,22 +1192,22 @@
               <div class="form-group" style="margin: 0;">
                 <label for="receipt-text-title-font-size">Ukuran Font Judul (pt)</label>
                 <div class="slider-group">
-                  <input type="range" id="receipt-text-title-font-size" min="8" max="24" value="14" step="0.5" oninput="updateTextTitleFontPreview(this.value)">
-                  <span id="text-title-font-preview-val">14pt</span>
+                  <input type="range" id="receipt-text-title-font-size" min="8" max="24" value="16" step="0.5" oninput="updateTextTitleFontPreview(this.value)">
+                  <span id="text-title-font-preview-val">16pt</span>
                 </div>
               </div>
               <div class="form-group" style="margin: 0;">
                 <label for="receipt-text-font-size">Ukuran Font Cetak (pt)</label>
                 <div class="slider-group">
-                  <input type="range" id="receipt-text-font-size" min="6" max="14" value="11" step="0.5" oninput="updateTextFontPreview(this.value)">
-                  <span id="text-font-preview-val">11pt</span>
+                  <input type="range" id="receipt-text-font-size" min="6" max="14" value="12" step="0.5" oninput="updateTextFontPreview(this.value)">
+                  <span id="text-font-preview-val">12pt</span>
                 </div>
               </div>
               <div class="form-group" style="margin: 0;">
                 <label for="receipt-text-padding-left">Margin Kiri Kertas (mm)</label>
                 <div class="slider-group">
-                  <input type="range" id="receipt-text-padding-left" min="0" max="10" value="0" step="0.5" oninput="updateTextPaddingPreview(this.value)">
-                  <span id="text-padding-preview-val">0mm</span>
+                  <input type="range" id="receipt-text-padding-left" min="0" max="10" value="1" step="0.5" oninput="updateTextPaddingPreview(this.value)">
+                  <span id="text-padding-preview-val">1mm</span>
                 </div>
               </div>
               <div class="form-group" style="margin: 0;">
@@ -1260,7 +1260,7 @@
             <div class="form-grid-2">
               <div class="form-group">
                 <label for="setting-label-width">Lebar Label Rak (mm)</label>
-                <input type="number" id="setting-label-width" min="30" max="100" value="60">
+                <input type="number" id="setting-label-width" min="30" max="100" value="65">
               </div>
               <div class="form-group">
                 <label for="setting-label-height">Tinggi Label Rak (mm)</label>
@@ -1277,10 +1277,6 @@
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem; margin-bottom: 1.5rem;">
-              <label style="display: flex; align-items: center; gap: 0.75rem; font-size: 0.95rem; font-weight: 500; cursor: pointer;">
-                <input type="checkbox" id="setting-label-show-barcode" style="width: 1.25rem; height: 1.25rem; accent-color: var(--primary-color);" checked>
-                Tampilkan Barcode di Label Rak
-              </label>
               <label style="display: flex; align-items: center; gap: 0.75rem; font-size: 0.95rem; font-weight: 500; cursor: pointer;">
                 <input type="checkbox" id="setting-label-show-price" style="width: 1.25rem; height: 1.25rem; accent-color: var(--primary-color);" checked>
                 Tampilkan Harga di Label Rak
@@ -1302,8 +1298,8 @@
                     <option value="500">Medium (500)</option>
                     <option value="600">Semi Bold (600)</option>
                     <option value="700">Bold (700)</option>
-                    <option value="800" selected>Extra Bold (800)</option>
-                    <option value="900">Black (900)</option>
+                    <option value="800">Extra Bold (800)</option>
+                    <option value="900" selected>Black (900)</option>
                     <option value="1000">Super Bold (900+)</option>
                     <option value="1100">Ultra Bold (900++)</option>
                     <option value="1200">Mega Bold (900+++)</option>
@@ -1318,8 +1314,8 @@
               <h3 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-main);">💰 Font Harga</h3>
               <div class="form-grid-2">
                 <div class="form-group">
-                  <label for="setting-label-price-fontsize">Ukuran Font Harga <span id="label-price-fontsize-val" style="font-weight: 700; color: var(--primary-color);">24pt</span></label>
-                  <input type="range" id="setting-label-price-fontsize" min="8" max="48" value="24" step="1" oninput="document.getElementById('label-price-fontsize-val').textContent = this.value + 'pt'" style="width: 100%; accent-color: var(--primary-color);">
+                  <label for="setting-label-price-fontsize">Ukuran Font Harga <span id="label-price-fontsize-val" style="font-weight: 700; color: var(--primary-color);">30pt</span></label>
+                  <input type="range" id="setting-label-price-fontsize" min="8" max="48" value="30" step="1" oninput="document.getElementById('label-price-fontsize-val').textContent = this.value + 'pt'" style="width: 100%; accent-color: var(--primary-color);">
                 </div>
                 <div class="form-group">
                   <label for="setting-label-price-fontweight">Ketebalan Font Harga</label>
@@ -1329,11 +1325,11 @@
                     <option value="600">Semi Bold (600)</option>
                     <option value="700">Bold (700)</option>
                     <option value="800">Extra Bold (800)</option>
-                    <option value="900" selected>Black (900)</option>
+                    <option value="900">Black (900)</option>
                     <option value="1000">Super Bold (900+)</option>
                     <option value="1100">Ultra Bold (900++)</option>
                     <option value="1200">Mega Bold (900+++)</option>
-                    <option value="1300">Maximum Bold</option>
+                    <option value="1300" selected>Maximum Bold</option>
                   </select>
                 </div>
               </div>
