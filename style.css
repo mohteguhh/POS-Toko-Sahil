@@ -51,6 +51,12 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html, body {
+  overflow-x: hidden !important;
+  max-width: 100vw;
+  width: 100%;
+}
+
 body {
   font-family: var(--font-main);
   background-color: var(--bg-app);
@@ -110,6 +116,9 @@ svg.icon-empty {
   flex-direction: column;
   min-height: 100vh;
   width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 /* --- Top Navbar --- */
@@ -302,6 +311,54 @@ svg.icon-empty {
   font-weight: 800;
   font-size: 1.25rem;
 }
+
+/* Analytics Header — Filter & Action Layout */
+.analytics-table-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.analytics-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.analytics-filter-type-box {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: var(--border-radius-sm, 8px);
+  padding: 0.35rem 0.75rem;
+}
+.analytics-filter-type-box select {
+  border: none;
+  background: transparent;
+  font-family: var(--font-main, inherit);
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+  color: var(--text-main, #111);
+}
+.analytics-filter-val-wrap input,
+.analytics-filter-val-wrap select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: var(--border-radius-sm, 8px);
+  font-family: var(--font-main, inherit);
+  font-size: 0.85rem;
+  background: var(--bg-card, #fff);
+  color: var(--text-main, #111);
+  cursor: pointer;
+}
+.analytics-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -2018,7 +2075,7 @@ tr:hover td {
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000 !important; /* Di atas M3 Bottom Nav (9990) & backdrop (9998) */
   padding: 1rem;
   animation: fadeIn var(--transition-fast);
 }
@@ -2141,7 +2198,7 @@ tr:hover td {
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  z-index: 10001 !important;
   padding: 1rem;
   animation: fadeIn var(--transition-fast);
 }
@@ -2337,28 +2394,6 @@ tr:hover td {
     font-size: 1.15rem;
   }
   
-  /* Scrollable Tab Buttons on Mobile (Premium Touch) */
-  .nav-tabs {
-    order: 3;
-    width: 100%;
-    overflow-x: auto;
-    white-space: nowrap;
-    display: flex;
-    gap: 0.35rem;
-    padding-bottom: 6px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none; /* Firefox */
-  }
-  .nav-tabs::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
-  }
-  .tab-btn {
-    flex: 0 0 auto;
-    padding: 0.45rem 0.75rem;
-    font-size: 0.8rem;
-    gap: 0.25rem;
-  }
-  
   .content-area {
     padding: 0.75rem;
   }
@@ -2481,64 +2516,186 @@ tr:hover td {
     gap: 0.75rem;
   }
 
-  /* --- TABLE TO CARD LAYOUT --- */
-  /* 1. Tabel Produk */
+  /* --- TABLE TO CARD LAYOUT (MOBILE COMPACT) --- */
+  /* 1. Tabel Produk: Desain Kartu Horizontal Modern & Ringkas (Fit Layar Tanpa Geser Kanan-Kiri) */
+  #pane-products {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+  }
+  #pane-products .table-card {
+    padding: 0.75rem !important;
+    border-radius: 16px !important;
+  }
+  #pane-products .table-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+  #pane-products .table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    width: 100%;
+  }
+  #pane-products .table-actions button {
+    flex: 1 1 auto;
+    font-size: 0.75rem;
+    padding: 0.35rem 0.5rem;
+    justify-content: center;
+  }
+  #pane-products .table-search-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  #pane-products .table-search-wrapper select {
+    width: 100%;
+    font-size: 0.8rem;
+  }
+
   #products-table thead {
     display: none;
   }
   #products-table, 
   #products-table tbody, 
-  #products-table tr, 
-  #products-table td {
+  #products-table tr {
     display: block;
-    width: 100%;
+    width: 100% !important;
+    box-sizing: border-box;
   }
   #products-table tr {
     background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-md);
-    margin-bottom: 1rem;
-    padding: 0.75rem 1rem;
-    box-shadow: var(--shadow-sm);
-  }
-  #products-table td {
-    text-align: right;
-    padding: 0.55rem 0.25rem;
-    border: none;
-    border-bottom: 1px solid var(--bg-surface-elevated);
-    display: flex;
-    justify-content: space-between;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    margin-bottom: 0.65rem;
+    padding: 0.65rem 0.75rem;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+    display: grid !important;
+    grid-template-columns: 24px 50px 1fr auto !important;
+    grid-template-rows: auto auto auto !important;
+    column-gap: 0.65rem;
+    row-gap: 0.2rem;
     align-items: center;
-    font-size: 0.85rem;
   }
-  #products-table td:last-child {
-    border-bottom: none;
+  #products-table tr:active {
+    background-color: #f8fafc;
   }
-  #products-table td:nth-child(1)::before { content: "Gambar"; font-weight: 700; color: var(--text-muted); }
-  #products-table td:nth-child(2)::before { content: "ID Produk"; font-weight: 700; color: var(--text-muted); }
-  #products-table td:nth-child(3)::before { content: "Nama Produk"; font-weight: 700; color: var(--text-muted); }
-  #products-table td:nth-child(4)::before { content: "Kategori"; font-weight: 700; color: var(--text-muted); }
-  #products-table td:nth-child(5)::before { content: "Harga Beli"; font-weight: 700; color: var(--text-muted); }
-  #products-table td:nth-child(6)::before { content: "Harga Jual"; font-weight: 700; color: var(--text-muted); }
-  #products-table td:nth-child(7)::before { content: "Stok"; font-weight: 700; color: var(--text-muted); }
-  #products-table td:nth-child(8)::before { content: "Barcode"; font-weight: 700; color: var(--text-muted); }
-  #products-table td:nth-child(9)::before { content: "Kadaluarsa"; font-weight: 700; color: var(--text-muted); }
-  #products-table td:nth-child(10)::before { content: "Aksi"; font-weight: 700; color: var(--text-muted); }
 
+  /* Reset default style cell */
+  #products-table td {
+    display: block !important;
+    border: none !important;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+  #products-table td::before {
+    display: none !important; /* Hapus teks label Gambar, ID, dll yang bikin melar ke bawah */
+  }
+
+  /* Kolom 1: Checkbox Pilihan */
+  #products-table td:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Kolom 2: Gambar Produk */
+  #products-table td:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
   #products-table .prod-table-img {
-    width: 44px;
-    height: 44px;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 8px !important;
+    object-fit: cover;
+  }
+
+  /* Kolom 3 & 4 (Baris 1): Nama Produk & Kategori */
+  #products-table td:nth-child(4) { /* Nama Produk */
+    grid-column: 3;
+    grid-row: 1;
+    font-size: 0.88rem !important;
+    font-weight: 700 !important;
+    color: #0f172a;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #products-table td:nth-child(5) { /* Kategori */
+    grid-column: 4;
+    grid-row: 1;
+    text-align: right !important;
+  }
+  #products-table td:nth-child(5) .cat-btn {
+    font-size: 0.65rem !important;
+    padding: 0.15rem 0.4rem !important;
+  }
+
+  /* Kolom 3 & 4 (Baris 2): Harga Jual (Besar) & Stok (Badge) */
+  #products-table td:nth-child(7) { /* Harga Jual */
+    grid-column: 3;
+    grid-row: 2;
+    font-size: 0.95rem !important;
+    font-weight: 800 !important;
+    color: var(--color-primary, #d97706);
+    line-height: 1.2;
+  }
+  #products-table td:nth-child(8) { /* Stok */
+    grid-column: 4;
+    grid-row: 2;
+    text-align: right !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: #475569;
+  }
+
+  /* Kolom 3 & 4 (Baris 3): ID / Barcode & Tombol Aksi */
+  #products-table td:nth-child(3) { /* ID Produk */
+    grid-column: 3;
+    grid-row: 3;
+    font-size: 0.72rem !important;
+    color: #94a3b8;
+    font-family: monospace;
+  }
+  #products-table td:nth-child(11) { /* Tombol Aksi */
+    grid-column: 4;
+    grid-row: 3;
+    display: flex !important;
+    justify-content: flex-end;
+  }
+  #products-table td:nth-child(11) > div {
+    display: flex;
+    gap: 0.25rem;
+  }
+  #products-table td:nth-child(11) .action-icon-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
     border-radius: 6px;
   }
-  #products-table td:nth-child(1) {
-    justify-content: space-between;
-    align-items: center;
+  #products-table td:nth-child(11) .action-icon-btn svg {
+    width: 14px;
+    height: 14px;
   }
+
+  /* Sembunyikan kolom sekunder (Harga Beli, Barcode panjang, Kadaluarsa) di ringkasan kartu mobile */
+  #products-table td:nth-child(6),
+  #products-table td:nth-child(9),
   #products-table td:nth-child(10) {
-    justify-content: space-between;
+    display: none !important;
   }
 
   /* 2. Tabel Transaksi */
+  /* 2. Modern Compact Card Layout untuk Riwayat Transaksi di Mobile */
   #transactions-table thead {
     display: none;
   }
@@ -2551,37 +2708,112 @@ tr:hover td {
   }
   #transactions-table tr {
     background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-md);
-    margin-bottom: 1rem;
-    padding: 0.75rem 1rem;
-    box-shadow: var(--shadow-sm);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    margin-bottom: 0.75rem;
+    padding: 0.85rem 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    position: relative;
+    transition: transform 0.15s ease;
   }
+  #transactions-table tr:active {
+    background-color: #f8fafc;
+  }
+
+  /* Reset default cell layout & content prefix */
   #transactions-table td {
-    text-align: right;
-    padding: 0.55rem 0.25rem;
-    border: none;
-    border-bottom: 1px solid var(--bg-surface-elevated);
+    border: none !important;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+  #transactions-table td::before {
+    display: none !important;
+  }
+
+  /* Baris 1: ID Transaksi + Nama Customer (Kiri) & Status Lunas/Bon (Kanan) */
+  #transactions-table td:nth-child(1) {
     display: flex;
     justify-content: space-between;
     align-items: center;
     font-size: 0.85rem;
+    color: #1e293b;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
   }
-  #transactions-table td:last-child {
-    border-bottom: none;
+  #transactions-table td:nth-child(1) strong {
+    font-family: monospace;
+    letter-spacing: 0.5px;
+    color: var(--color-primary, #d97706);
   }
-  #transactions-table td:nth-child(1)::before { content: "ID Transaksi"; font-weight: 700; color: var(--text-muted); }
-  #transactions-table td:nth-child(2)::before { content: "Waktu"; font-weight: 700; color: var(--text-muted); }
-  #transactions-table td:nth-child(3)::before { content: "Daftar Item"; font-weight: 700; color: var(--text-muted); }
-  #transactions-table td:nth-child(4)::before { content: "Total Tagihan"; font-weight: 700; color: var(--text-muted); }
-  #transactions-table td:nth-child(5)::before { content: "Bayar"; font-weight: 700; color: var(--text-muted); }
-  #transactions-table td:nth-child(6)::before { content: "Kembalian"; font-weight: 700; color: var(--text-muted); }
-  #transactions-table td:nth-child(7)::before { content: "Aksi"; font-weight: 700; color: var(--text-muted); }
 
-  #transactions-table td:nth-child(3) span {
-    max-width: 65%;
-    text-align: right;
+  /* Baris 2: Waktu & Nama Kasir */
+  #transactions-table td:nth-child(2) {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-bottom: 0.35rem;
+  }
+  #transactions-table td:nth-child(3) {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-left: 0.5rem;
+    padding-left: 0.5rem !important;
+    border-left: 1px solid #cbd5e1 !important;
+    margin-bottom: 0.35rem;
+  }
+
+  /* Baris 3: Daftar Item (Dibuat Ringkas 1 Baris dengan Ellipsis) */
+  #transactions-table td:nth-child(4) {
     display: block;
+    font-size: 0.78rem;
+    color: #475569;
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 0.35rem 0.6rem !important;
+    margin: 0.35rem 0 0.6rem 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Baris 4: Total Tagihan (Besar & Tegas) & Metode Bayar */
+  #transactions-table td:nth-child(5) {
+    display: inline-block;
+    font-size: 1.15rem !important;
+    font-weight: 800 !important;
+    color: #0f172a;
+    letter-spacing: -0.01em;
+  }
+  #transactions-table td:nth-child(6) {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  /* Sembunyikan Bayar Pokok & Kembalian terpisah di card mobile (sudah tercakup di status) */
+  #transactions-table td:nth-child(7),
+  #transactions-table td:nth-child(8) {
+    display: none !important;
+  }
+
+  /* Baris 5: Tombol Aksi (Cetak Ulang, Edit, Hapus) Rapi & Mudah Dipencet */
+  #transactions-table td:nth-child(9) {
+    display: block;
+    margin-top: 0.6rem;
+    padding-top: 0.5rem !important;
+    border-top: 1px dashed #e2e8f0 !important;
+  }
+  #transactions-table td:nth-child(9) > div {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+  }
+  #transactions-table td:nth-child(9) .action-icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
   }
   /* 4. Tabel & Card Analisis Penjualan di Mobile - NO HORIZONTAL SCROLL */
   #pane-analytics {
@@ -2634,55 +2866,76 @@ tr:hover td {
     overflow-x: hidden;
   }
 
-  .metrics-grid {
-    grid-template-columns: 1fr !important;
-    gap: 0.85rem;
-  }
-  .fin-card {
-    padding: 0.85rem 0.85rem 0.5rem 0.85rem;
-    border-radius: 18px;
-  }
-  .fin-card-top {
-    padding: 0.25rem 0.35rem 0.65rem 0.35rem;
-  }
-  .fin-card-title {
-    font-size: 0.95rem;
-  }
-  .fin-card-top-icon {
-    width: 1.2rem;
-    height: 1.2rem;
-  }
-  .fin-card-white-box {
-    padding: 0.85rem 0.85rem;
-    border-radius: 14px;
-    min-height: 95px;
-  }
-  .fin-card-label {
-    font-size: 0.7rem;
-  }
-  .fin-card-val {
-    font-size: 1.45rem;
-    white-space: nowrap;
-  }
-  .fin-card-arrow {
-    font-size: 1.1rem;
+  .fin-card-desc {
+    display: none !important;
   }
   .mini-bar-graphic, .mini-line-graphic, .mini-bell-graphic {
-    width: 48px;
-    height: 28px;
+    width: 40px;
+    height: 24px;
   }
   .mini-donut-graphic {
-    width: 32px;
-    height: 32px;
-  }
-  .fin-card-desc {
-    font-size: 0.7rem;
-    line-height: 1.25;
+    width: 28px;
+    height: 28px;
   }
 
   .best-seller-card .table-wrapper {
     max-height: 400px;
     overflow-x: auto;
+  }
+
+  /* Analytics Header Mobile Layout */
+  .analytics-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+  }
+  .analytics-header h2 {
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+  .analytics-table-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+  }
+  .analytics-filter-group {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 0.45rem;
+  }
+  .analytics-filter-type-box {
+    flex: 0 0 auto;
+    padding: 0.42rem 0.65rem;
+  }
+  .analytics-filter-type-box select {
+    font-size: 0.87rem;
+    font-weight: 600;
+  }
+  .analytics-filter-val-wrap {
+    flex: 1 1 auto;
+  }
+  .analytics-filter-val-wrap input,
+  .analytics-filter-val-wrap select {
+    width: 100%;
+    font-size: 0.87rem;
+    font-weight: 600;
+    padding: 0.42rem 0.6rem;
+    box-sizing: border-box;
+  }
+  .analytics-btn-group {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .analytics-btn-action {
+    justify-content: center;
+    font-size: 0.84rem !important;
+    font-weight: 700 !important;
+    padding: 0.52rem 0.6rem !important;
   }
 }
 
@@ -2694,27 +2947,106 @@ tr:hover td {
 
 @media (max-width: 768px) {
   .metrics-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.65rem !important;
   }
-}
-
-@media (max-width: 550px) {
-  .metrics-grid {
-    grid-template-columns: 1fr !important;
-    gap: 0.75rem;
+  .fin-card {
+    padding: 0.65rem 0.65rem 0.55rem 0.65rem;
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .fin-card-top {
+    padding: 0.2rem 0.25rem 0.45rem 0.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .fin-card-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+  .fin-card-top-icon {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+  .fin-card-white-box {
+    padding: 0.65rem 0.65rem;
+    border-radius: 14px;
+    min-height: 85px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .fin-card-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    margin-bottom: 0.25rem;
+    font-weight: 800;
+  }
+  .fin-card-main-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.25rem;
+    margin: 0.15rem 0;
+  }
+  .fin-card-val-group {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+    flex: 1;
   }
   .fin-card-val {
-    font-size: 1.45rem;
+    /* Font nominal diperbesar nyata tapi tetap responsif untuk puluhan juta */
+    font-size: clamp(1.15rem, 4.2vw, 1.55rem) !important;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    line-height: 1.1;
+  }
+  .fin-card-arrow {
+    font-size: 1.1rem;
+    font-weight: 900;
+  }
+  /* Tampilkan kembali ikon grafik mini dengan ukuran pas dan rapi di mobile */
+  .fin-card-graphic {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+  .mini-bar-graphic {
+    width: 36px;
+    height: 24px;
+  }
+  .mini-line-graphic {
+    width: 40px;
+    height: 24px;
+  }
+  .mini-donut-graphic {
+    width: 26px;
+    height: 26px;
+  }
+  .mini-bell-graphic {
+    width: 38px;
+    height: 20px;
+  }
+  .fin-card-desc {
+    display: none !important; /* Deskripsi teks panjang tetap di-hide agar kotak tidak melar */
   }
   
-  /* Chart SVG height di Layar Ponsel */
+  /* Chart SVG height di Layar Ponsel - Dibuat Tinggi, Lega & Jelas */
   .chart-wrapper {
-    height: 230px;
-    padding: 0.25rem 0;
-    overflow: hidden;
+    height: 285px;
+    padding: 0.5rem 0;
+    overflow: visible;
   }
   .chart-nominal-text {
-    font-size: 11px;
+    font-size: 15px;
   }
   
   /* Best Seller Table Mobile Optimization */
@@ -3098,62 +3430,423 @@ body.print-format-html #receipt-text-content {
   color: #047857 !important;
 }
 
-/* --- EDIT TRANSACTION MODAL STYLES (FITUR BARU) --- */
+/* --- EDIT TRANSACTION MODAL STYLES (MODERN & MINIMALIS) --- */
+.edit-tx-modal-card {
+  max-width: 580px !important;
+  width: 95vw;
+  border-radius: 20px !important;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 25px 60px rgba(15, 23, 42, 0.22);
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+/* Header */
+.edit-tx-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.15rem 1.4rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface-elevated);
+}
+.edit-tx-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.edit-tx-badge-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.edit-tx-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.edit-tx-id-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--color-primary);
+  background: rgba(37, 99, 235, 0.08);
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  margin-top: 0.15rem;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+}
+.edit-tx-close-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.edit-tx-close-btn:hover {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* Modal Body */
+.edit-tx-body {
+  padding: 1.25rem 1.4rem !important;
+  max-height: 72vh !important;
+  overflow-y: auto !important;
+  background: var(--bg-surface);
+}
+
+/* Search Bar Minimalis */
+.edit-tx-search-container {
+  position: relative;
+  margin-bottom: 1.15rem;
+}
+.edit-tx-search-box {
+  display: flex;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-color);
+  border-radius: 12px;
+  padding: 0.4rem 0.75rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+.edit-tx-search-box:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  background: var(--bg-surface);
+}
+.edit-tx-search-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-right: 0.5rem;
+}
+.edit-tx-search-box input {
+  border: none;
+  background: transparent;
+  width: 100%;
+  font-size: 0.88rem;
+  color: var(--text-main);
+  outline: none;
+  font-family: var(--font-main);
+}
+.edit-tx-floating-results {
+  top: calc(100% + 4px) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Section Header */
+.edit-tx-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.edit-tx-count-pill {
+  font-size: 0.72rem;
+  padding: 0.1rem 0.5rem;
+  background: var(--bg-surface-elevated);
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-weight: 600;
+  text-transform: none;
+}
+
+/* Daftar Item Minimalis & Clean */
 .edit-tx-items-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  max-height: 250px;
+  max-height: 240px;
   overflow-y: auto;
-  padding-right: 0.25rem;
-  margin-top: 0.5rem;
+  padding-right: 0.2rem;
+  margin-bottom: 1.15rem;
+  -webkit-overflow-scrolling: touch;
 }
-.edit-tx-item-row {
+.edit-tx-item-card {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  background-color: var(--bg-surface-elevated);
-  padding: 0.65rem 0.8rem;
-  border-radius: var(--border-radius-sm);
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--bg-surface-elevated);
   border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  transition: border-color 0.15s ease, transform 0.1s ease;
 }
-.edit-tx-item-info {
+.edit-tx-item-card:hover {
+  border-color: rgba(37, 99, 235, 0.35);
+}
+.edit-tx-item-main {
   flex: 1;
+  min-width: 0;
 }
 .edit-tx-item-name {
+  font-size: 0.92rem;
   font-weight: 700;
-  font-size: 1.35rem;
   color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.15rem;
 }
-.edit-tx-item-price {
-  font-size: 1.15rem;
-  color: var(--color-primary);
-  font-weight: 700;
-}
-.edit-tx-item-controls {
+.edit-tx-item-meta {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
 }
-.edit-tx-qty-input {
-  width: 48px;
-  font-size: 1.1rem;
-  font-weight: 700;
-  background-color: var(--bg-surface);
+.edit-tx-unit-price {
+  font-weight: 600;
+}
+
+/* Stepper Quantity Modern */
+.edit-tx-item-action {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+.edit-tx-qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-surface);
   border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.edit-tx-stepper-btn {
+  width: 26px;
+  height: 28px;
+  background: transparent;
+  border: none;
   color: var(--text-main);
-  border-radius: var(--border-radius-sm);
-  padding: 0.15rem 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+.edit-tx-stepper-btn:hover {
+  background: var(--bg-surface-elevated);
+  color: var(--color-primary);
+}
+.edit-tx-stepper-input {
+  width: 36px;
+  height: 28px;
+  border: none;
+  background: transparent;
   text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-main);
   font-family: var(--font-main);
   outline: none;
+  -moz-appearance: textfield;
 }
-.edit-tx-item-subtotal {
-  font-size: 1.15rem;
-  font-weight: 700;
+.edit-tx-stepper-input::-webkit-outer-spin-button,
+.edit-tx-stepper-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.edit-tx-item-subtotal-val {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text-main);
   min-width: 80px;
   text-align: right;
+  letter-spacing: -0.01em;
+}
+.edit-tx-remove-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.edit-tx-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-danger);
+}
+
+/* Panel Ringkasan Tagihan & Pembayaran */
+.edit-tx-summary-panel {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 0.95rem 1.1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+.edit-tx-total-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px dashed var(--border-color);
+}
+.edit-tx-total-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.edit-tx-total-val {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--color-primary);
+  letter-spacing: -0.02em;
+}
+.edit-tx-payment-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+.edit-tx-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.edit-tx-form-group label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.edit-tx-select,
+.edit-tx-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: var(--font-main);
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-color);
+  border-radius: 9px;
   color: var(--text-main);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.edit-tx-select:focus,
+.edit-tx-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.edit-tx-change-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.45rem;
+  font-size: 0.82rem;
+}
+.edit-tx-change-label {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.edit-tx-change-val {
+  font-weight: 800;
+  color: var(--color-success);
+  font-size: 0.95rem;
+}
+
+/* Footer Modal */
+.edit-tx-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding: 0.9rem 1.4rem !important;
+  background: var(--bg-surface-elevated) !important;
+  border-top: 1px solid var(--border-color);
+}
+.edit-tx-btn-cancel {
+  border-radius: 9px !important;
+  padding: 0.55rem 1.1rem !important;
+  font-size: 0.85rem !important;
+  font-weight: 600 !important;
+}
+.edit-tx-btn-save {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.45rem !important;
+  border-radius: 9px !important;
+  padding: 0.55rem 1.35rem !important;
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
+  box-shadow: 0 3px 12px rgba(16, 185, 129, 0.25);
+}
+
+/* Responsivitas Mobile (max-width: 600px) */
+@media (max-width: 600px) {
+  .edit-tx-modal-card {
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 90vh !important;
+  }
+  .edit-tx-header {
+    padding: 1rem 1.1rem;
+  }
+  .edit-tx-body {
+    padding: 1rem 1.1rem !important;
+    max-height: calc(90vh - 125px) !important;
+  }
+  .edit-tx-payment-grid {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+  .edit-tx-item-card {
+    padding: 0.55rem 0.65rem;
+    gap: 0.5rem;
+  }
+  .edit-tx-item-name {
+    font-size: 0.85rem;
+  }
+  .edit-tx-item-subtotal-val {
+    font-size: 0.85rem;
+    min-width: 65px;
+  }
+  .edit-tx-footer {
+    padding: 0.8rem 1.1rem !important;
+  }
 }
 
 /* --- LABEL PRINTING STYLES (FITUR BARU) --- */
@@ -3442,37 +4135,291 @@ body.print-format-html #receipt-text-content {
    NEW FEATURE STYLES 
    ========================================= */
 
-/* 1. Hamburger Menu & Sidebar Nav */
+/* ==========================================================================
+   MATERIAL DESIGN 3 BOTTOM NAVIGATION BAR & FAB (MOBILE-FIRST)
+   ========================================================================== */
 .hamburger-btn {
-  display: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-main);
-  padding: 0.5rem;
-  margin-left: auto;
+  display: none !important; /* Ganti burger menu dengan Bottom Navigation Bar */
 }
+
+.m3-bottom-nav,
+.m3-bottom-sheet,
+.m3-sheet-backdrop {
+  display: none !important; /* Sembunyikan total di mode Desktop */
+}
+
 @media (max-width: 768px) {
-  .hamburger-btn {
-    display: block;
-  }
+  /* Hilangkan nav horizontal atas di mobile */
   .nav-tabs {
+    display: none !important;
+  }
+  
+  /* Sisakan ruang di bagian bawah layar agar konten tidak tertutup bottom nav */
+  body {
+    padding-bottom: 78px !important;
+  }
+
+  /* M3 Bottom Nav Bar Container (Tema Putih Bersih & Modern) */
+  .m3-bottom-nav {
+    display: block !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: #ffffff; /* Latar Putih Bersih */
+    border-top: 1px solid #e2e8f0;
+    box-shadow: 0 -4px 25px rgba(15, 23, 42, 0.08);
+    z-index: 9990;
+    user-select: none;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .m3-nav-container {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    max-width: 500px;
+    margin: 0 auto;
+    height: 64px;
+    padding: 0 0.5rem;
+    position: relative;
+  }
+
+  /* Item Tab Standar (Riwayat, Grafik, Produk, Saya) */
+  .m3-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 0.35rem 0;
+    color: #64748b; /* Slate 500 Muted */
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .m3-icon-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 28px;
+    border-radius: 16px;
+    transition: all 0.25s ease;
+  }
+
+  .m3-icon {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.2s ease;
+  }
+
+  .m3-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin-top: 2px;
+    transition: color 0.2s ease;
+    color: #64748b;
+  }
+
+  /* Keadaan Aktif Tab: Aksen Oranye-Kuning Hangat / Amber Gold */
+  .m3-nav-item.active {
+    color: #d97706; /* Amber 600 elegan */
+  }
+
+  .m3-nav-item.active .m3-icon-box {
+    background: #fef3c7; /* Soft yellow/amber pill */
+  }
+
+  .m3-nav-item.active .m3-icon {
+    stroke: #d97706;
+    transform: scale(1.1);
+  }
+
+  .m3-nav-item.active .m3-label {
+    color: #b45309;
+    font-weight: 700;
+  }
+
+  .m3-nav-item:active {
+    transform: scale(0.94);
+  }
+
+  /* ─── FLOATING ACTION BUTTON (FAB TENGAH DIBULAT & DIBESARKAN) ─── */
+  .m3-fab-wrapper {
+    position: relative;
+    top: -16px; /* Floating melayang menonjol ke atas */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 64px;
+    flex-shrink: 0;
+    z-index: 9995;
+  }
+
+  .m3-fab-btn {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: #fbbf24; /* Vibrant Amber Gold */
+    border: 4px solid #ffffff; /* Ring putih pemisah kontras dengan navbar putih */
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 10px 25px rgba(245, 158, 11, 0.45), 0 2px 8px rgba(0, 0, 0, 0.06);
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .m3-fab-btn:active {
+    transform: scale(0.9) translateY(3px);
+    box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
+  }
+
+  .m3-fab-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .m3-fab-icon {
+    width: 28px;
+    height: 28px;
+    stroke: #18181b; /* Dark sharp icon */
+    stroke-width: 3.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* Jika Kasir (POS) sedang aktif, efek pulsasi lembut pada FAB */
+  .m3-fab-btn.active {
+    background: #eab308;
+    box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.3), 0 8px 24px rgba(250, 204, 21, 0.5);
+  }
+
+  /* ─── MATERIAL DESIGN 3 BOTTOM SHEET ("Saya" / Menu Tambahan) ─── */
+  .m3-sheet-backdrop {
     display: none;
     position: fixed;
-    top: 60px; /* Below navbar */
-    right: 0;
-    width: 250px;
-    height: calc(100vh - 60px);
-    background-color: var(--bg-surface);
-    border-left: 1px solid var(--border-color);
-    flex-direction: column;
-    padding: 1rem;
-    box-shadow: -4px 0 15px rgba(0,0,0,0.1);
-    z-index: 1000;
-    overflow-y: auto;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9998;
+    opacity: 0;
+    transition: opacity 0.25s ease;
   }
-  .nav-tabs.sidebar-active {
+
+  .m3-sheet-backdrop.active {
+    display: block !important;
+    opacity: 1;
+  }
+
+  .m3-bottom-sheet {
+    display: block !important;
+    position: fixed;
+    bottom: -100%;
+    left: 0;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+    right: 0;
+    background: #ffffff;
+    border-radius: 28px 28px 0 0;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+    z-index: 9999;
+    padding: 0.75rem 1.25rem 2rem 1.25rem;
+    transition: bottom 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .m3-bottom-sheet.active {
+    bottom: 0;
+  }
+
+  .m3-sheet-drag-handle {
+    width: 38px;
+    height: 4px;
+    background: #cbd5e1;
+    border-radius: 4px;
+    margin: 0.25rem auto 1rem auto;
+  }
+
+  .m3-sheet-header {
     display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 1rem;
+  }
+
+  .m3-sheet-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+
+  .m3-sheet-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 0.85rem 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+  }
+
+  .m3-sheet-item:active {
+    transform: scale(0.95);
+    background: #f1f5f9;
+  }
+
+  .m3-sheet-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .m3-sheet-icon svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .m3-sheet-item span {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #1e293b;
+    text-align: center;
   }
 }
 
@@ -3720,6 +4667,13 @@ body.print-format-html #receipt-text-content {
 /* ==========================================================================
    OPTIMASI RESPONSIF KHUSUS MODE MOBILE (< 768px)
    ========================================================================== */
+/* Mode Desktop (> 768px): Pastikan tombol melayang keranjang & total belanja tidak pernah tampil sama sekali */
+@media (min-width: 769px) {
+  .mobile-cart-float-btn {
+    display: none !important;
+  }
+}
+
 .mobile-cart-float-btn {
   display: none;
 }
@@ -3790,47 +4744,55 @@ body.print-format-html #receipt-text-content {
     gap: 1rem !important;
   }
 
-  /* Floating Cart Icon Button */
+  /* Floating Cart Pill Badge (Kapsul Melayang Modern: Tampilkan Live Total & Item) */
   .mobile-cart-float-btn {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: 0.65rem;
     position: fixed;
-    bottom: 1rem;
-    left: 1rem;
+    bottom: 80px; /* Tepat di atas Bottom Nav Bar (64px + 16px jarak aman) */
     right: 1rem;
+    left: auto;
+    width: auto;
+    max-width: calc(100vw - 2rem);
+    height: 48px;
     background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
     color: #ffffff;
-    border: none;
+    border: 2px solid rgba(255, 255, 255, 0.9);
     border-radius: 50px;
-    padding: 0.65rem 1.25rem;
-    box-shadow: 0 10px 25px -5px rgba(217, 119, 6, 0.4), 0 4px 10px rgba(0, 0, 0, 0.1);
-    z-index: 997;
+    padding: 0 1rem 0 0.85rem;
+    box-shadow: 0 10px 25px rgba(217, 119, 6, 0.45), 0 3px 10px rgba(0, 0, 0, 0.12);
+    z-index: 9985;
     cursor: pointer;
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
   }
   .mobile-cart-float-btn:active {
-    transform: scale(0.97);
+    transform: scale(0.95);
   }
   .mobile-cart-icon-wrap {
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
   }
   .mobile-cart-icon-wrap svg {
-    width: 1.4rem;
-    height: 1.4rem;
+    width: 1.25rem;
+    height: 1.25rem;
     stroke: #ffffff;
   }
   .mobile-cart-badge {
     position: absolute;
-    top: -8px;
-    right: -10px;
+    top: -5px;
+    right: -6px;
     background: #f43f5e;
     color: #ffffff;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 800;
     min-width: 18px;
     height: 18px;
@@ -3839,43 +4801,51 @@ body.print-format-html #receipt-text-content {
     align-items: center;
     justify-content: center;
     border: 2px solid #b45309;
-    padding: 0 3px;
+    padding: 0 2px;
   }
   .mobile-cart-float-info {
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     align-items: flex-start;
-    flex: 1;
     line-height: 1.15;
   }
   .mobile-cart-float-label {
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.04em;
     opacity: 0.9;
     font-weight: 600;
   }
   .mobile-cart-float-val {
-    font-size: 1.1rem;
+    font-size: 0.98rem;
     font-weight: 800;
     letter-spacing: -0.01em;
+    color: #ffffff;
+    white-space: nowrap;
   }
   .mobile-cart-chevron {
-    width: 1.2rem;
-    height: 1.2rem;
+    display: flex !important;
+    align-items: center;
+    width: 1.1rem;
+    height: 1.1rem;
     stroke: #ffffff;
+    opacity: 0.85;
+    margin-left: 0.2rem;
   }
 
-  /* Sheet Popup Dialog Total Nominal Belanja */
+  /* Sheet Popup Dialog Total Nominal Belanja (Muncul di Atas Seluruh Elemen Termasuk Navbar) */
+  .mobile-checkout-backdrop {
+    z-index: 9995 !important; /* Di atas M3 Bottom Nav (9990) */
+  }
   .pos-right-section {
     position: fixed !important;
     bottom: -100% !important;
     left: 0 !important;
     right: 0 !important;
     top: auto !important;
-    z-index: 999 !important;
+    z-index: 9998 !important; /* Di atas seluruh elemen & navbar */
     transition: bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    max-height: 85vh !important;
+    max-height: 90vh !important;
     overflow-y: auto !important;
     padding: 0 !important;
     background: transparent !important;
@@ -3885,10 +4855,10 @@ body.print-format-html #receipt-text-content {
   }
   
   .cart-summary-card {
-    border-radius: 24px 24px 0 0 !important;
+    border-radius: 28px 28px 0 0 !important;
     border-bottom: none !important;
     box-shadow: 0 -10px 40px rgba(15, 23, 42, 0.25) !important;
-    padding: 1.25rem 1.25rem 1.75rem 1.25rem !important;
+    padding: 1.25rem 1.25rem 2.25rem 1.25rem !important; /* Ruang lega di bagian bawah */
     background: var(--bg-surface) !important;
   }
   
@@ -3916,6 +4886,178 @@ body.print-format-html #receipt-text-content {
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  /* 4. Optimasi Seluruh Modal & Dialog di Mobile agar Tidak Tertutup Navbar */
+  .modal-overlay {
+    padding: 0.75rem 0.5rem !important;
+    align-items: flex-end !important; /* Di HP: bottom sheet style atau rapi di tengah-bawah */
+  }
+  .modal-card {
+    max-height: 88vh !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    border-radius: 20px 20px 12px 12px !important;
+    margin-bottom: 0 !important;
+  }
+  .modal-body {
+    -webkit-overflow-scrolling: touch;
+    max-height: calc(88vh - 130px) !important;
+  }
+  .modal-footer {
+    padding: 0.85rem 1rem !important;
+    background: var(--bg-surface) !important;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  }
+  .receipt-card {
+    max-height: 88vh !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 16px !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .camera-scanner-wrapper {
+    padding: 0.5rem !important;
+  }
+  .camera-scanner-card {
+    max-height: 90vh !important;
+    width: 100% !important;
+  }
+
+  /* 5. FIT KE LAYAR (NO HORIZONTAL OVERFLOW / GESER KANAN-KIRI) */
+  html, body {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    position: relative;
+  }
+
+  .app-container,
+  .content-area,
+  .tab-pane,
+  .pos-layout,
+  .admin-layout,
+  .kulak-layout,
+  .settings-layout,
+  .table-card,
+  .form-card,
+  .card {
+    max-width: 100vw !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Tab Pelanggan (pane-customers) Fit Layar */
+  #pane-customers {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+  }
+  #pane-customers .table-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.65rem !important;
+  }
+  #pane-customers .table-actions > div {
+    max-width: 100% !important;
+    width: 100% !important;
+    display: flex !important;
+  }
+  #pane-customers #customer-search {
+    max-width: 100% !important;
+    flex: 1 !important;
+  }
+
+  /* Kartu Pelanggan Responsif di Mobile agar tidak geser ke samping */
+  #pane-customers .table-responsive {
+    overflow-x: hidden !important;
+    width: 100% !important;
+  }
+  #pane-customers .data-table thead {
+    display: none !important;
+  }
+  #pane-customers .data-table,
+  #pane-customers .data-table tbody,
+  #pane-customers .data-table tr,
+  #pane-customers .data-table td {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  #pane-customers .data-table tr {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    margin-bottom: 0.65rem;
+    padding: 0.75rem 0.85rem;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+    position: relative;
+  }
+  #pane-customers .data-table td {
+    border: none !important;
+    padding: 0.2rem 0 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    font-size: 0.85rem !important;
+  }
+  #pane-customers .data-table td:nth-child(1) {
+    font-size: 0.95rem !important;
+    font-weight: 700 !important;
+    color: var(--text-main);
+    margin-bottom: 0.2rem;
+  }
+  #pane-customers .data-table td:nth-child(2)::before {
+    content: "No. WA / Telp:";
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  #pane-customers .data-table td:nth-child(3)::before {
+    content: "Poin Loyalitas:";
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  #pane-customers .data-table td:nth-child(4) {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem !important;
+    border-top: 1px dashed var(--border-color) !important;
+    justify-content: flex-end !important;
+    gap: 0.4rem;
+  }
+
+  /* Filter Pencarian Riwayat Transaksi agar pas di layar */
+  #pane-transactions .search-bar {
+    min-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  #pane-transactions .table-search-wrapper > div {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  #pane-transactions .table-search-wrapper input[type="date"],
+  #pane-transactions .table-search-wrapper select {
+    flex: 1 !important;
+  }
+
+  /* POS & Pencarian Kasir */
+  #pane-pos, .pos-layout, .pos-left-section {
+    max-width: 100vw !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+  .search-container-pos, .search-bar {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .cart-card-left {
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 }
 

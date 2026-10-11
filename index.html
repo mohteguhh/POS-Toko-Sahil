@@ -14,7 +14,24 @@
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
   
-  <link rel="stylesheet" href="style.css?v=3.1">
+  <!-- Firebase Compatibility SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <!-- SheetJS (xlsx) for Excel Upload & Download -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- PWA Meta & Manifest -->
+  <meta name="theme-color" content="#2563eb">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="KasirKilat">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon-192.svg">
+  <link rel="apple-touch-icon" href="icon-192.svg">
+
+  <link rel="stylesheet" href="style.css?v=4.1">
 </head>
 <body>
 
@@ -80,11 +97,24 @@
       </nav>
       
       <!-- System Indicators -->
-      <div class="indicators">
+      <div class="indicators" style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+        <!-- STATUS KASIR & LOGIN -->
+        <div class="cashier-selector-wrapper" id="cashier-auth-wrapper" style="display: flex; align-items: center; gap: 0.35rem;">
+          <button id="btn-cashier-auth" onclick="openCashierLoginModal()" style="display: flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.8rem; border-radius: 50px; font-weight: 600; font-family: var(--font-main); font-size: 0.82rem; cursor: pointer; transition: all 0.3s ease; border: 1px solid var(--border-color); background: var(--bg-surface-elevated); color: var(--text-main); box-shadow: 0 2px 4px rgba(0,0,0,0.02); white-space: nowrap;">
+            <span id="current-user-role-badge" style="background: #3b82f6; color: #fff; font-size: 0.65rem; padding: 0.15rem 0.4rem; border-radius: 10px; font-weight: 700; text-transform: uppercase;">Owner</span>
+            <span id="current-user-name">Owner Toko</span>
+            <svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2;"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <!-- Tombol Logout Cepat -->
+          <button id="btn-logout-staff" onclick="logoutCashier()" title="Kunci / Keluar Akun Kasir" style="display: none; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.08); color: #ef4444; cursor: pointer; transition: all 0.2s ease;">
+            <svg viewBox="0 0 24 24" style="width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </div>
+
         <!-- STATUS SHIFT -->
-        <div class="cashier-selector-wrapper" id="buka-shift-wrapper" style="display: flex; align-items: center; gap: 0.5rem; margin-right: 1rem;">
-          <button id="btn-shift-status" onclick="openShiftModal()" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 50px; font-weight: 600; font-family: var(--font-main); font-size: 0.85rem; cursor: pointer; transition: all 0.3s ease; border: 1px solid var(--border-color); background: var(--bg-surface-elevated); color: var(--text-main); box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-            <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div class="cashier-selector-wrapper" id="buka-shift-wrapper">
+          <button id="btn-shift-status" onclick="openShiftModal()" style="display: flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.8rem; border-radius: 50px; font-weight: 600; font-family: var(--font-main); font-size: 0.82rem; cursor: pointer; transition: all 0.3s ease; border: 1px solid var(--border-color); background: var(--bg-surface-elevated); color: var(--text-main); box-shadow: 0 2px 4px rgba(0,0,0,0.02); white-space: nowrap;">
+            <svg viewBox="0 0 24 24" style="width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             <span id="shift-status-text">Buka Shift Kasir</span>
           </button>
         </div>
@@ -98,35 +128,40 @@
       <section id="pane-analytics" class="tab-pane">
         <div class="analytics-header">
           <h2>Analisis Penjualan &amp; Dashboard</h2>
-          <div class="table-actions" style="flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+          <div class="table-actions analytics-table-actions">
             <!-- Filter Tanggal/Bulan/Tahun untuk Analisis -->
-            <div style="display:flex; align-items:center; gap:0.5rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 0.35rem 0.75rem;">
-              <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              <select id="analytics-filter-type" onchange="onAnalyticsFilterTypeChange()" style="border:none; background:transparent; font-family: var(--font-main); font-size:0.85rem; outline:none; cursor:pointer; color: var(--text-main);">
-                <option value="hari">Per Hari</option>
-                <option value="bulan">Per Bulan</option>
-                <option value="tahun">Per Tahun</option>
-                <option value="semua">Semua Waktu</option>
-              </select>
+            <div class="analytics-filter-group">
+              <div class="analytics-filter-type-box">
+                <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <select id="analytics-filter-type" onchange="onAnalyticsFilterTypeChange()">
+                  <option value="hari">Per Hari</option>
+                  <option value="bulan">Per Bulan</option>
+                  <option value="tahun">Per Tahun</option>
+                  <option value="semua">Semua Waktu</option>
+                </select>
+              </div>
+              <div id="analytics-filter-date-wrap" class="analytics-filter-val-wrap">
+                <input type="date" id="analytics-filter-date" value="" oninput="fetchAndUpdateAnalytics()">
+              </div>
+              <div id="analytics-filter-month-wrap" class="analytics-filter-val-wrap" style="display:none;">
+                <input type="month" id="analytics-filter-month" value="" oninput="fetchAndUpdateAnalytics()">
+              </div>
+              <div id="analytics-filter-year-wrap" class="analytics-filter-val-wrap" style="display:none;">
+                <select id="analytics-filter-year" onchange="fetchAndUpdateAnalytics()"></select>
+              </div>
             </div>
-            <div id="analytics-filter-date-wrap" style="display:flex; align-items:center;">
-              <input type="date" id="analytics-filter-date" value="" oninput="fetchAndUpdateAnalytics()" style="padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); font-size: 0.85rem; background: var(--bg-card); color: var(--text-main);">
+
+            <!-- Tombol Aksi Laporan & Sync Cloud -->
+            <div class="analytics-btn-group">
+              <button class="btn btn-primary btn-sm analytics-btn-action" onclick="printDailyReport()">
+                <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
+                <span>Cetak Laporan</span>
+              </button>
+              <button class="btn btn-secondary btn-sm analytics-btn-action" onclick="syncTransactionsFromCloud()">
+                <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                <span>Tarik Transaksi</span>
+              </button>
             </div>
-            <div id="analytics-filter-month-wrap" style="display:none; align-items:center; gap:0.35rem;">
-              <input type="month" id="analytics-filter-month" value="" oninput="fetchAndUpdateAnalytics()" style="padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); font-size: 0.85rem; background: var(--bg-card); color: var(--text-main);">
-            </div>
-            <div id="analytics-filter-year-wrap" style="display:none; align-items:center; gap:0.35rem;">
-              <select id="analytics-filter-year" onchange="fetchAndUpdateAnalytics()" style="padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); font-size: 0.85rem; background: var(--bg-card); color: var(--text-main); cursor:pointer;">
-              </select>
-            </div>
-            <button class="btn btn-primary btn-sm" onclick="printDailyReport()">
-              <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
-              <span>Cetak Laporan Hari Ini</span>
-            </button>
-            <button class="btn btn-secondary btn-sm" onclick="syncTransactionsFromCloud()">
-              <svg viewBox="0 0 24 24" class="icon-sm"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-              <span>Tarik Transaksi dari Cloud</span>
-            </button>
           </div>
         </div>
         
@@ -793,8 +828,12 @@
           <div class="card table-card">
             <div class="table-actions" style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
               <h2>Daftar Pelanggan</h2>
-              <div style="display: flex; gap: 0.5rem; flex: 1; max-width: 300px;">
-                <input type="text" id="customer-search" class="form-control" placeholder="Cari pelanggan..." oninput="renderCustomersTable()">
+              <div style="display: flex; gap: 0.5rem; flex: 1; max-width: 480px; justify-content: flex-end;">
+                <input type="text" id="customer-search" class="form-control" placeholder="Cari pelanggan..." oninput="renderCustomersTable()" style="max-width: 260px;">
+                <button type="button" class="btn btn-accent btn-sm" onclick="syncCustomersToCloud()" title="Unggah seluruh pelanggan lokal ke Firebase">
+                  <svg viewBox="0 0 24 24" class="icon-sm"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  <span>Sync ke Cloud</span>
+                </button>
               </div>
             </div>
             
@@ -843,7 +882,14 @@
                   </div>
                   <div class="form-group">
                     <label for="prod-category">Kategori</label>
-                    <input type="text" id="prod-category" placeholder="Minuman, Makanan">
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                      <select id="prod-category" class="form-control" style="flex: 1; padding: 0.6rem 0.75rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main); font-size: 0.95rem;">
+                        <option value="Umum">Umum</option>
+                      </select>
+                      <button type="button" class="btn btn-secondary" onclick="promptAddNewCategory()" title="Tambah Kategori Baru" style="padding: 0.6rem 0.9rem; font-weight: 700; font-size: 1.1rem; line-height: 1; border-radius: var(--border-radius-sm);">
+                        +
+                      </button>
+                    </div>
                   </div>
                   <div class="form-grid-2">
                     <div class="form-group">
@@ -985,8 +1031,17 @@
                 </button>
                 <button class="btn btn-accent btn-sm" onclick="syncProductsToCloud()">
                   <svg viewBox="0 0 24 24" class="icon-sm"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                  <span>Sync ke Google Sheets</span>
+                  <span>Sync ke Cloud (Firebase)</span>
                 </button>
+                <button class="btn btn-secondary btn-sm" onclick="downloadProductExcelTemplate()" title="Unduh Contoh Format File Excel untuk Import Produk">
+                  <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                  <span>Contoh Excel</span>
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="triggerImportExcel()" style="background: #16a34a; border-color: #16a34a;" title="Unggah data produk massal dari file Excel (.xlsx / .xls)">
+                  <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                  <span>Upload Excel</span>
+                </button>
+                <input type="file" id="excel-product-file-input" accept=".xlsx, .xls, .csv" style="display: none;" onchange="handleProductExcelUpload(event)">
                 <button class="btn btn-success btn-sm" onclick="exportToCSV()">
                   <svg viewBox="0 0 24 24" class="icon-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
                   <span>Unduh CSV</span>
@@ -995,7 +1050,7 @@
             </div>
             
             <!-- SEARCH FILTER FOR INVENTORY LIST -->
-            <div class="table-search-wrapper" style="margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <div class="table-search-wrapper" style="margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
               <div class="search-bar" style="flex: 1; min-width: 200px;">
                 <svg viewBox="0 0 24 24" class="icon-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                 <input type="text" id="product-list-search" placeholder="Cari nama barang atau barcode di tabel..." oninput="filterProductListTable()">
@@ -1003,10 +1058,17 @@
                   <svg viewBox="0 0 24 24" class="icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 12h8M12 8v8"/></svg>
                 </button>
               </div>
+              <!-- FILTER KATEGORI PRODUK -->
+              <select id="product-list-category-filter" onchange="filterProductListTable()" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; min-width: 150px;">
+                <option value="All">Semua Kategori</option>
+              </select>
+              <!-- SORTIR PRODUK -->
               <select id="product-list-sort" onchange="filterProductListTable()" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none;">
                 <option value="newest">Urutan: Terbaru</option>
                 <option value="name_asc">Nama (A-Z)</option>
+                <option value="name_desc">Nama (Z-A)</option>
                 <option value="category_asc">Kategori (A-Z)</option>
+                <option value="category_desc">Kategori (Z-A)</option>
                 <option value="stock_asc">Stok (Sedikit - Banyak)</option>
                 <option value="stock_desc">Stok (Banyak - Sedikit)</option>
                 <option value="price_asc">Harga (Termurah)</option>
@@ -1399,23 +1461,78 @@
             </div>
           </div>
           
-          <!-- PENGELOLAAN DAFTAR KASIR (FITUR BARU) -->
+          <!-- PENGELOLAAN KARYAWAN & HAK AKSES LOGIN (FITUR OWNER) -->
           <div class="card settings-card">
-            <h2>Pengaturan Daftar Nama Kasir</h2>
-            <p class="settings-desc">Kelola daftar kasir yang bertugas di toko Anda. Kasir ini dapat dipilih langsung melalui menu navigasi di bagian kanan atas layar.</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <h2>🔒 Keamanan & Hak Akses Karyawan</h2>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 600; cursor: pointer; background: var(--bg-surface-elevated); padding: 0.35rem 0.75rem; border-radius: 20px; border: 1px solid var(--border-color);">
+                <input type="checkbox" id="chk-enable-staff-login" onchange="toggleStaffLoginRequirement()" style="accent-color: var(--primary-color); transform: scale(1.15);">
+                Wajibkan Login / PIN Kasir
+              </label>
+            </div>
+            <p class="settings-desc">Tentukan apakah kasir wajib memasukkan PIN saat menggunakan aplikasi, atur PIN Owner, dan atur menu apa saja yang boleh dibuka oleh masing-masing karyawan.</p>
             
-            <div class="form-group" style="margin-bottom: 1rem;">
-              <label for="new-cashier-name">Tambah Kasir Baru</label>
-              <div style="display: flex; gap: 0.5rem;">
-                <input type="text" id="new-cashier-name" placeholder="Contoh: Budi Santoso" style="flex: 1; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
-                <button class="btn btn-primary" onclick="addCashier()" style="white-space: nowrap;">Tambah Kasir</button>
+            <!-- Pengaturan PIN Owner -->
+            <div style="background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: var(--border-radius-sm); padding: 0.75rem 1rem; margin-bottom: 1.25rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                <div>
+                  <strong style="color: var(--primary-color); font-size: 0.95rem;">👑 PIN Utama Owner (Pemilik Toko)</strong>
+                  <div style="font-size: 0.8rem; color: var(--text-muted);">Owner memiliki akses tanpa batas ke semua tab & pengaturan.</div>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <input type="password" id="owner-pin-input" maxlength="6" placeholder="PIN Owner" style="width: 120px; text-align: center; font-family: monospace; font-size: 1.1rem; letter-spacing: 2px; padding: 0.4rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background: var(--bg-surface);">
+                  <button class="btn btn-primary btn-sm" onclick="saveOwnerPin()">Simpan PIN Owner</button>
+                </div>
               </div>
             </div>
+
+            <!-- Form Tambah Karyawan Baru -->
+            <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 1rem; margin-bottom: 1rem;">
+              <h3 style="font-size: 0.92rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-main);">➕ Tambah Karyawan / Kasir Baru</h3>
+              <div class="form-grid-2" style="margin-bottom: 0.75rem;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label for="new-cashier-name">Nama Karyawan</label>
+                  <input type="text" id="new-cashier-name" placeholder="Contoh: Rina Kasir" style="padding: 0.45rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label for="new-cashier-pin">PIN Angka (4-6 Digit)</label>
+                  <input type="password" id="new-cashier-pin" maxlength="6" placeholder="Contoh: 1234" style="padding: 0.45rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: monospace; text-align: center; letter-spacing: 2px;">
+                </div>
+              </div>
+              <div style="margin-bottom: 0.75rem;">
+                <label style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">IZIN MENU YANG DAPAT DIAKSES KARYAWAN INI:</label>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                  <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                    <input type="checkbox" id="perm-pos" checked disabled> Kasir (POS)
+                  </label>
+                  <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                    <input type="checkbox" id="perm-transactions" checked> Riwayat Transaksi
+                  </label>
+                  <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                    <input type="checkbox" id="perm-products"> Produk & Stok
+                  </label>
+                  <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                    <input type="checkbox" id="perm-kulak"> Kulak Restock
+                  </label>
+                  <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                    <input type="checkbox" id="perm-customers" checked> Pelanggan
+                  </label>
+                  <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                    <input type="checkbox" id="perm-analytics"> Analisis & Omzet
+                  </label>
+                  <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 0.35rem; cursor: pointer;">
+                    <input type="checkbox" id="perm-settings"> Pengaturan
+                  </label>
+                </div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="addStaffAccount()" style="font-weight: 600;">Simpan Karyawan</button>
+            </div>
             
+            <!-- Tabel Daftar Karyawan & Izin Akses -->
             <div class="form-group">
-              <label>Daftar Kasir Terdaftar</label>
-              <div id="cashier-settings-list" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 200px; overflow-y: auto; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background-color: var(--bg-body);">
-                <!-- Di-render dinamis -->
+              <label style="font-weight: 700; margin-bottom: 0.5rem; display: block;">Daftar Karyawan & Hak Akses</label>
+              <div id="cashier-settings-list">
+                <!-- Di-render dinamis oleh app.js -->
               </div>
             </div>
           </div>
@@ -1440,28 +1557,163 @@
             </div>
           </div>
           
-          <div class="card settings-card">
-            <h2>Koneksi Database (Google Sheets)</h2>
-            <p class="settings-desc">Integrasikan aplikasi kasir Anda dengan Google Sheets untuk memantau data transaksi secara real-time dan sinkronisasi produk.</p>
+          <!-- KARTU CADANGAN & PEMULIHAN DATABASE LOKAL (OFFLINE-FIRST) -->
+          <div class="card settings-card" style="border-left: 4px solid var(--color-success);">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: none; stroke: var(--color-success); stroke-width: 2;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <h2>Cadangan & Pemulihan Database Lokal (Offline)</h2>
+            </div>
+            <p class="settings-desc">Cocok untuk toko yang ingin 100% offline tanpa cloud. Seluruh data kasir (produk, transaksi, pelanggan, pengaturan) dapat dicadangkan ke file JSON dan disimpan di Flashdisk / Komputer.</p>
             
-            <div class="form-group">
-              <label for="gas-url-input">Google Apps Script Web App URL</label>
-              <input type="url" id="gas-url-input" placeholder="https://script.google.com/macros/s/AKfycbwbJCQIxhqOFu2iGSMzoL2YrJf7pvLoGVm2B6qs2DUQ2vIIrBlZBJO-vP557agNvlhNzg/exec" style="font-family: monospace; font-size: 0.9rem;">
+            <div class="settings-actions" style="flex-wrap: wrap; gap: 0.75rem;">
+              <button class="btn btn-primary" onclick="exportFullDatabaseJSON()" style="background-color: var(--color-success); border-color: var(--color-success);">
+                📥 Cadangkan (Backup) Database ke File
+              </button>
+              
+              <label class="btn btn-secondary" style="margin: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;">
+                📤 Pulihkan (Restore) dari File
+                <input type="file" id="import-db-file" accept=".json" style="display: none;" onchange="importFullDatabaseJSON(event)">
+              </label>
+            </div>
+          </div>
+
+          <!-- KARTU FIREBASE DENGAN TOGGLE CENTANG -->
+          <div class="card settings-card" style="border: 2px solid var(--primary-color);">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <svg viewBox="0 0 24 24" style="width: 28px; height: 28px; fill: #f59e0b;"><path d="M3.89 15.672L6.255.474A.5.5 0 017.18.23l2.84 5.347zm15.829 3.528l-2.023-12.72a.5.5 0 00-.832-.266L3.116 19.2zm-9.351-7.147l-2.31-4.364a.5.5 0 00-.882.046L3.92 14.53z"/><path d="M12.637 13.064l1.83-1.84 4.887 7.976z"/></svg>
+                <h2 style="margin: 0;">Sinkronisasi Online Cloud (Firebase Realtime Database)</h2>
+              </div>
+              
+              <!-- TOGGLE CENTANG AKTIFKAN CLOUD -->
+              <label class="checkbox-label" style="font-weight: 700; color: var(--primary-color); background: rgba(59,130,246,0.1); padding: 0.4rem 0.75rem; border-radius: 8px; cursor: pointer;">
+                <input type="checkbox" id="chk-enable-cloud" onchange="toggleCloudSyncMode()">
+                <span>Aktifkan Sinkronisasi Cloud</span>
+              </label>
             </div>
             
-            <div class="settings-actions" style="flex-wrap: wrap; gap: 0.5rem;">
-              <button class="btn btn-primary" onclick="saveGASUrl()">Simpan URL</button>
-              <button class="btn btn-secondary" onclick="testConnection()">Uji Koneksi</button>
-              <button class="btn btn-accent" onclick="syncAllFromCloud()">🔄 Sinkronkan Semua Data dari Cloud</button>
+            <p class="settings-desc" style="margin-top: 0.75rem;">
+              Jika tidak dicentang, aplikasi berjalan <b>100% Offline di Database Lokal</b>. Aktifkan fitur ini jika pembeli ingin memantau transaksi dari jarak jauh atau menghubungkan banyak kasir.
+            </p>
+            
+            <!-- CONTAINER FORM FIREBASE (HANYA MUNCUL JIKA DICENTANG) -->
+            <div id="firebase-settings-panel" style="display: none; border-top: 1px dashed var(--border-color); padding-top: 1rem; margin-top: 0.5rem;">
+              
+              <!-- STATUS LANGGANAN CLOUD (Rp 50.000 / Bulan) -->
+              <div id="license-status-card" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(147, 51, 234, 0.08) 100%); border: 1px solid rgba(59, 130, 246, 0.3); padding: 1.25rem; border-radius: var(--border-radius-md); margin-bottom: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem;">
+                  <div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <span style="font-size: 1.1rem;">👑</span>
+                      <h4 style="margin: 0; font-size: 1.05rem; color: var(--text-main);">Paket Cloud POS (Rp 50.000 / Bulan)</h4>
+                      <span id="license-badge" style="padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: #10b981; color: white;">Aktif</span>
+                    </div>
+                    <p style="margin: 0.35rem 0 0 0; font-size: 0.85rem; color: var(--text-muted);" id="license-expired-info">
+                      Masa aktif sampai: <b>Memeriksa...</b>
+                    </p>
+                  </div>
+                  <button class="btn btn-warning btn-sm" onclick="openSubscriptionInvoiceModal()" style="font-weight: 700; padding: 0.5rem 1rem;">
+                    💳 Info Tagihan / Perpanjang
+                  </button>
+                </div>
+                
+                <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 1rem; flex-wrap: wrap;">
+                  <label for="cloud-license-key" style="font-size: 0.85rem; font-weight: 600; min-width: 120px;">Kode Lisensi Toko:</label>
+                  <input type="text" id="cloud-license-key" placeholder="Contoh: TOKO-SAHIL-PRO" style="font-family: monospace; font-size: 0.85rem; padding: 0.4rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; width: 220px;">
+                  <button class="btn btn-secondary btn-sm" onclick="saveLicenseKey()" style="padding: 0.4rem 0.8rem;">Simpan Lisensi</button>
+                </div>
+              </div>
+              <!-- Tombol & Area Rahasia Konfigurasi Database (Hanya Developer / Secret Key 998877) -->
+              <div id="dev-secret-section" style="margin-top: 1rem; border-top: 1px dashed var(--border-color); padding-top: 0.75rem;">
+                <div id="dev-locked-view" style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 0.6rem 0.85rem; border-radius: 6px; border: 1px solid #e2e8f0;">
+                  <span style="font-size: 0.8rem; color: #64748b; display: flex; align-items: center; gap: 0.35rem;">
+                    🔒 <i>Konfigurasi Database Cloud (Terkunci Developer)</i>
+                  </span>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="promptDeveloperSecretKey()" style="font-size: 0.75rem; padding: 0.25rem 0.6rem;">
+                    Buka Konfigurasi Developer
+                  </button>
+                </div>
+
+                <!-- Form Konfigurasi yang Disembunyikan (Hanya Tampil Jika Kode 998877 Terverifikasi) -->
+                <div id="dev-credentials-panel" style="display: none; background: #fffbeb; border: 1px solid #fde68a; padding: 1rem; border-radius: 8px; margin-top: 0.75rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: #b45309;">⚙️ Panel Konfigurasi Firebase (Mode Pengembang)</span>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="lockDeveloperSecretSection()" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                      🔒 Kunci Kembali
+                    </button>
+                  </div>
+                  
+                  <div class="form-group" style="grid-column: 1 / -1; background: #fff; padding: 0.75rem; border-radius: 6px; border: 1px solid #fed7aa; margin-bottom: 0.5rem;">
+                    <label for="fb-database-url" style="font-weight: 700; color: #c2410c; display: flex; align-items: center; gap: 0.4rem;">
+                      🌐 Realtime Database URL <i>(Ganti Database / Akun Email Baru)</i>
+                    </label>
+                    <input type="text" id="fb-database-url" placeholder="https://nama-database-anda.asia-southeast1.firebasedatabase.app" style="font-family: monospace; font-size: 0.85rem; width: 100%; border: 1.5px solid #fb923c; background: #fffaf5;">
+                    <small style="color: #64748b; display: block; margin-top: 0.35rem; font-size: 0.75rem;">
+                      💡 Masukkan link database Firebase dari akun baru Anda di sini (contoh: <code>https://nama-db-default-rtdb.asia-southeast1.firebasedatabase.app</code>).
+                    </small>
+                  </div>
+
+                  <div class="form-grid-2">
+                    <div class="form-group">
+                      <label for="fb-api-key">API Key</label>
+                      <input type="text" id="fb-api-key" placeholder="AIzaSy..." style="font-family: monospace;">
+                    </div>
+                    <div class="form-group">
+                      <label for="fb-project-id">Project ID</label>
+                      <input type="text" id="fb-project-id" placeholder="toko-sahil-pos" style="font-family: monospace;">
+                    </div>
+                    <div class="form-group">
+                      <label for="fb-auth-domain">Auth Domain</label>
+                      <input type="text" id="fb-auth-domain" placeholder="toko-sahil.firebaseapp.com" style="font-family: monospace;">
+                    </div>
+                    <div class="form-group">
+                      <label for="fb-storage-bucket">Storage Bucket</label>
+                      <input type="text" id="fb-storage-bucket" placeholder="toko-sahil.appspot.com" style="font-family: monospace;">
+                    </div>
+                    <div class="form-group">
+                      <label for="fb-messaging-sender-id">Messaging Sender ID</label>
+                      <input type="text" id="fb-messaging-sender-id" placeholder="1234567890" style="font-family: monospace;">
+                    </div>
+                    <div class="form-group">
+                      <label for="fb-app-id">App ID</label>
+                      <input type="text" id="fb-app-id" placeholder="1:1234567890:web:abc123def456" style="font-family: monospace;">
+                    </div>
+                  </div>
+
+                  <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="saveFirebaseConfig()">Simpan Konfigurasi</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="testFirebaseConnection()">Uji Koneksi</button>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1rem; border-radius: var(--border-radius-md); margin-top: 1rem; margin-bottom: 1rem;">
+                <h4 style="margin: 0 0 0.5rem 0; color: #d97706; display: flex; align-items: center; gap: 0.5rem;">
+                  🚀 Migrasi Data Sekali Klik
+                </h4>
+                <p style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: var(--text-main);">
+                  Pindahkan seluruh produk, riwayat transaksi, pelanggan, dan shift kasir lokal Anda ke Firebase Realtime Database agar tersimpan aman di cloud.
+                </p>
+                <button class="btn btn-warning btn-sm" onclick="migrateLocalDataToFirebase()" style="background: #d97706; color: #fff; border: none; font-weight: 700; padding: 0.6rem 1rem;">
+                  ⚡ Migrasikan Seluruh Data Lokal ke Realtime Database
+                </button>
+              </div>
+              
+              <div class="settings-actions" style="flex-wrap: wrap; gap: 0.5rem;">
+                <button class="btn btn-primary" onclick="initFirebase().then(ok => ok ? alert('✅ Terhubung ke Cloud!') : alert('❌ Gagal terhubung.'))">Hubungkan Cloud</button>
+                <button class="btn btn-secondary" onclick="testFirebaseConnection()">Uji Koneksi</button>
+                <button class="btn btn-accent" onclick="syncAllFromCloud()">🔄 Sinkronkan Data dari Cloud</button>
+              </div>
             </div>
           </div>
           
           <div class="card settings-card danger-zone">
             <h2>Pembersihan & Reset</h2>
-            <p class="settings-desc">Gunakan ini untuk menghapus data lokal di browser. Data di Google Sheets Anda tidak akan terhapus.</p>
+            <p class="settings-desc">Gunakan fitur di bawah ini untuk mereset riwayat transaksi atau membersihkan cache lokal browser.</p>
             
-            <div class="settings-actions">
-              <button class="btn btn-danger" onclick="clearLocalCache()">Hapus Seluruh Cache Lokal</button>
+            <div class="settings-actions" style="flex-wrap: wrap; gap: 0.5rem;">
+              <button class="btn btn-danger" onclick="clearAllTransactions()">🗑️ Kosongkan Semua Transaksi (Database & Lokal)</button>
+              <button class="btn btn-secondary" onclick="clearLocalCache()">Hapus Seluruh Cache Lokal</button>
             </div>
           </div>
           
@@ -1472,7 +1724,7 @@
     
     <!-- FOOTER -->
     <footer class="footer">
-      <p>&copy; 2026 Toko Sahil POS. Mode offline otomatis jika internet terputus.</p>
+      <p>&copy; 2026 <span id="store-footer-name">Kasir POS</span>. Mode offline otomatis jika internet terputus.</p>
     </footer>
     
   </div>
@@ -1582,66 +1834,89 @@
     </div>
   </div>
 
-  <!-- MODAL: EDIT TRANSAKSI -->
+  <!-- MODAL: EDIT TRANSAKSI (MODERN & MINIMALIS) -->
   <div class="modal-overlay" id="edit-transaction-modal">
-    <div class="modal-card" style="max-width: 600px;">
-      <div class="modal-header">
-        <h2>Edit Transaksi <span id="edit-tx-id-title" style="color: var(--color-primary);">TX-XXXX</span></h2>
-        <button class="close-modal-btn" onclick="closeEditTransactionModal()">&times;</button>
-      </div>
-      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-        
-        <!-- Search to add items -->
-        <div class="form-group" style="position: relative; margin-bottom: 1.5rem;">
-          <label for="edit-tx-search-input">Cari Barang untuk Ditambahkan</label>
-          <div class="search-bar">
-            <svg viewBox="0 0 24 24" class="icon-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="text" id="edit-tx-search-input" placeholder="Ketik nama atau barcode barang untuk ditambahkan..." autocomplete="off" oninput="filterEditTxSearch()">
-            <div class="floating-results" id="edit-tx-floating-results"></div>
+    <div class="modal-card edit-tx-modal-card">
+      <!-- Header Modern -->
+      <div class="edit-tx-header">
+        <div class="edit-tx-header-left">
+          <div class="edit-tx-badge-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="edit-tx-title">Koreksi Transaksi</h3>
+            <span class="edit-tx-id-badge" id="edit-tx-id-title">TX-XXXX</span>
           </div>
         </div>
+        <button type="button" class="edit-tx-close-btn" onclick="closeEditTransactionModal()" title="Tutup">&times;</button>
+      </div>
+
+      <div class="modal-body edit-tx-body">
+        <!-- Search Bar Minimalis -->
+        <div class="edit-tx-search-container">
+          <div class="edit-tx-search-box">
+            <svg viewBox="0 0 24 24" class="edit-tx-search-icon" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.3-4.3"/>
+            </svg>
+            <input type="text" id="edit-tx-search-input" placeholder="Tambah barang (nama / barcode)..." autocomplete="off" oninput="filterEditTxSearch()">
+          </div>
+          <div class="floating-results edit-tx-floating-results" id="edit-tx-floating-results"></div>
+        </div>
         
+        <!-- Header Daftar Barang -->
+        <div class="edit-tx-section-header">
+          <span>Daftar Item</span>
+          <span id="edit-tx-items-count" class="edit-tx-count-pill">0 item</span>
+        </div>
+
         <!-- Table/List of items inside transaction -->
-        <div class="form-group">
-          <label>Daftar Barang Belanjaan</label>
-          <div class="edit-tx-items-list" id="edit-tx-items-list">
-            <!-- Dinamis berisi baris item -->
-          </div>
+        <div class="edit-tx-items-list" id="edit-tx-items-list">
+          <!-- Dinamis berisi baris item -->
         </div>
-        
-        <div class="divider" style="margin: 1.5rem 0;"></div>
-        
-        <!-- Recalculation Summary -->
-        <div class="summary-details">
-          <div class="summary-row total-row">
-            <span>Total Tagihan Baru</span>
-            <span id="edit-tx-total-amount">Rp 0</span>
+
+        <!-- Panel Ringkasan Tagihan & Pembayaran Minimalis -->
+        <div class="edit-tx-summary-panel">
+          <div class="edit-tx-total-banner">
+            <span class="edit-tx-total-label">Total Tagihan Baru</span>
+            <span class="edit-tx-total-val" id="edit-tx-total-amount">Rp 0</span>
           </div>
-          <!-- Metode Pembayaran -->
-          <div class="form-group" style="margin-top: 0.75rem;">
-            <label for="edit-tx-payment-method">Metode Pembayaran</label>
-            <select id="edit-tx-payment-method" onchange="onEditTxPaymentMethodChange(this.value)" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.9rem; font-family: var(--font-main); outline: none; background-color: var(--bg-card); cursor: pointer; color: var(--text-main);">
-              <option value="Tunai">Tunai</option>
-              <option value="QRIS">QRIS</option>
-              <option value="Transfer">Transfer Bank</option>
-              <option value="Debit">Debit Card</option>
-            </select>
-          </div>
-          <div id="edit-tx-cash-section">
-            <div class="form-group" style="margin-top: 0.5rem;">
-              <label for="edit-tx-cash-received">Uang Diterima (Rp)*</label>
-              <input type="text" id="edit-tx-cash-received" placeholder="Masukkan jumlah uang..." autocomplete="off" oninput="formatAndCalculateChangeEditTx()">
+
+          <div class="edit-tx-payment-grid">
+            <div class="edit-tx-form-group">
+              <label for="edit-tx-payment-method">Metode Bayar</label>
+              <select id="edit-tx-payment-method" class="edit-tx-select" onchange="onEditTxPaymentMethodChange(this.value)">
+                <option value="Tunai">💵 Tunai</option>
+                <option value="QRIS">📱 QRIS</option>
+                <option value="Transfer">🏦 Transfer Bank</option>
+                <option value="Debit">💳 Kartu Debit</option>
+              </select>
             </div>
-            <div class="summary-row total-row" style="margin-top: 0.5rem;">
-              <span>Kembalian Baru</span>
-              <span id="edit-tx-change-amount" style="color: var(--color-success);">Rp 0</span>
+
+            <div id="edit-tx-cash-section" class="edit-tx-cash-wrapper">
+              <div class="edit-tx-form-group">
+                <label for="edit-tx-cash-received">Uang Diterima (Rp)</label>
+                <input type="text" id="edit-tx-cash-received" class="edit-tx-input" placeholder="0" autocomplete="off" oninput="formatAndCalculateChangeEditTx()">
+              </div>
+              <div class="edit-tx-change-row">
+                <span class="edit-tx-change-label">Kembalian Baru:</span>
+                <span class="edit-tx-change-val" id="edit-tx-change-amount">Rp 0</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
-      <div class="modal-footer flex-end">
-        <button class="btn btn-secondary" onclick="closeEditTransactionModal()">Batal</button>
-        <button class="btn btn-success" id="btn-save-edited-tx" onclick="saveEditedTransaction()">Simpan Perubahan</button>
+
+      <!-- Footer Aksi -->
+      <div class="modal-footer edit-tx-footer">
+        <button type="button" class="btn btn-secondary edit-tx-btn-cancel" onclick="closeEditTransactionModal()">Batal</button>
+        <button type="button" class="btn btn-success edit-tx-btn-save" id="btn-save-edited-tx" onclick="saveEditedTransaction()">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          Simpan Perubahan
+        </button>
       </div>
     </div>
   </div>
@@ -1967,6 +2242,320 @@
     </div>
   </div>
 
-  <script src="app.js?v=3.1"></script>
+  <!-- MODAL: TAGIHAN LANGGANAN CLOUD (FITUR BULANAN RP 50.000) -->
+  <div class="modal-overlay" id="subscription-modal">
+    <div class="modal-card" style="max-width: 520px; width: 92%;">
+      <div class="modal-header">
+        <h2 style="color: var(--primary-color); display: flex; align-items: center; gap: 0.5rem;">
+          <span>👑</span>
+          <span>Tagihan Paket Cloud POS</span>
+        </h2>
+        <button class="close-modal-btn" onclick="closeSubscriptionInvoiceModal()">&times;</button>
+      </div>
+      
+      <div class="modal-body" style="font-size: 0.95rem;">
+        <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="color: var(--text-muted);">Paket Layanan:</span>
+            <b>Cloud Realtime Database POS</b>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="color: var(--text-muted);">Biaya Berlangganan:</span>
+            <b style="color: var(--color-success); font-size: 1.1rem;">Rp 50.000 / Bulan</b>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <span style="color: var(--text-muted);">Kode Lisensi Toko:</span>
+            <span id="sub-modal-license-key" style="font-family: monospace; font-weight: 700;">-</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-muted);">Jatuh Tempo:</span>
+            <b id="sub-modal-due-date" style="color: #d97706;">-</b>
+          </div>
+        </div>
+
+        <div style="border-left: 3px solid #3b82f6; background: rgba(59,130,246,0.06); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem;">
+          <h4 style="margin: 0 0 0.35rem 0; font-size: 0.9rem; color: #1d4ed8;">💳 Cara Pembayaran Perpanjangan:</h4>
+          <p style="margin: 0; font-size: 0.85rem; line-height: 1.4; color: var(--text-main);">
+            1. Transfer <b>Rp 50.000</b> ke salah satu rekening admin:<br>
+            • <b>BCA / BRI / Mandiri / Dana / QRIS</b> (Hubungi admin via WA)<br>
+            2. Kirim bukti transfer beserta Kode Lisensi Anda.<br>
+            3. Akses cloud akan diperpanjang 30 hari ke depan dalam hitungan menit!
+          </p>
+        </div>
+
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">
+          💡 <i>Catatan: Jika tidak diperpanjang, aplikasi kasir Anda tetap bisa digunakan secara normal di <b>Mode Offline Lokal</b> tanpa ada data yang hilang.</i>
+        </p>
+      </div>
+      
+      <div class="modal-footer" style="display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap;">
+        <button class="btn btn-secondary" onclick="closeSubscriptionInvoiceModal()">Tutup</button>
+        <button class="btn btn-primary" onclick="contactAdminWhatsAppForRenewal()" style="background: #25D366; border-color: #25D366; font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem;">
+          <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: white;"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.2.662.591 1.221.774 1.394.86.173.086.275.072.376-.044.101-.116.433-.506.549-.68.116-.173.231-.145.39-.086s1.011.477 1.184.564.289.13.332.203c.043.071.043.419-.101.824z"/></svg>
+          Konfirmasi via WhatsApp
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL LOGIN / GANTI KASIR (NUMPAD PIN) -->
+  <div class="modal-overlay" id="cashier-login-modal" style="display: none; align-items: center; justify-content: center; z-index: 9999;">
+    <div class="modal-card" style="max-width: 400px; width: 92vw; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.25);">
+      <div class="modal-header" style="background: var(--bg-surface-elevated); padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: none; stroke: var(--primary-color); stroke-width: 2.2;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700;">Masuk / Ganti Kasir</h3>
+        </div>
+        <button type="button" class="close-modal-btn" onclick="closeCashierLoginModal()" style="font-size: 1.5rem; background: none; border: none; cursor: pointer;">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.25rem; text-align: center;">
+        <label for="login-cashier-select" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.35rem; text-align: left;">Pilih Akun / Karyawan:</label>
+        <select id="login-cashier-select" onchange="onLoginAccountSelected()" class="form-control" style="width: 100%; padding: 0.65rem; border-radius: 8px; border: 1px solid var(--border-color); font-size: 0.95rem; font-weight: 600; background: var(--bg-surface); color: var(--text-main); margin-bottom: 1rem;">
+          <!-- Diisi otomatis oleh app.js -->
+        </select>
+
+        <div id="login-pin-container">
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.5rem; text-align: left;">Masukkan PIN Keamanan:</label>
+          <div style="display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 1rem;">
+            <input type="password" id="login-pin-input" maxlength="6" readonly placeholder="• • • •" style="width: 100%; max-width: 200px; text-align: center; font-size: 1.8rem; letter-spacing: 8px; padding: 0.5rem; border-radius: 8px; border: 2px solid var(--primary-color); background: var(--bg-surface); color: var(--text-main); font-family: monospace;">
+          </div>
+
+          <!-- NUMPAD VIRTUAL -->
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; max-width: 260px; margin: 0 auto 1rem auto;">
+            <button type="button" class="btn btn-secondary" onclick="inputLoginPin('1')" style="font-size: 1.25rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px;">1</button>
+            <button type="button" class="btn btn-secondary" onclick="inputLoginPin('2')" style="font-size: 1.25rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px;">2</button>
+            <button type="button" class="btn btn-secondary" onclick="inputLoginPin('3')" style="font-size: 1.25rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px;">3</button>
+            <button type="button" class="btn btn-secondary" onclick="inputLoginPin('4')" style="font-size: 1.25rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px;">4</button>
+            <button type="button" class="btn btn-secondary" onclick="inputLoginPin('5')" style="font-size: 1.25rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px;">5</button>
+            <button type="button" class="btn btn-secondary" onclick="inputLoginPin('6')" style="font-size: 1.25rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px;">6</button>
+            <button type="button" class="btn btn-secondary" onclick="inputLoginPin('7')" style="font-size: 1.25rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px;">7</button>
+            <button type="button" class="btn btn-secondary" onclick="inputLoginPin('8')" style="font-size: 1.25rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px;">8</button>
+            <button type="button" class="btn btn-secondary" onclick="inputLoginPin('9')" style="font-size: 1.25rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px;">9</button>
+            <button type="button" class="btn btn-secondary" onclick="clearLoginPin()" style="font-size: 0.9rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px; color: #ef4444;">CLEAR</button>
+            <button type="button" class="btn btn-secondary" onclick="inputLoginPin('0')" style="font-size: 1.25rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px;">0</button>
+            <button type="button" class="btn btn-secondary" onclick="backspaceLoginPin()" style="font-size: 1.1rem; padding: 0.65rem 0; font-weight: 700; border-radius: 8px;">⌫</button>
+          </div>
+        </div>
+
+        <button type="button" class="btn btn-primary" onclick="submitCashierLogin()" style="width: 100%; padding: 0.75rem; font-size: 1rem; font-weight: 700; border-radius: 8px;">
+          Buka Kasir & Masuk
+        </button>
+
+        <!-- Tombol Lupa PIN -->
+        <div style="margin-top: 0.85rem; text-align: center;">
+          <a href="javascript:void(0)" onclick="openForgotPinModal()" style="font-size: 0.82rem; color: var(--text-muted); text-decoration: underline; cursor: pointer;">
+            ❓ Lupa PIN Owner? Pulihkan di sini
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL PEMULIHAN / RESET PIN OWNER -->
+  <div class="modal-overlay" id="forgot-pin-modal" style="display: none; align-items: center; justify-content: center; z-index: 10000;">
+    <div class="modal-card" style="max-width: 420px; width: 92vw; border-radius: 14px; overflow: hidden;">
+      <div class="modal-header" style="background: var(--bg-surface-elevated); padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: #ef4444;">🔑 Pemulihan PIN Owner</h3>
+        <button type="button" class="close-modal-btn" onclick="closeForgotPinModal()" style="font-size: 1.5rem; background: none; border: none; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 1.25rem;">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.4;">
+          Jika Anda pemilik toko dan lupa PIN akun Owner, Anda dapat meresetnya menggunakan <b>Master Key Developer</b> atau menghubungi Admin Support.
+        </p>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="recovery-master-key-input" style="font-size: 0.85rem; font-weight: 700;">Masukkan Master Key Developer:</label>
+          <input type="password" id="recovery-master-key-input" placeholder="Masukkan Master Key" class="form-control" style="width: 100%; padding: 0.55rem; border: 1px solid var(--border-color); border-radius: 6px; font-family: monospace; letter-spacing: 2px;">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="recovery-new-pin-input" style="font-size: 0.85rem; font-weight: 700;">PIN Baru yang Diinginkan (4-6 Digit):</label>
+          <input type="password" id="recovery-new-pin-input" maxlength="6" placeholder="Contoh: 1234" class="form-control" style="width: 100%; padding: 0.55rem; border: 1px solid var(--border-color); border-radius: 6px; font-family: monospace; letter-spacing: 2px;">
+        </div>
+
+        <button type="button" class="btn btn-primary" onclick="resetOwnerPinWithMasterKey()" style="width: 100%; padding: 0.65rem; font-weight: 700; margin-bottom: 1rem;">
+          Reset PIN Sekarang
+        </button>
+
+        <div style="border-top: 1px solid var(--border-color); padding-top: 0.75rem; text-align: center;">
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Belum tahu Master Key? Hubungi Developer Kasir:</p>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="contactAdminWhatsAppForPinReset()" style="display: inline-flex; align-items: center; gap: 0.4rem; color: #16a34a; font-weight: 600; border-color: rgba(22,163,74,0.3); background: rgba(22,163,74,0.06);">
+            <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: currentColor;"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.2.662.591 1.221.774 1.394.86.173.086.275.072.376-.044.101-.116.433-.506.549-.68.116-.173.231-.145.39-.086s1.011.477 1.184.564.289.13.332.203c.043.071.043.419-.101.824z"/></svg>
+            Bantuan Reset via WhatsApp
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL EDIT HAK AKSES KARYAWAN -->
+  <div class="modal-overlay" id="edit-staff-modal" style="display: none; align-items: center; justify-content: center; z-index: 9999;">
+    <div class="modal-card" style="max-width: 480px; width: 92vw; border-radius: 12px; overflow: hidden;">
+      <div class="modal-header" style="background: var(--bg-surface-elevated); padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <h3 id="edit-staff-modal-title" style="margin: 0; font-size: 1rem; font-weight: 700;">Edit Hak Akses Karyawan</h3>
+        <button type="button" class="close-modal-btn" onclick="closeEditStaffModal()" style="font-size: 1.5rem; background: none; border: none; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 1.25rem;">
+        <input type="hidden" id="edit-staff-original-name">
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label for="edit-staff-name-input">Nama Karyawan</label>
+          <input type="text" id="edit-staff-name-input" class="form-control" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);">
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="edit-staff-pin-input">Ubah PIN (Kosongkan jika tidak ingin ganti PIN)</label>
+          <input type="password" id="edit-staff-pin-input" maxlength="6" placeholder="Ketik PIN baru" class="form-control" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: monospace; letter-spacing: 2px;">
+        </div>
+
+        <label style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.5rem;">CENTANG MENU YANG BOLEH DIAKSES:</label>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem; background: var(--bg-body); padding: 0.75rem; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 1rem;">
+          <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="edit-perm-pos" checked disabled> Kasir (POS) <span style="font-size:0.75rem; color:var(--text-muted);">(Wajib untuk Kasir)</span>
+          </label>
+          <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="edit-perm-transactions"> Riwayat Transaksi Penjualan
+          </label>
+          <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="edit-perm-products"> Produk & Stok (Tambah/Edit Barang)
+          </label>
+          <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="edit-perm-kulak"> Kulak Restock (Barang Masuk)
+          </label>
+          <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="edit-perm-customers"> Manajemen Pelanggan (Member)
+          </label>
+          <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="edit-perm-analytics"> Analisis Penjualan & Laba / Omzet <span style="font-size:0.75rem; color:#ef4444; font-weight:600;">(Sensitif)</span>
+          </label>
+          <label style="font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="edit-perm-settings"> Pengaturan Toko & Cloud <span style="font-size:0.75rem; color:#ef4444; font-weight:600;">(Sensitif)</span>
+          </label>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="closeEditStaffModal()">Batal</button>
+          <button type="button" class="btn btn-primary" onclick="saveStaffPermissions()">Simpan Perubahan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MATERIAL DESIGN 3 BOTTOM NAVIGATION BAR (KHUSUS MODE HP/MOBILE)
+       ========================================================================== -->
+  <nav class="m3-bottom-nav" id="m3-bottom-nav">
+    <div class="m3-nav-container">
+      <!-- 1. Riwayat Transaksi -->
+      <button type="button" class="m3-nav-item" id="m3-tab-transactions" onclick="switchTab('transactions')">
+        <div class="m3-icon-box">
+          <svg viewBox="0 0 24 24" class="m3-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6m-8 5h6m-6 4h6m-8-8h.01"/></svg>
+        </div>
+        <span class="m3-label">Riwayat</span>
+      </button>
+
+      <!-- 2. Grafik / Analisis -->
+      <button type="button" class="m3-nav-item" id="m3-tab-analytics" onclick="switchTab('analytics')">
+        <div class="m3-icon-box">
+          <svg viewBox="0 0 24 24" class="m3-icon"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+        </div>
+        <span class="m3-label">Grafik</span>
+      </button>
+
+      <!-- 3. CENTER FLOATING ACTION BUTTON (KASIR POS / TRANSAKSI BARU) -->
+      <div class="m3-fab-wrapper">
+        <button type="button" class="m3-fab-btn" id="m3-tab-pos" onclick="switchTab('pos')" title="Buka Kasir / Transaksi Baru" aria-label="Buka Kasir">
+          <div class="m3-fab-inner">
+            <svg viewBox="0 0 24 24" class="m3-fab-icon"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </div>
+        </button>
+      </div>
+
+      <!-- 4. Produk / Kulak -->
+      <button type="button" class="m3-nav-item" id="m3-tab-products" onclick="switchTab('products')">
+        <div class="m3-icon-box">
+          <svg viewBox="0 0 24 24" class="m3-icon"><path d="m7.5 4.27 9 5.15M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.27 6.96 8.73 5 8.73-5M12 22.08V12"/></svg>
+        </div>
+        <span class="m3-label">Produk</span>
+      </button>
+
+      <!-- 5. Menu Lainnya & Akun ("Saya" / Lainnya) -->
+      <button type="button" class="m3-nav-item" id="m3-tab-more" onclick="toggleMobileMoreSheet()">
+        <div class="m3-icon-box">
+          <svg viewBox="0 0 24 24" class="m3-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <span class="m3-label">Saya</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- BOTTOM SHEET MENU LAINNYA (MATERIAL DESIGN 3 SHEET) -->
+  <div class="m3-sheet-backdrop" id="m3-sheet-backdrop" onclick="closeMobileMoreSheet()"></div>
+  <div class="m3-bottom-sheet" id="m3-bottom-sheet">
+    <div class="m3-sheet-drag-handle"></div>
+    <div class="m3-sheet-header">
+      <div style="display:flex; align-items:center; gap:0.6rem;">
+        <div style="width:36px; height:36px; border-radius:50%; background:rgba(217,119,6,0.12); color:var(--color-primary); display:flex; align-items:center; justify-content:center; font-weight:700;">
+          <svg viewBox="0 0 24 24" style="width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div>
+          <h4 style="margin:0; font-size:1rem; font-weight:700; color:var(--text-main);" id="m3-sheet-user-title">Menu Toko &amp; Akun</h4>
+          <span style="font-size:0.75rem; color:var(--text-muted);" id="m3-sheet-store-info">KasirKilat POS</span>
+        </div>
+      </div>
+      <button type="button" class="close-modal-btn" onclick="closeMobileMoreSheet()" style="background:none; border:none; font-size:1.4rem; color:var(--text-muted); cursor:pointer;">&times;</button>
+    </div>
+
+    <div class="m3-sheet-grid">
+      <!-- Item Kulak -->
+      <button type="button" class="m3-sheet-item" onclick="switchTabFromSheet('kulak')">
+        <div class="m3-sheet-icon" style="background:#eff6ff; color:#2563eb;">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        </div>
+        <span>Kulak Restock</span>
+      </button>
+
+      <!-- Item Pelanggan -->
+      <button type="button" class="m3-sheet-item" onclick="switchTabFromSheet('customers')">
+        <div class="m3-sheet-icon" style="background:#ecfdf5; color:#059669;">
+          <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <span>Pelanggan</span>
+      </button>
+
+      <!-- Item Pengaturan -->
+      <button type="button" class="m3-sheet-item" onclick="switchTabFromSheet('settings')">
+        <div class="m3-sheet-icon" style="background:#fef3c7; color:#d97706;">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </div>
+        <span>Pengaturan</span>
+      </button>
+
+      <!-- Item Shift Kasir -->
+      <button type="button" class="m3-sheet-item" onclick="closeMobileMoreSheet(); openShiftModal();">
+        <div class="m3-sheet-icon" style="background:#f3e8ff; color:#7c3aed;">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <span>Shift Kasir</span>
+      </button>
+
+      <!-- Item Ganti Akun / Login -->
+      <button type="button" class="m3-sheet-item" onclick="closeMobileMoreSheet(); openCashierLoginModal();">
+        <div class="m3-sheet-icon" style="background:#e0f2fe; color:#0284c7;">
+          <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        </div>
+        <span>Ganti Akun</span>
+      </button>
+
+      <!-- Item Sinkronisasi Cloud -->
+      <button type="button" class="m3-sheet-item" onclick="closeMobileMoreSheet(); syncAllFromCloud();">
+        <div class="m3-sheet-icon" style="background:#fef2f2; color:#dc2626;">
+          <svg viewBox="0 0 24 24"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </div>
+        <span>Sync Cloud</span>
+      </button>
+    </div>
+  </div>
+
+  <script src="app.js?v=3.2"></script>
 </body>
 </html>

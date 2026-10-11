@@ -42,20 +42,901 @@ let selectedReceiptButtonIndex = 0; // 0 = Cetak Nota, 1 = Tidak
 
 // State Cetak Label Harga Massal (Terpilih)
 let selectedProductIds = new Set();
+let lastScannedProductId = null; // ID produk terakhir di-scan barcode
 
 // State Kasir & Multi-user (Fitur Baru)
 let cashiers = JSON.parse(localStorage.getItem('kasir_cashiers')) || ['Kasir Utama', 'Kasir Shift 2', 'Kasir Shift 3'];
 let activeCashier = localStorage.getItem('kasir_active_cashier') || 'Kasir Utama';
 
-// URL Google Apps Script & Offline Sync
-const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwbJCQIxhqOFu2iGSMzoL2YrJf7pvLoGVm2B6qs2DUQ2vIIrBlZBJO-vP557agNvlhNzg/exec';
-let gasUrl = localStorage.getItem('kasir_gas_url');
-if (!gasUrl || !gasUrl.startsWith('https://script.google.com/')) {
-  gasUrl = DEFAULT_GAS_URL;
-  localStorage.setItem('kasir_gas_url', DEFAULT_GAS_URL);
+// --- MANAJEMEN LOGIN KARYAWAN & HAK AKSES ROLE (OWNER VS KASIR) ---
+let isStaffLoginEnabled = JSON.parse(localStorage.getItem('kasir_staff_login_enabled')) || false;
+let ownerPin = localStorage.getItem('kasir_owner_pin') || '1234';
+let currentUserRole = localStorage.getItem('kasir_current_user_role') || 'owner'; // 'owner' atau 'staff'
+
+// Master data akun karyawan beserta PIN dan izin tab masing-masing
+let staffAccounts = JSON.parse(localStorage.getItem('kasir_staff_accounts')) || [
+  {
+    name: 'Kasir Utama',
+    pin: '1111',
+    permissions: {
+      pos: true,
+      transactions: true,
+      products: false,
+      kulak: false,
+      customers: true,
+      analytics: false,
+      settings: false
+    }
+  },
+  {
+    name: 'Kasir Shift 2',
+    pin: '2222',
+    permissions: {
+      pos: true,
+      transactions: true,
+      products: false,
+      kulak: false,
+      customers: true,
+      analytics: false,
+      settings: false
+    }
+  }
+];
+
+// --- LOGIKA FIREBASE REALTIME DATABASE ---
+// Konfigurasi Firebase (hardcoded sebagai fallback permanen)
+const DEFAULT_FB_CONFIG = {
+  apiKey: "AIzaSyD0X6NxN3wI9vm009mJrXwf94ZkSOQoFKU",
+  authDomain: "db-toko-sahil.firebaseapp.com",
+  projectId: "db-toko-sahil",
+  storageBucket: "db-toko-sahil.firebasestorage.app",
+  messagingSenderId: "1091161238327",
+  appId: "1:1091161238327:web:91a19ba78332925719c8b2",
+  databaseURL: "https://db-toko-sahil-default-rtdb.asia-southeast1.firebasedatabase.app"
+};
+
+// Pakai config dari localStorage jika ada, fallback ke hardcoded
+let fbConfig = JSON.parse(localStorage.getItem('kasir_firebase_config')) || DEFAULT_FB_CONFIG;
+// Pastikan databaseURL selalu ada
+if (!fbConfig.databaseURL) {
+  fbConfig.databaseURL = DEFAULT_FB_CONFIG.databaseURL;
 }
-let syncStatus = 'offline'; 
-let offlineQueue = JSON.parse(localStorage.getItem('kasir_offline_queue')) || [];
+// Simpan ke localStorage supaya form Settings ikut terisi
+localStorage.setItem('kasir_firebase_config', JSON.stringify(fbConfig));
+
+let firebaseDb = null;
+let fbUnsubscribes = [];
+
+// Database URL Realtime Database (hardcoded + override dari config)
+const RTDB_URL = 'https://db-toko-sahil-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+let currentLicenseKey = localStorage.getItem('kasir_license_key') || 'TOKO-SAHIL-PRO';
+let currentLicenseData = null;
+const ADMIN_WA_NUMBER = '6289636492890'; // Nomor WA Admin untuk konfirmasi pembayaran Rp 50.000/bln
+
+// Helper Multi-Tenant: Memisahkan folder database per toko agar data tidak bentrok
+function getStorePath(subPath = '') {
+  const safeStoreKey = (currentLicenseKey || 'DEFAULT').replace(/[.#$\[\]\/]/g, '_');
+  return subPath ? `stores/${safeStoreKey}/${subPath}` : `stores/${safeStoreKey}`;
+}
+
+async function initFirebase() {
+  if (fbConfig) {
+    const keyMap = {
+      'fb-api-key': fbConfig.apiKey,
+      'fb-auth-domain': fbConfig.authDomain,
+      'fb-project-id': fbConfig.projectId,
+      'fb-storage-bucket': fbConfig.storageBucket,
+      'fb-messaging-sender-id': fbConfig.messagingSenderId,
+      'fb-app-id': fbConfig.appId,
+      'fb-database-url': fbConfig.databaseURL || RTDB_URL
+    };
+    Object.keys(keyMap).forEach(id => {
+      const el = document.getElementById(id);
+      if (el && keyMap[id]) el.value = keyMap[id];
+    });
+  }
+
+  const licInput = document.getElementById('cloud-license-key');
+  if (licInput) licInput.value = currentLicenseKey;
+
+  if (typeof firebase === 'undefined') {
+    console.warn('SDK Firebase tidak terdeteksi.');
+    return false;
+  }
+
+  if (!fbConfig || !fbConfig.projectId || !fbConfig.apiKey) {
+    console.log('Firebase belum dikonfigurasi.');
+    return false;
+  }
+
+  try {
+    if (firebase.apps.length > 0) {
+      try { await firebase.app().delete(); } catch(e) {}
+    }
+
+    const databaseURL = fbConfig.databaseURL || RTDB_URL;
+    firebase.initializeApp({ ...fbConfig, databaseURL });
+    firebaseDb = firebase.database();
+
+    console.log('✅ Firebase Realtime Database berhasil diinisialisasi.');
+
+    // CEK VALIDITAS LISENSI LANGGANAN BULANAN (Rp 50.000 / Bulan)
+    const isLicenseValid = await checkSubscriptionLicense();
+    if (!isLicenseValid) {
+      // Lisensi telah kedaluwarsa: Matikan mode cloud dan alihkan ke offline
+      console.warn('⛔ Masa langganan cloud telah habis.');
+      if (fbUnsubscribes && fbUnsubscribes.length > 0) {
+        fbUnsubscribes.forEach(unsub => unsub());
+        fbUnsubscribes = [];
+      }
+      firebaseDb = null;
+      appConfig.enableCloudSync = false;
+      localStorage.setItem('kasir_app_config', JSON.stringify(appConfig));
+      const chk = document.getElementById('chk-enable-cloud');
+      if (chk) chk.checked = false;
+      const panel = document.getElementById('firebase-settings-panel');
+      if (panel) panel.style.display = 'none';
+
+      updateSyncStatus('offline', 'Langganan Cloud Expired (Mode Offline Aktif)');
+      openSubscriptionInvoiceModal();
+      return false;
+    }
+
+    setupDatabaseListeners();
+    updateSyncStatus('online', 'Database Terhubung');
+    return true;
+  } catch (err) {
+    console.error('Error inisialisasi Firebase:', err);
+    updateSyncStatus('offline', 'Firebase Error: ' + err.message);
+    return false;
+  }
+}
+
+// Pemeriksaan status lisensi ke Firebase Realtime Database
+async function checkSubscriptionLicense() {
+  if (!firebaseDb) return false;
+  
+  if (!currentLicenseKey || currentLicenseKey.trim() === '' || currentLicenseKey === 'DEFAULT') {
+    updateSyncStatus('offline', 'Kode Lisensi Belum Diatur');
+    return false;
+  }
+
+  const licenseRef = firebaseDb.ref('licenses/' + currentLicenseKey);
+  try {
+    const snapshot = await licenseRef.once('value');
+    let lic = snapshot.val();
+    
+    // Keamanan: Client TIDAK boleh mengaktifkan lisensi gratis sendiri!
+    // Lisensi harus sudah dibuat / disetujui oleh Developer di Firebase Console
+    if (!lic) {
+      console.warn('⛔ Kode lisensi toko tidak terdaftar di sistem.');
+      updateSyncStatus('offline', 'Lisensi Tidak Terdaftar');
+      currentLicenseData = { status: 'unregistered', expired_at: null };
+      updateLicenseUI(currentLicenseData);
+      return false;
+    }
+    
+    currentLicenseData = lic;
+    updateLicenseUI(lic);
+
+    // Cek status dan tanggal expired
+    const expDate = new Date(lic.expired_at);
+    const now = new Date();
+    const isExpired = now.getTime() > expDate.getTime() || lic.status === 'expired' || lic.status === 'suspended';
+
+    return !isExpired;
+  } catch (e) {
+    console.warn('Gagal memverifikasi lisensi cloud:', e.message);
+    // Jika ada error jaringan atau security rule menolak, jangan izinkan akses cloud
+    return false;
+  }
+}
+
+function updateLicenseUI(lic) {
+  const badge = document.getElementById('license-badge');
+  const info = document.getElementById('license-expired-info');
+  if (!lic || !lic.expired_at) return;
+
+  const expDate = new Date(lic.expired_at);
+  const now = new Date();
+  const diffDays = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  
+  const options = { day: 'numeric', month: 'long', year: 'numeric' };
+  const expStr = expDate.toLocaleDateString('id-ID', options);
+
+  if (diffDays <= 0) {
+    if (badge) {
+      badge.textContent = 'Kedaluwarsa';
+      badge.style.background = '#ef4444';
+    }
+    if (info) {
+      info.innerHTML = `Masa aktif telah <b style="color: #ef4444;">HABIS</b> pada ${expStr}. Tagihan Rp 50.000 belum dibayar.`;
+    }
+  } else if (diffDays <= 3) {
+    if (badge) {
+      badge.textContent = `${diffDays} Hari Lagi`;
+      badge.style.background = '#f59e0b';
+    }
+    if (info) {
+      info.innerHTML = `Masa aktif sampai: <b>${expStr}</b> (<span style="color:#d97706; font-weight:700;">Segera perpanjang</span>)`;
+    }
+  } else {
+    if (badge) {
+      badge.textContent = 'Aktif';
+      badge.style.background = '#10b981';
+    }
+    if (info) {
+      info.innerHTML = `Masa aktif sampai: <b>${expStr}</b> (${diffDays} hari lagi)`;
+    }
+  }
+
+  // Update modal tagihan
+  const modalKey = document.getElementById('sub-modal-license-key');
+  const modalDue = document.getElementById('sub-modal-due-date');
+  if (modalKey) modalKey.textContent = currentLicenseKey;
+  if (modalDue) modalDue.textContent = expStr + (diffDays <= 0 ? ' (Sudah Lewat)' : '');
+}
+
+function saveLicenseKey() {
+  const input = document.getElementById('cloud-license-key');
+  const val = input ? input.value.trim().toUpperCase() : '';
+  if (!val) {
+    alert('Kode lisensi tidak boleh kosong!');
+    return;
+  }
+  currentLicenseKey = val;
+  localStorage.setItem('kasir_license_key', currentLicenseKey);
+  alert(`Kode lisensi "${val}" disimpan! Menguji status lisensi...`);
+  if (firebaseDb) {
+    checkSubscriptionLicense().then(isValid => {
+      if (isValid) alert('✅ Lisensi Aktif! Sinkronisasi cloud berjalan lancar.');
+      else openSubscriptionInvoiceModal();
+    });
+  }
+}
+
+function openSubscriptionInvoiceModal() {
+  const modal = document.getElementById('subscription-modal');
+  if (modal) modal.classList.add('active');
+  if (currentLicenseData) {
+    updateLicenseUI(currentLicenseData);
+  }
+}
+
+function closeSubscriptionInvoiceModal() {
+  const modal = document.getElementById('subscription-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+function contactAdminWhatsAppForRenewal() {
+  const tokoName = receiptSettings.name || 'Toko';
+  const text = `Halo Admin, saya ingin perpanjang langganan Cloud POS (Rp 50.000 / Bulan)%0A%0A• Nama Toko: ${encodeURIComponent(tokoName)}%0A• Kode Lisensi: ${encodeURIComponent(currentLicenseKey)}%0A%0AMohon nomor rekening / QRIS untuk pembayaran. Terima kasih.`;
+  const url = `https://wa.me/${ADMIN_WA_NUMBER}?text=${text}`;
+  window.open(url, '_blank');
+}
+
+// Helper hash sederhana untuk melindungi Master Key dari pencarian teks biasa
+async function hashSecretStr(str) {
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+const DEV_MASTER_HASH = "c7e9988d0ac79f466bf33b7bc5a8e31ebad2fe1f6e17c78919f5717acce44230"; // SHA256 dari 998877
+
+async function promptDeveloperSecretKey() {
+  const input = prompt('🔐 Masukkan Master Key Developer untuk membuka konfigurasi database:');
+  if (input === null) return;
+  const inputHash = await hashSecretStr(input.trim());
+  if (inputHash === DEV_MASTER_HASH) {
+    const lockedView = document.getElementById('dev-locked-view');
+    const credPanel = document.getElementById('dev-credentials-panel');
+    if (lockedView) lockedView.style.display = 'none';
+    if (credPanel) credPanel.style.display = 'block';
+    alert('🔓 Akses Diterima. Konfigurasi database developer berhasil dibuka.');
+  } else {
+    alert('⛔ Kode salah! Anda tidak memiliki izin untuk melihat atau mengubah konfigurasi database.');
+  }
+}
+
+function lockDeveloperSecretSection() {
+  const lockedView = document.getElementById('dev-locked-view');
+  const credPanel = document.getElementById('dev-credentials-panel');
+  if (lockedView) lockedView.style.display = 'flex';
+  if (credPanel) credPanel.style.display = 'none';
+}
+
+async function saveFirebaseConfig() {
+  const apiKey = document.getElementById('fb-api-key')?.value.trim();
+  const authDomain = document.getElementById('fb-auth-domain')?.value.trim();
+  const projectId = document.getElementById('fb-project-id')?.value.trim();
+  const storageBucket = document.getElementById('fb-storage-bucket')?.value.trim();
+  const messagingSenderId = document.getElementById('fb-messaging-sender-id')?.value.trim();
+  const appId = document.getElementById('fb-app-id')?.value.trim();
+  let databaseURL = document.getElementById('fb-database-url')?.value.trim() || RTDB_URL;
+
+  // Pembersihan otomatis jika user menyalin link dari browser console Firebase
+  if (databaseURL.includes('console.firebase.google.com')) {
+    // Ekstrak nama project dari URL console jika tertempel tidak sengaja
+    const match = databaseURL.match(/project\/([^\/]+)\/database\/([^\/]+)/);
+    if (match && match[2]) {
+      databaseURL = `https://${match[2]}.asia-southeast1.firebasedatabase.app`;
+    }
+  }
+  // Hapus tanda garis miring di akhir (trailing slash)
+  databaseURL = databaseURL.replace(/\/+$/, '');
+
+  if (!projectId || !apiKey) {
+    alert('❌ API Key dan Project ID wajib diisi!');
+    return;
+  }
+
+  fbConfig = { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId, databaseURL };
+  localStorage.setItem('kasir_firebase_config', JSON.stringify(fbConfig));
+
+  updateSyncStatus('syncing', 'Menghubungkan Firebase...');
+  const success = await initFirebase();
+
+  if (success) {
+    alert('✅ Konfigurasi Firebase berhasil disimpan & terhubung ke Realtime Database!');
+  } else {
+    alert('❌ Gagal mengkoneksikan Firebase. Periksa kembali konfigurasi Anda.');
+  }
+}
+
+async function testFirebaseConnection() {
+  if (!firebaseDb) {
+    const success = await initFirebase();
+    if (!success) {
+      alert('❌ Firebase belum terhubung.');
+      return;
+    }
+  }
+  updateSyncStatus('syncing', 'Menguji koneksi...');
+  try {
+    await firebaseDb.ref('.info/connected').once('value');
+    updateSyncStatus('online', 'Database Terhubung');
+    alert('🚀 Uji Koneksi BERHASIL! Aplikasi terhubung ke Firebase Realtime Database.');
+  } catch (err) {
+    updateSyncStatus('offline', 'Koneksi Gagal');
+    alert('❌ Uji Koneksi Gagal: ' + err.message);
+  }
+}
+
+function parseTxDate(waktu) {
+  if (!waktu) return new Date();
+  if (typeof waktu === 'object') {
+    if (typeof waktu.toDate === 'function') return waktu.toDate();
+    if (waktu.seconds !== undefined) return new Date(waktu.seconds * 1000);
+  }
+  if (typeof waktu === 'number') return new Date(waktu);
+  const d = new Date(waktu);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
+function setupDatabaseListeners() {
+  if (!firebaseDb) return;
+
+  // Hentikan semua listener lama
+  fbUnsubscribes.forEach(unsub => unsub());
+  fbUnsubscribes = [];
+
+  console.log(`🔥 Menyiapkan listener Realtime Database untuk toko: ${currentLicenseKey}...`);
+
+  // ─── LISTENER PRODUK ──────────────────────────────────────────────────────
+  const prodRef = firebaseDb.ref(getStorePath('products'));
+  const prodCallback = snapshot => {
+    const data = snapshot.val();
+    if (data) {
+      const cloudProds = Object.values(data);
+      console.log(`📦 RTDB produk (${currentLicenseKey}): ${cloudProds.length}`);
+      products = cloudProds;
+      saveProductsLocally();
+      updateCategoriesList();
+      if (typeof renderProductsTable === 'function') renderProductsTable();
+      if (typeof renderPosProducts === 'function') renderPosProducts();
+    }
+  };
+  prodRef.on('value', prodCallback, err => console.error('❌ RTDB Products Error:', err.message));
+  fbUnsubscribes.push(() => prodRef.off('value', prodCallback));
+
+  // ─── LISTENER TRANSAKSI ───────────────────────────────────────────────────
+  const txRef = firebaseDb.ref(getStorePath('transactions'));
+  const txCallback = snapshot => {
+    const data = snapshot.val();
+    const cloudTxs = data ? Object.values(data) : [];
+    
+    // Gabungkan transaksi cloud dengan transaksi lokal yang belum ada di cloud (jika ada)
+    const txMap = new Map();
+    cloudTxs.forEach(tx => {
+      const id = tx.id || tx.id_transaksi;
+      if (id) txMap.set(id, { ...tx, id });
+    });
+    
+    // Periksa transactions lokal saat ini, masukkan yang belum ada di cloud
+    transactions.forEach(localTx => {
+      const id = localTx.id || localTx.id_transaksi;
+      if (id && !txMap.has(id)) {
+        txMap.set(id, localTx);
+        // Upload langsung transaksi lokal yang belum ada di cloud ini ke RTDB toko
+        firebaseDb.ref(getStorePath('transactions/' + id)).set(JSON.parse(JSON.stringify(localTx))).catch(() => {});
+      }
+    });
+
+    const mergedTxs = Array.from(txMap.values());
+    mergedTxs.sort((a, b) => parseTxDate(b.waktu).getTime() - parseTxDate(a.waktu).getTime());
+    console.log(`🧾 RTDB transaksi aktif (${currentLicenseKey}): ${mergedTxs.length}`);
+    transactions = mergedTxs;
+    saveTransactionsLocally();
+    if (typeof renderTransactionsTable === 'function') renderTransactionsTable();
+    if (typeof initAnalyticsFilter === 'function') initAnalyticsFilter();
+    if (typeof updateAnalytics === 'function') updateAnalytics();
+  };
+  txRef.on('value', txCallback, err => console.error('❌ RTDB Transactions Error:', err.message));
+  fbUnsubscribes.push(() => txRef.off('value', txCallback));
+
+  // ─── LISTENER PELANGGAN ───────────────────────────────────────────────────
+  const custRef = firebaseDb.ref(getStorePath('customers'));
+  const custCallback = snapshot => {
+    const data = snapshot.val();
+    if (data) {
+      customers = Object.values(data);
+      saveCustomersLocally();
+      if (typeof renderCustomersTable === 'function') renderCustomersTable();
+    }
+  };
+  custRef.on('value', custCallback, err => console.error('❌ RTDB Customers Error:', err.message));
+  fbUnsubscribes.push(() => custRef.off('value', custCallback));
+
+  // ─── LISTENER SHIFTS ──────────────────────────────────────────────────────
+  const shiftRef = firebaseDb.ref(getStorePath('shifts'));
+  const shiftCallback = snapshot => {
+    const data = snapshot.val();
+    if (data) {
+      shifts = Object.values(data);
+      localStorage.setItem('kasir_shifts', JSON.stringify(shifts));
+    }
+  };
+  shiftRef.on('value', shiftCallback, err => console.error('❌ RTDB Shifts Error:', err.message));
+  fbUnsubscribes.push(() => shiftRef.off('value', shiftCallback));
+
+  console.log(`✅ Semua listener Realtime Database aktif untuk toko: ${currentLicenseKey}`);
+}
+
+// Alias untuk kompatibilitas panggilan lama
+function setupFirestoreListeners() { setupDatabaseListeners(); }
+
+function syncAllFromCloud() {
+  if (!firebaseDb) {
+    initFirebase().then(ok => {
+      if (!ok) alert('Firebase belum terhubung. Silakan atur konfigurasi Firebase di Pengaturan.');
+    });
+    return;
+  }
+  updateSyncStatus('syncing', 'Menyinkronkan data...');
+  setupFirestoreListeners();
+}
+
+// Alias untuk tombol Tarik Transaksi dari Cloud
+function syncTransactionsFromCloud() {
+  syncAllFromCloud();
+}
+
+// Reset filter pencarian tabel riwayat transaksi
+function clearTransactionFilters() {
+  const searchInput = document.getElementById('transaction-list-search');
+  const startDate = document.getElementById('tx-filter-start-date');
+  const endDate = document.getElementById('tx-filter-end-date');
+  const statusSelect = document.getElementById('tx-filter-status');
+
+  const todayStr = getLocalISODate(new Date()).slice(0, 10);
+  if (searchInput) searchInput.value = '';
+  if (startDate) startDate.value = todayStr;
+  if (endDate) endDate.value = todayStr;
+  if (statusSelect) statusSelect.value = 'Semua';
+
+  if (typeof renderTransactionsTable === 'function') {
+    renderTransactionsTable();
+  }
+}
+
+// Hapus cache lokal & muat ulang aplikasi
+function clearLocalCache() {
+  if (confirm("⚠️ APAKAH ANDA YAKIN?\n\nSemua cache sementara lokal browser akan dibersihkan dan halaman akan dimuat ulang.")) {
+    localStorage.removeItem('kasir_active_cart');
+    localStorage.removeItem('kasir_held_carts');
+    sessionStorage.clear();
+    alert("✅ Cache lokal berhasil dibersihkan!");
+    location.reload();
+  }
+}
+
+
+
+async function syncSingleTransactionToCloud(tx) {
+  if (!tx) return;
+
+  if (!firebaseDb) {
+    console.warn('Firebase Realtime Database belum terhubung.');
+    updateSyncStatus('offline', 'Firebase Belum Terhubung');
+    return;
+  }
+
+  updateSyncStatus('syncing', 'Mengunggah Transaksi...');
+  try {
+    const cleanTx = JSON.parse(JSON.stringify(tx));
+
+    // Simpan transaksi ke RTDB toko
+    await firebaseDb.ref(getStorePath('transactions/' + cleanTx.id)).set(cleanTx);
+
+    // Update stok produk di RTDB toko secara bersamaan
+    if (Array.isArray(cleanTx.items)) {
+      const stockUpdates = {};
+      cleanTx.items.forEach(item => {
+        if (item.id) {
+          const p = products.find(prod => prod.id === item.id);
+          if (p) {
+            stockUpdates[getStorePath('products/' + p.id + '/stok')] = p.stok;
+            stockUpdates[getStorePath('products/' + p.id + '/kuota_diskon')] = p.kuota_diskon || 0;
+          }
+        }
+      });
+      if (Object.keys(stockUpdates).length > 0) {
+        await firebaseDb.ref('/').update(stockUpdates);
+      }
+    }
+
+    updateSyncStatus('online', 'Database Terhubung');
+    console.log(`✅ Transaksi tersimpan di RTDB (${currentLicenseKey}):`, cleanTx.id);
+  } catch (err) {
+    console.error('Gagal simpan transaksi ke RTDB:', err);
+    updateSyncStatus('offline', 'Gagal Unggah');
+    throw err;
+  }
+}
+
+async function syncTransactionToCloud(tx) {
+  return syncSingleTransactionToCloud(tx);
+}
+
+async function saveCustomerCloud(customer) {
+  if (!customer || !firebaseDb) return;
+  try {
+    const cleanCust = JSON.parse(JSON.stringify(customer));
+    const custKey = cleanCust.id || cleanCust.no_hp || ('CUST-' + Date.now());
+    await firebaseDb.ref(getStorePath('customers/' + custKey)).set(cleanCust);
+  } catch (err) {
+    console.error('Gagal simpan pelanggan ke RTDB:', err);
+  }
+}
+
+async function deleteCustomerCloud(customerId) {
+  if (!customerId || !firebaseDb) return;
+  try {
+    await firebaseDb.ref(getStorePath('customers/' + customerId)).remove();
+  } catch (err) {
+    console.error('Gagal hapus pelanggan di RTDB:', err);
+  }
+}
+
+async function syncCustomersToCloud() {
+  if (!firebaseDb) {
+    alert('Firebase Realtime Database belum terhubung. Silakan atur di Pengaturan.');
+    return;
+  }
+  if (!customers || customers.length === 0) {
+    alert('Tidak ada data pelanggan lokal untuk diunggah.');
+    return;
+  }
+  updateSyncStatus('syncing', 'Mengunggah semua pelanggan...');
+  try {
+    const updates = {};
+    customers.forEach(c => {
+      const clean = JSON.parse(JSON.stringify(c));
+      const key = clean.id || clean.no_hp || ('CUST-' + Date.now());
+      updates[getStorePath('customers/' + key)] = clean;
+    });
+    await firebaseDb.ref('/').update(updates);
+    updateSyncStatus('online', 'Database Terhubung');
+    alert(`Berhasil menyinkronkan ${customers.length} data pelanggan ke Firebase Realtime Database! 🚀`);
+  } catch (err) {
+    console.error('Gagal sync pelanggan:', err);
+    alert('Gagal menyinkronkan pelanggan: ' + err.message);
+  }
+}
+
+async function saveProductCloud(product) {
+  if (!firebaseDb || !product) return;
+  updateSyncStatus('syncing', 'Mengunggah Produk...');
+  try {
+    const cleanProduct = JSON.parse(JSON.stringify(product));
+    await firebaseDb.ref(getStorePath('products/' + cleanProduct.id)).set(cleanProduct);
+    updateSyncStatus('online', 'Database Terhubung');
+  } catch (err) {
+    console.error('Gagal simpan produk ke RTDB:', err);
+    updateSyncStatus('offline', 'Gagal Unggah Produk');
+  }
+}
+
+async function deleteProductCloud(productId) {
+  if (!firebaseDb) return;
+  updateSyncStatus('syncing', 'Menghapus Produk...');
+  try {
+    await firebaseDb.ref(getStorePath('products/' + productId)).remove();
+    updateSyncStatus('online', 'Database Terhubung');
+  } catch (err) {
+    console.error('Gagal hapus produk dari RTDB:', err);
+    updateSyncStatus('offline', 'Gagal Hapus Produk');
+  }
+}
+
+async function migrateLocalDataToFirebase() {
+  if (!firebaseDb) {
+    alert('Firebase belum terhubung. Harap lengkapi & simpan form Konfigurasi Firebase terlebih dahulu.');
+    return;
+  }
+
+  if (!confirm(`Apakah Anda yakin ingin memindahkan data ke Firebase Realtime Database?\n- ${products.length} Produk\n- ${transactions.length} Transaksi\n- ${customers.length} Pelanggan\n- ${shifts.length} Shift Kasir`)) {
+    return;
+  }
+
+  updateSyncStatus('syncing', 'Memulai migrasi ke Realtime Database...');
+
+  try {
+    // Bangun objek update besar sekaligus (1 request = efisien)
+    const updates = {};
+    products.forEach(p => {
+      const clean = JSON.parse(JSON.stringify(p));
+      updates[getStorePath('products/' + clean.id)] = clean;
+    });
+    transactions.forEach(t => {
+      const clean = JSON.parse(JSON.stringify(t));
+      updates[getStorePath('transactions/' + clean.id)] = clean;
+    });
+    customers.forEach(c => {
+      const clean = JSON.parse(JSON.stringify(c));
+      updates[getStorePath('customers/' + (clean.id || clean.no_hp))] = clean;
+    });
+    shifts.forEach(s => {
+      const clean = JSON.parse(JSON.stringify(s));
+      const sId = clean.id_shift || ('SH-' + Date.now());
+      updates[getStorePath('shifts/' + sId)] = clean;
+    });
+
+    // Pastikan data lisensi juga ikut terunggah
+    const now = new Date();
+    const defaultExpiry = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
+    updates['licenses/' + currentLicenseKey] = {
+      status: 'active',
+      nama_toko: receiptSettings.name || 'Toko Sahil',
+      created_at: now.toISOString(),
+      expired_at: defaultExpiry.toISOString(),
+      harga_per_bulan: 50000
+    };
+
+    await firebaseDb.ref('/').update(updates);
+    const total = products.length + transactions.length + customers.length + shifts.length;
+    updateSyncStatus('online', 'Database Terhubung');
+    alert(`⚡ Selesai! Berhasil mengunggah ${total} data ke Firebase Realtime Database.`);
+  } catch (err) {
+    console.error('Gagal migrasi ke RTDB:', err);
+    updateSyncStatus('offline', 'Migrasi Gagal');
+    alert('Terjadi kesalahan saat migrasi: ' + err.message);
+  }
+}
+
+async function clearAllTransactions() {
+  if (!firebaseDb) {
+    alert('❌ Firebase belum terhubung. Silakan hubungkan Firebase di Pengaturan terlebih dahulu.');
+    return;
+  }
+
+  if (!confirm('⚠️ APAKAH ANDA YAKIN?\n\nSemua riwayat transaksi di Realtime Database dan memori Lokal akan DIHAPUS BERSIH.\nLangkah ini tidak dapat dibatalkan!')) {
+    return;
+  }
+
+  updateSyncStatus('syncing', 'Menghapus semua transaksi...');
+
+  try {
+    // RTDB: hapus seluruh node 'transactions' untuk toko ini
+    await firebaseDb.ref(getStorePath('transactions')).remove();
+    console.log('✅ Semua transaksi toko berhasil dihapus dari RTDB');
+
+    transactions = [];
+    localStorage.removeItem('kasir_transactions');
+
+    if (typeof renderTransactionsTable === 'function') renderTransactionsTable();
+    if (typeof initAnalyticsFilter === 'function') initAnalyticsFilter();
+    if (typeof updateAnalytics === 'function') updateAnalytics();
+
+    updateSyncStatus('online', 'Database Terhubung');
+    alert('🗑️ Berhasil mengosongkan semua transaksi dari database dan lokal!');
+  } catch (err) {
+    console.error('❌ Gagal hapus transaksi:', err.message);
+    updateSyncStatus('offline', 'Gagal Hapus: ' + err.message);
+    alert('❌ Gagal menghapus transaksi:\n\n' + err.message);
+  }
+}
+
+// Alias untuk tombol lama di index.html
+function clearFirestoreTransactions() {
+  return clearAllTransactions();
+}
+
+
+// Fungsi Backup & Restore Database Lokal (JSON)
+function exportFullDatabaseJSON() {
+  const backupData = {
+    app: "KasirKilat POS",
+    version: "3.2",
+    exportedAt: new Date().toISOString(),
+    storeName: receiptSettings.name || 'Toko',
+    data: {
+      products: products || [],
+      transactions: transactions || [],
+      customers: customers || [],
+      shifts: shifts || [],
+      cashiers: cashiers || [],
+      heldCarts: heldCarts || [],
+      loyaltySettings: loyaltySettings || {},
+      receiptSettings: receiptSettings || {},
+      appConfig: appConfig || {}
+    }
+  };
+
+  const jsonStr = JSON.stringify(backupData, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Backup_Kasir_${(receiptSettings.name || 'Toko').replace(/[^a-zA-Z0-9]/g, '_')}_${dateStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  alert('✅ Cadangan Database berhasil didownload!\nSimpan file ini di tempat yang aman (Flashdisk / Harddisk).');
+}
+
+function importFullDatabaseJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const backup = JSON.parse(e.target.result);
+      if (!backup || !backup.data) {
+        throw new Error("Format file cadangan tidak valid.");
+      }
+
+      const d = backup.data;
+      const countProds = Array.isArray(d.products) ? d.products.length : 0;
+      const countTxs = Array.isArray(d.transactions) ? d.transactions.length : 0;
+
+      if (!confirm(`Apakah Anda yakin ingin memulihkan database dari file ini?\n\n- ${countProds} Produk\n- ${countTxs} Transaksi\n\n⚠️ Tindakan ini akan menggantikan data yang ada saat ini.`)) {
+        event.target.value = '';
+        return;
+      }
+
+      if (Array.isArray(d.products)) {
+        products = d.products;
+        saveProductsLocally();
+      }
+      if (Array.isArray(d.transactions)) {
+        transactions = d.transactions;
+        saveTransactionsLocally();
+      }
+      if (Array.isArray(d.customers)) {
+        customers = d.customers;
+        saveCustomersLocally();
+      }
+      if (Array.isArray(d.shifts)) {
+        shifts = d.shifts;
+        localStorage.setItem('kasir_shifts', JSON.stringify(shifts));
+      }
+      if (Array.isArray(d.cashiers)) {
+        cashiers = d.cashiers;
+        localStorage.setItem('kasir_cashiers', JSON.stringify(cashiers));
+      }
+      if (d.receiptSettings) {
+        receiptSettings = d.receiptSettings;
+        localStorage.setItem('kasir_receipt_settings', JSON.stringify(receiptSettings));
+      }
+      if (d.appConfig) {
+        appConfig = { ...appConfig, ...d.appConfig };
+        localStorage.setItem('kasir_app_config', JSON.stringify(appConfig));
+      }
+
+      // Jika cloud aktif, tawarkan sinkronkan ke cloud
+      if (appConfig.enableCloudSync && firebaseDb) {
+        const syncCloud = confirm('Apakah Anda ingin langsung menyinkronkan data yang baru dipulihkan ke Cloud Realtime Database?');
+        if (syncCloud) {
+          const updates = {};
+          products.forEach(p => updates[getStorePath('products/' + p.id)] = p);
+          transactions.forEach(t => updates[getStorePath('transactions/' + t.id)] = t);
+          await firebaseDb.ref('/').update(updates);
+        }
+      }
+
+      alert('✅ Database berhasil dipulihkan!');
+      location.reload();
+    } catch (err) {
+      console.error('Gagal memulihkan database:', err);
+      alert('❌ Gagal membaca file cadangan: ' + err.message);
+    } finally {
+      event.target.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function toggleCloudSyncMode() {
+  const chk = document.getElementById('chk-enable-cloud');
+  const panel = document.getElementById('firebase-settings-panel');
+  const isEnabled = chk ? chk.checked : false;
+
+  appConfig.enableCloudSync = isEnabled;
+  localStorage.setItem('kasir_app_config', JSON.stringify(appConfig));
+
+  if (panel) {
+    panel.style.display = isEnabled ? 'block' : 'none';
+  }
+
+  if (isEnabled) {
+    updateSyncStatus('syncing', 'Menghubungkan ke Cloud...');
+    const connected = await initFirebase();
+    
+    // JIKA BERHASIL TERHUBUNG: Unggah otomatis transaksi & data offline ke Firebase!
+    if (connected && firebaseDb) {
+      try {
+        const localTxs = JSON.parse(localStorage.getItem('kasir_transactions')) || transactions || [];
+        if (localTxs.length > 0) {
+          updateSyncStatus('syncing', `Mengunggah ${localTxs.length} transaksi offline ke Cloud...`);
+          const updates = {};
+          localTxs.forEach(tx => {
+            if (tx && tx.id) {
+              updates[getStorePath('transactions/' + tx.id)] = JSON.parse(JSON.stringify(tx));
+            }
+          });
+          
+          // Juga pastikan stok produk lokal ikut tersinkronkan
+          products.forEach(p => {
+            if (p && p.id) {
+              updates[getStorePath('products/' + p.id)] = JSON.parse(JSON.stringify(p));
+            }
+          });
+
+          // Juga pastikan data pelanggan lokal ikut tersinkronkan
+          if (Array.isArray(customers) && customers.length > 0) {
+            customers.forEach(c => {
+              if (c) {
+                const key = c.id || c.telepon || ('CUST-' + Date.now());
+                updates[getStorePath('customers/' + key)] = JSON.parse(JSON.stringify(c));
+              }
+            });
+          }
+
+          await firebaseDb.ref('/').update(updates);
+          console.log(`✅ ${localTxs.length} transaksi offline berhasil diunggah ke Firebase Realtime Database.`);
+          updateSyncStatus('online', 'Database Terhubung');
+          alert(`⚡ Mode Online Aktif!\n\nSebanyak ${localTxs.length} transaksi offline dan data produk Anda telah otomatis tersinkronisasi ke Firebase Cloud.`);
+        }
+      } catch (uploadErr) {
+        console.error('Gagal upload otomatis transaksi offline:', uploadErr);
+      }
+    }
+  } else {
+    // Matikan listener cloud jika dinonaktifkan
+    if (fbUnsubscribes && fbUnsubscribes.length > 0) {
+      fbUnsubscribes.forEach(unsub => unsub());
+      fbUnsubscribes = [];
+    }
+    firebaseDb = null;
+    updateSyncStatus('offline', 'Mode Offline (Database Lokal)');
+  }
+}
 
 // Pengaturan Sistem Aplikasi
 let appConfig = JSON.parse(localStorage.getItem('kasir_app_config')) || {
@@ -64,8 +945,13 @@ let appConfig = JSON.parse(localStorage.getItem('kasir_app_config')) || {
   customerMode: false,
   enablePromo: false,
   showDiscountPos: false,
-  showPromoBanner: true
+  showPromoBanner: true,
+  enableCloudSync: false
 };
+if (appConfig.enableCloudSync === undefined) appConfig.enableCloudSync = false;
+if (appConfig.enablePromo === undefined) appConfig.enablePromo = false;
+if (appConfig.showDiscountPos === undefined) appConfig.showDiscountPos = false;
+if (appConfig.showPromoBanner === undefined) appConfig.showPromoBanner = true;
 if (appConfig.enablePromo === undefined) appConfig.enablePromo = false;
 if (appConfig.showDiscountPos === undefined) appConfig.showDiscountPos = false;
 if (appConfig.showPromoBanner === undefined) appConfig.showPromoBanner = true;
@@ -164,46 +1050,8 @@ const defaultProducts = [
   }
 ];
 
-// Contoh Data Awal (Transaksi 7 Hari Terakhir untuk visualisasi chart awal)
-const seedTransactions = () => {
-  const list = [];
-  const now = new Date();
-  
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(now.getDate() - i);
-    // Berikan transaksi acak
-    const totalTx = Math.floor(Math.random() * 5) + 1;
-    for (let t = 0; t < totalTx; t++) {
-      const itemsCount = Math.floor(Math.random() * 2) + 1;
-      const txItems = [];
-      let total = 0;
-      
-      for (let j = 0; j < itemsCount; j++) {
-        const p = defaultProducts[Math.floor(Math.random() * defaultProducts.length)];
-        const qty = Math.floor(Math.random() * 2) + 1;
-        txItems.push({
-          id: p.id,
-          nama: p.nama,
-          harga: p.harga_jual,
-          harga_beli: p.harga_beli,
-          qty: qty
-        });
-        total += p.harga_jual * qty;
-      }
-      
-      list.push({
-        id: 'TX-' + date.getTime().toString().slice(-6) + t,
-        waktu: date.toISOString(),
-        items: txItems,
-        total: total,
-        bayar: total + 5000,
-        kembalian: 5000
-      });
-    }
-  }
-  return list;
-};
+// Data Awal Transaksi (Kosong secara default agar riwayat transaksi bersih)
+const seedTransactions = () => [];
 
 // --- Inisialisasi Aplikasi ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -214,46 +1062,40 @@ document.addEventListener('DOMContentLoaded', () => {
   loadProductLabelSettings();
   loadData();
   initCashiers();
-  
-  // Set default filters to today
-  const today = new Date().toLocaleDateString('en-CA'); // 'en-CA' outputs YYYY-MM-DD
-  const startDateInput = document.getElementById('tx-filter-start-date');
-  const endDateInput = document.getElementById('tx-filter-end-date');
-  if (startDateInput) startDateInput.value = today;
-  if (endDateInput) endDateInput.value = today;
-  
-  // Isi input URL di pengaturan
-  document.getElementById('gas-url-input').value = gasUrl;
-  
-  // Sinkronisasi otomatis jika perangkat online saat halaman dibuka
-  if (navigator.onLine) {
-    syncAllFromCloud();
+
+  // Hubungkan Firebase HANYA JIKA mode Cloud Sync diaktifkan oleh pengguna
+  if (appConfig.enableCloudSync) {
+    updateSyncStatus('syncing', 'Menghubungkan ke Database...');
+    initFirebase().then(connected => {
+      if (!connected) {
+        if (navigator.onLine) {
+          initAnalyticsFilter();
+          updateAnalytics();
+          updateSyncStatus('offline', 'Firebase belum dikonfigurasi');
+        } else {
+          updateSyncStatus('offline', 'Tidak ada koneksi internet');
+          initAnalyticsFilter();
+          updateAnalytics();
+        }
+      }
+    });
   } else {
-    updateSyncStatus('offline', `Offline (${offlineQueue.length} transaksi tertunda)`);
+    // Mode Offline Murni (Database Lokal)
+    updateSyncStatus('offline', 'Mode Offline (Database Lokal)');
     initAnalyticsFilter();
     updateAnalytics();
   }
   
-  // Event listener untuk memicu sinkronisasi otomatis ketika laptop beralih dari offline ke online
+  const startDateInput = document.getElementById('tx-filter-start-date');
+  const endDateInput = document.getElementById('tx-filter-end-date');
+  const todayDateStr = getLocalISODate(new Date()).slice(0, 10);
+  if (startDateInput) startDateInput.value = todayDateStr;
+  if (endDateInput) endDateInput.value = todayDateStr;
+  
+  // Saat kembali online, hanya init Firebase jika fitur cloud diaktifkan
   window.addEventListener('online', () => {
-    console.log("Koneksi internet terdeteksi aktif. Memulai sinkronisasi otomatis ke cloud...");
-    if (gasUrl) syncAllFromCloud();
+    if (appConfig.enableCloudSync && !firebaseDb) initFirebase();
   });
-
-  // Sinkronisasi otomatis saat pengguna kembali membuka tab/aplikasi (sangat berguna di HP)
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && navigator.onLine && gasUrl) {
-      console.log("Aplikasi kembali aktif, menyinkronkan data dari cloud...");
-      syncAllFromCloud();
-    }
-  });
-
-  // Sinkronisasi background berkala setiap 5 menit jika aplikasi dibiarkan menyala terus
-  setInterval(() => {
-    if (navigator.onLine && gasUrl) {
-      syncAllFromCloud();
-    }
-  }, 5 * 60 * 1000);
   
   // Event listeners
   window.addEventListener('keydown', handleGlobalKeydowns);
@@ -346,12 +1188,21 @@ function loadData() {
     saveProductsLocally();
   }
   
-  const cachedTransactions = localStorage.getItem('kasir_transactions');
-  if (cachedTransactions) {
-    transactions = JSON.parse(cachedTransactions);
+  // Muat transaksi: jika mode offline lokal, muat dari localStorage.
+  // Jika cloud aktif, transactions diisi oleh listener Realtime Database.
+  if (!appConfig.enableCloudSync) {
+    const cachedTransactions = localStorage.getItem('kasir_transactions');
+    if (cachedTransactions) {
+      try {
+        transactions = JSON.parse(cachedTransactions);
+      } catch (e) {
+        transactions = [];
+      }
+    } else {
+      transactions = [];
+    }
   } else {
-    transactions = seedTransactions();
-    saveTransactionsLocally();
+    transactions = [];
   }
   
   const cachedShifts = localStorage.getItem('kasir_shifts');
@@ -403,10 +1254,73 @@ function saveProductsLocally() {
   localStorage.setItem('kasir_products', JSON.stringify(products));
 }
 
-// Update daftar kategori unik
+// Simpan master daftar kategori khusus (yang dibuat manual pengguna)
+let customCategories = JSON.parse(localStorage.getItem('kasir_custom_categories')) || ['Umum', 'Makanan', 'Minuman', 'Snack', 'Sembako'];
+
+// Update daftar kategori unik & perbarui pilihan dropdown kategori di modal produk
 function updateCategoriesList() {
-  const cats = products.map(p => p.kategori || 'Umum');
-  categories = ['All', ...new Set(cats)];
+  const catsFromProducts = products.map(p => p.kategori || 'Umum').filter(Boolean);
+  const combined = Array.from(new Set([...customCategories, ...catsFromProducts]));
+  categories = ['All', ...combined];
+  populateCategorySelect();
+}
+
+// Mengisi opsi dropdown kategori (#prod-category dan #product-list-category-filter)
+function populateCategorySelect(selectedCategory = null) {
+  const catSelect = document.getElementById('prod-category');
+  const filterSelect = document.getElementById('product-list-category-filter');
+
+  const currentVal = selectedCategory || (catSelect ? catSelect.value : 'Umum');
+  const catsFromProducts = products.map(p => p.kategori || 'Umum').filter(Boolean);
+  const allCats = Array.from(new Set([...customCategories, ...catsFromProducts]));
+
+  if (catSelect) {
+    catSelect.innerHTML = '';
+    allCats.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      if (cat.toLowerCase() === currentVal.toLowerCase()) {
+        opt.selected = true;
+      }
+      catSelect.appendChild(opt);
+    });
+  }
+
+  // Perbarui dropdown filter kategori di tabel produk
+  if (filterSelect) {
+    const currentFilterVal = filterSelect.value || 'All';
+    filterSelect.innerHTML = '<option value="All">Semua Kategori</option>';
+    allCats.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      if (cat.toLowerCase() === currentFilterVal.toLowerCase()) {
+        opt.selected = true;
+      }
+      filterSelect.appendChild(opt);
+    });
+  }
+}
+
+// Dialog input untuk menambahkan kategori baru lewat tombol '+'
+function promptAddNewCategory() {
+  const newCat = prompt('Masukkan Nama Kategori Baru:');
+  if (!newCat) return;
+
+  const cleanCat = newCat.trim();
+  if (!cleanCat) return;
+
+  // Cek apakah sudah ada (case-insensitive)
+  const existing = customCategories.find(c => c.toLowerCase() === cleanCat.toLowerCase());
+  if (!existing) {
+    customCategories.push(cleanCat);
+    localStorage.setItem('kasir_custom_categories', JSON.stringify(customCategories));
+  }
+
+  updateCategoriesList();
+  populateCategorySelect(cleanCat);
+  alert(`✅ Kategori "${cleanCat}" berhasil ditambahkan!`);
 }
 
 // --- PENGATURAN NOTA & REBRANDING NAVBAR ---
@@ -522,13 +1436,21 @@ function loadAppConfig() {
     shiftWrapper.style.display = appConfig.strictShift ? 'flex' : 'none';
   }
 
+  const chkCloud = document.getElementById('chk-enable-cloud');
+  const panelCloud = document.getElementById('firebase-settings-panel');
+  if (chkCloud) chkCloud.checked = appConfig.enableCloudSync === true;
+  if (panelCloud) panelCloud.style.display = appConfig.enableCloudSync ? 'block' : 'none';
+
   checkPromoBanner();
 }
 
 function applyReceiptSettings() {
-  // 1. Rebranding Navbar Atas (Nama Toko & Logo)
+  // 1. Rebranding Navbar Atas & Footer (Nama Toko & Logo)
   const storeNameEl = document.getElementById('app-store-name');
-  storeNameEl.textContent = receiptSettings.name;
+  if (storeNameEl) storeNameEl.textContent = receiptSettings.name;
+
+  const footerNameEl = document.getElementById('store-footer-name');
+  if (footerNameEl) footerNameEl.textContent = receiptSettings.name;
   
   const logoContainer = document.getElementById('app-logo-container');
   if (receiptSettings.logo) {
@@ -865,6 +1787,13 @@ function toggleSidebar() {
 
 // --- NAVIGASI TAB ---
 function switchTab(tabName) {
+  // Cek apakah pengguna saat ini berhak membuka tab ini
+  if (!canAccessTab(tabName)) {
+    alert(`⛔ Akses Terbatas!\n\nAkun "${activeCashier}" tidak memiliki izin untuk membuka menu ini.\nSilakan masuk sebagai Owner untuk mengakses menu ini.`);
+    openCashierLoginModal();
+    return;
+  }
+
   activeTab = tabName;
   
   const navTabs = document.querySelector('.nav-tabs');
@@ -873,12 +1802,35 @@ function switchTab(tabName) {
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.remove('active');
   });
-  document.getElementById(`tab-${tabName}`).classList.add('active');
-  
+  const topTab = document.getElementById(`tab-${tabName}`);
+  if (topTab) topTab.classList.add('active');
+
+  // Update State Aktif pada M3 Bottom Navigation Bar
+  document.querySelectorAll('.m3-nav-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  const m3Fab = document.getElementById('m3-tab-pos');
+  if (m3Fab) m3Fab.classList.remove('active');
+
+  const m3Item = document.getElementById(`m3-tab-${tabName}`);
+  if (m3Item) {
+    m3Item.classList.add('active');
+  } else if (tabName === 'kulak' || tabName === 'customers' || tabName === 'settings') {
+    // Menu sekunder di sheet "Saya"
+    const moreTab = document.getElementById('m3-tab-more');
+    if (moreTab) moreTab.classList.add('active');
+  }
+
   document.querySelectorAll('.tab-pane').forEach(pane => {
     pane.classList.remove('active');
   });
-  document.getElementById(`pane-${tabName}`).classList.add('active');
+  const targetPane = document.getElementById(`pane-${tabName}`);
+  if (targetPane) targetPane.classList.add('active');
+
+  // Perbarui status icon keranjang melayang di mobile
+  if (typeof updateMobileCartBadge === 'function') {
+    updateMobileCartBadge();
+  }
   
   // Aksi tab
   if (tabName === 'pos') {
@@ -908,6 +1860,39 @@ function switchTab(tabName) {
   }
 }
 
+// Handler Material Design 3 Bottom Sheet ("Saya" / Menu Tambahan)
+function toggleMobileMoreSheet() {
+  const sheet = document.getElementById('m3-bottom-sheet');
+  const backdrop = document.getElementById('m3-sheet-backdrop');
+  if (!sheet || !backdrop) return;
+
+  const isOpen = sheet.classList.contains('active');
+  if (isOpen) {
+    closeMobileMoreSheet();
+  } else {
+    // Update info akun di header sheet
+    const userTitle = document.getElementById('m3-sheet-user-title');
+    const storeInfo = document.getElementById('m3-sheet-store-info');
+    if (userTitle) userTitle.textContent = `${activeCashier} (${currentUserRole === 'owner' ? 'Owner' : 'Kasir'})`;
+    if (storeInfo) storeInfo.textContent = receiptSettings.name || 'KasirKilat POS';
+
+    backdrop.classList.add('active');
+    sheet.classList.add('active');
+  }
+}
+
+function closeMobileMoreSheet() {
+  const sheet = document.getElementById('m3-bottom-sheet');
+  const backdrop = document.getElementById('m3-sheet-backdrop');
+  if (sheet) sheet.classList.remove('active');
+  if (backdrop) backdrop.classList.remove('active');
+}
+
+function switchTabFromSheet(tabName) {
+  closeMobileMoreSheet();
+  switchTab(tabName);
+}
+
 // Fokuskan kursor ke input kasir
 function focusSearchInput() {
   setTimeout(() => {
@@ -926,6 +1911,7 @@ function focusSearchInput() {
 function toggleMobileCheckout() {
   const panel = document.getElementById('pos-right-section');
   const overlay = document.getElementById('mobile-checkout-overlay');
+  const floatBtn = document.getElementById('mobile-cart-float-btn');
   if (!panel) return;
   const isOpen = panel.classList.contains('mobile-panel-open');
   if (isOpen) {
@@ -933,6 +1919,8 @@ function toggleMobileCheckout() {
   } else {
     panel.classList.add('mobile-panel-open');
     if (overlay) overlay.classList.add('active');
+    // Sembunyikan icon keranjang bulat ketika dialog ringkasan belanja terbuka
+    if (floatBtn) floatBtn.style.display = 'none';
     document.body.style.overflow = 'hidden';
   }
 }
@@ -940,15 +1928,22 @@ function toggleMobileCheckout() {
 function closeMobileCheckout() {
   const panel = document.getElementById('pos-right-section');
   const overlay = document.getElementById('mobile-checkout-overlay');
+  const floatBtn = document.getElementById('mobile-cart-float-btn');
   if (panel) panel.classList.remove('mobile-panel-open');
   if (overlay) overlay.classList.remove('active');
   document.body.style.overflow = '';
+  // Tampilkan kembali icon keranjang bulat jika masih ada item belanja di kasir
+  if (typeof updateMobileCartBadge === 'function') {
+    updateMobileCartBadge();
+  }
 }
 
 function updateMobileCartBadge() {
   const badge = document.getElementById('mobile-cart-badge');
   const floatBadge = document.getElementById('mobile-cart-float-badge');
   const floatTotal = document.getElementById('mobile-cart-float-total');
+  const floatBtn = document.getElementById('mobile-cart-float-btn');
+  const isMobile = window.innerWidth <= 768;
   
   const totalQty = cart.reduce((sum, it) => sum + (it.qty || 0), 0);
   if (badge) {
@@ -960,6 +1955,14 @@ function updateMobileCartBadge() {
   }
   if (floatTotal) {
     floatTotal.textContent = `Rp ${formatRupiah(globalTotal || 0)}`;
+  }
+  if (floatBtn) {
+    // Tombol keranjang & total belanja melayang HANYA boleh muncul di mode mobile (<= 768px), di kasir (POS), dan ada item belanja
+    if (isMobile && activeTab === 'pos' && totalQty > 0) {
+      floatBtn.style.display = 'flex';
+    } else {
+      floatBtn.style.display = 'none';
+    }
   }
 }
 
@@ -1009,122 +2012,8 @@ function updateSyncStatus(status, text) {
   }
 }
 
-// --- SINKRONISASI BERURUTAN (Tidak paralel agar GAS tidak kewalahan) ---
-let isSyncing = false;
-async function syncAllFromCloud() {
-  if (isSyncing) {
-    console.log("Sinkronisasi masih berjalan, menunggu selesai...");
-    return;
-  }
-  isSyncing = true;
 
-  // 1. Kirim transaksi offline yang belum terkirim (independen)
-  try {
-    await processOfflineQueue();
-  } catch (err) {
-    console.error("Error saat kirim offline queue:", err);
-  }
 
-  // 2. Tarik data produk (independen)
-  try {
-    await syncFromCloud();
-  } catch (err) {
-    console.error("Error saat tarik data produk:", err);
-    updateSyncStatus('offline', 'Gagal Tarik Produk');
-  }
-
-  // 3. Tarik data transaksi hari ini — selalu dijalankan meskipun langkah sebelumnya gagal
-  try {
-    await syncTransactionsFromCloud();
-  } catch (err) {
-    console.error("Error saat tarik data transaksi:", err);
-    updateSyncStatus('offline', 'Gagal Tarik Transaksi');
-  }
-
-  isSyncing = false;
-
-  // 4. Muat data 7 hari terakhir di background (diam-diam, 3 detik setelah app siap)
-  //    Tidak memblokir apapun — kasir sudah bisa langsung transaksi
-  if (gasUrl) {
-    setTimeout(() => {
-      loadWeeklyTrendInBackground();
-    }, 3000);
-  }
-}
-
-// --- KOMUNIKASI API GOOGLE APPS SCRIPT (CORS-Safe & dengan Timeout) ---
-
-// Membersihkan gasUrl dari trailing ?, & atau spasi agar tidak menghasilkan URL rusak
-function cleanGasUrl(url) {
-  if (!url) return url;
-  return url.replace(/[?&\s]+$/, '');
-}
-
-async function fetchFromGAS(action, postData = null, maxRetries = 2) {
-  if (!gasUrl) {
-    return { status: 'offline', message: 'URL API belum disetel.' };
-  }
-
-  let lastErrorMsg = '';
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    // Setel timeout 30 detik — request yang benar-benar berhasil selesai < 10 detik.
-    // Kalau lebih dari 30 detik, GAS sedang masalah dan lebih baik retry daripada menunggu.
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, 30000);
-
-    try {
-      let response;
-      if (postData) {
-        response = await fetch(gasUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain'
-          },
-          body: JSON.stringify({ action, ...postData }),
-          signal: controller.signal
-        });
-      } else {
-        const preventCacheUrl = `${cleanGasUrl(gasUrl)}?action=${action}&_t=${Date.now()}`;
-        response = await fetch(preventCacheUrl, {
-          signal: controller.signal
-        });
-      }
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data; // Sukses, langsung kembalikan data
-      
-    } catch (error) {
-      clearTimeout(timeoutId);
-      console.warn(`Percobaan ${attempt} gagal untuk aksi ${action}:`, error);
-      
-      if (error.name === 'AbortError') {
-        lastErrorMsg = "Koneksi Timeout (Batas waktu 30 detik terlampaui). Coba periksa koneksi internet Anda.";
-      } else {
-        lastErrorMsg = error.toString();
-      }
-
-      // Jika masih ada sisa kesempatan retry, tunggu 3 detik sebelum mencoba lagi
-      if (attempt < maxRetries) {
-        await new Promise(r => setTimeout(r, 3000));
-      }
-    }
-  }
-
-  // Jika semua percobaan gagal
-  console.error("Kesalahan koneksi ke Google Sheets (Semua percobaan gagal):", lastErrorMsg);
-  return { status: 'error', message: lastErrorMsg };
-}
-
-// Fungsi syncTransactionsFromCloud ada di bawah (baris ~2987) agar field piutang tidak hilang
 
 
 // Parsing daftar item string "Teh Manis (2x @4000)" kembali ke objek
@@ -1262,83 +2151,9 @@ let weeklyTrendData = []; // array gabungan: 6 hari lalu (cloud) + hari ini (lok
 
 // Dipanggil 3 detik setelah app siap — muat 6 hari lalu secara diam-diam untuk grafik tren
 async function loadWeeklyTrendInBackground() {
-  if (!gasUrl) return;
-
-  const today = new Date();
-
-  // Hitung tanggal 6 hari yang lalu (kecuali hari ini, sudah ada di `transactions`)
-  const sixDaysAgo = new Date(today);
-  sixDaysAgo.setDate(today.getDate() - 6);
-  const startDate = getLocalISODate(sixDaysAgo).slice(0, 10);
-  // Kemarin adalah batas akhir (hari ini sudah ada di lokal)
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  const endDate = getLocalISODate(yesterday).slice(0, 10);
-
-  try {
-    const url = cleanGasUrl(gasUrl)
-      + '?action=searchTransactions'
-      + '&startDate=' + encodeURIComponent(startDate)
-      + '&endDate='   + encodeURIComponent(endDate);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    const result = await response.json();
-
-    if (result && result.status === 'success' && result.data) {
-      // Parse data 6 hari lalu
-      const parsed = result.data
-        .filter(tx => (tx.id_transaksi || tx.id || '').toString().trim() !== '')
-        .map(tx => {
-          let itemsList = [];
-          const itemsStr = tx.daftar_item || '';
-          if (itemsStr) {
-            itemsStr.split(', ').forEach(part => {
-              const match = part.match(/(.+) \((\d+)x @(\d+)\)/);
-              if (match) {
-                const nama = match[1].trim();
-                const qty  = parseInt(match[2]) || 1;
-                const harga = parseFloat(match[3]) || 0;
-                const prod = products.find(p => p.nama.toLowerCase() === nama.toLowerCase());
-                itemsList.push({
-                  id: prod ? prod.id : '',
-                  nama, harga,
-                  harga_beli: prod ? prod.harga_beli : Math.round(harga * 0.7),
-                  qty
-                });
-              }
-            });
-          }
-          const sisa = parseFloat(tx.sisa_piutang) || 0;
-          return {
-            id: (tx.id_transaksi || tx.id || '').toString(),
-            waktu: tx.waktu || '',
-            items: itemsList,
-            total: parseFloat(tx.total) || 0,
-            bayar: parseFloat(tx.uang_bayar) || parseFloat(tx.bayar) || 0,
-            kembalian: parseFloat(tx.kembalian) || 0,
-            metode_pembayaran: tx.metode_pembayaran || 'Tunai',
-            kasir: tx.kasir || 'Kasir Utama',
-            sisa_piutang: sisa,
-            nama_pelanggan: tx.nama_pelanggan || '',
-            status_pembayaran: sisa > 0 ? 'Bon' : (tx.status_pembayaran || 'Lunas')
-          };
-        });
-
-      // Gabungkan: 6 hari lalu (cloud) + hari ini (lokal)
-      weeklyTrendData = [...parsed, ...transactions];
-
-      // Refresh grafik tren saja (diam-diam, tanpa ganggu UI lain)
-      render7DayChart();
-
-      console.log(`[Weekly Trend] Berhasil dimuat: ${parsed.length} transaksi (6 hari lalu) + ${transactions.length} hari ini`);
-    }
-  } catch (err) {
-    // Gagal diam-diam, tidak tampilkan error ke user
-    console.warn('[Weekly Trend] Gagal memuat data background:', err.message);
-  }
+  // Seluruh transaksi historis sudah tersimpan di Realtime Database dan termuat di `transactions`
+  weeklyTrendData = [...transactions];
+  render7DayChart();
 }
 
 // Dipanggil saat filter analitik berubah: tarik cloud jika perlu, lalu render
@@ -1382,110 +2197,7 @@ async function fetchAndUpdateAnalytics() {
     endDate = '';
   }
 
-  if (needCloud && gasUrl) {
-    // 1. Cek Cache Lokal terlebih dahulu
-    const cacheKey = `kasir_analytics_cache_${startDate}_${endDate}`;
-    const cachedData = localStorage.getItem(cacheKey);
-    if (cachedData) {
-      try {
-        const parsedCache = JSON.parse(cachedData);
-        // Jika cache kurang dari 10 menit, langsung pakai dari memori
-        if (Date.now() - (parsedCache.timestamp || 0) < 10 * 60 * 1000 && Array.isArray(parsedCache.data)) {
-          analyticsTransactions = parsedCache.data;
-          updateSyncStatus('online', `Data analitik dimuat dari cache (${analyticsTransactions.length} transaksi)`);
-          updateAnalytics();
-          return;
-        }
-      } catch (e) {
-        localStorage.removeItem(cacheKey);
-      }
-    }
-
-    updateSyncStatus('syncing', 'Memuat data analitik...');
-
-    let url = cleanGasUrl(gasUrl) + '?action=searchTransactions&startDate=' + encodeURIComponent(startDate) + '&endDate=' + encodeURIComponent(endDate);
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
-      const responseText = await response.text();
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (jsonErr) {
-        console.error('[Analytics] Respon server bukan JSON:', responseText.slice(0, 200));
-        throw new Error('Respon server Google Sheets tidak valid JSON');
-      }
-
-      if (result && result.status === 'success' && Array.isArray(result.data)) {
-        analyticsTransactions = result.data
-          .filter(tx => (tx.id_transaksi || tx.id || '').toString().trim() !== '')
-          .map(tx => {
-            let itemsList = [];
-            const itemsStr = tx.daftar_item || '';
-            if (itemsStr) {
-              itemsStr.split(', ').forEach(part => {
-                const match = part.match(/(.+) \((\d+)x @(\d+)\)/);
-                if (match) {
-                  const nama = match[1].trim();
-                  const qty = parseInt(match[2]) || 1;
-                  const harga = parseFloat(match[3]) || 0;
-                  const prod = products.find(p => p.nama.toLowerCase() === nama.toLowerCase());
-                  itemsList.push({
-                    id: prod ? prod.id : '',
-                    nama,
-                    harga,
-                    harga_beli: prod ? prod.harga_beli : Math.round(harga * 0.7),
-                    qty
-                  });
-                }
-              });
-            }
-            const txId = (tx.id_transaksi || tx.id || '').toString();
-            const sisa = parseFloat(tx.sisa_piutang) || 0;
-            return {
-              id: txId,
-              waktu: tx.waktu || '',
-              items: itemsList,
-              total: parseFloat(tx.total) || 0,
-              bayar: parseFloat(tx.uang_bayar) || parseFloat(tx.bayar) || 0,
-              kembalian: parseFloat(tx.kembalian) || 0,
-              metode_pembayaran: tx.metode_pembayaran || 'Tunai',
-              kasir: tx.kasir || 'Kasir Utama',
-              sisa_piutang: sisa,
-              nama_pelanggan: tx.nama_pelanggan || '',
-              status_pembayaran: sisa > 0 ? 'Bon' : (tx.status_pembayaran || 'Lunas')
-            };
-          });
-
-        // Simpan Hasil ke Cache Lokal (berlaku 10 menit)
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify({
-            timestamp: Date.now(),
-            data: analyticsTransactions
-          }));
-        } catch (storageErr) {
-          console.warn('[Analytics] Gagal menyimpan cache:', storageErr);
-        }
-
-        updateSyncStatus('online', `Data analitik dimuat (${analyticsTransactions.length} transaksi)`);
-      } else {
-        console.warn('[Analytics] Gagal memuat data cloud:', result);
-        analyticsTransactions = null;
-        updateSyncStatus('offline', result && result.message ? result.message : 'Gagal memuat data analitik (memakai data lokal)');
-      }
-    } catch (err) {
-      console.error('[Analytics] Error:', err);
-      analyticsTransactions = null;
-      updateSyncStatus('offline', 'Koneksi Terputus (memakai data lokal)');
-    }
-  } else {
-    // Hari ini atau tidak ada koneksi: pakai transactions lokal
-    analyticsTransactions = null;
-  }
-
+  analyticsTransactions = null;
   updateAnalytics();
 }
 
@@ -1801,12 +2513,15 @@ function render7DayChart() {
   
   const maxAmount = Math.max(...dailyTotals.map(d => d.amount), 100000);
   
-  // Ukuran viewBox SVG
-  const width = 800;
-  const height = 220;
-  const paddingX = 40;
-  const paddingYTop = 38;
-  const paddingYBottom = 42;
+  // Deteksi mode mobile (<= 768px) atau desktop
+  const isMobile = window.innerWidth <= 768;
+
+  // Ukuran viewBox SVG: Desktop kembali seperti semula (lebar 800 x tinggi 220), Mobile dibuat tinggi, gagah & besar (lebar 500 x tinggi 275)
+  const width = isMobile ? 500 : 800;
+  const height = isMobile ? 275 : 220;
+  const paddingX = isMobile ? 28 : 40;
+  const paddingYTop = isMobile ? 50 : 38;
+  const paddingYBottom = isMobile ? 42 : 42;
   const chartWidth = width - (paddingX * 2);
   const chartHeight = height - paddingYTop - paddingYBottom;
   
@@ -1842,55 +2557,74 @@ function render7DayChart() {
   const areaPathD = `${linePathD} L ${points[points.length - 1].x},${height - paddingYBottom} L ${points[0].x},${height - paddingYBottom} Z`;
 
   let svgHTML = `
-    <svg viewBox="0 0 ${width} ${height}" class="smooth-line-chart" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: 100%; display: block;">
+    <svg viewBox="0 0 ${width} ${height}" class="smooth-line-chart" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: 100%; display: block; overflow: visible;">
       <defs>
         <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="var(--color-primary, #3b82f6)" stop-opacity="0.35" />
+          <stop offset="0%" stop-color="var(--color-primary, #3b82f6)" stop-opacity="${isMobile ? '0.36' : '0.35'}" />
           <stop offset="100%" stop-color="var(--color-primary, #3b82f6)" stop-opacity="0.0" />
         </linearGradient>
         <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="var(--color-primary, #3b82f6)" flood-opacity="0.3"/>
+          <feDropShadow dx="0" dy="4" stdDeviation="${isMobile ? '3.5' : '4'}" flood-color="var(--color-primary, #3b82f6)" flood-opacity="${isMobile ? '0.4' : '0.3'}"/>
         </filter>
       </defs>
       
       <!-- Horizontal Grid Lines -->
-      <line x1="${paddingX}" y1="${paddingYTop}" x2="${width - paddingX}" y2="${paddingYTop}" stroke="var(--border-color, #e5e7eb)" stroke-dasharray="4 4" stroke-opacity="0.5"/>
-      <line x1="${paddingX}" y1="${paddingYTop + chartHeight / 2}" x2="${width - paddingX}" y2="${paddingYTop + chartHeight / 2}" stroke="var(--border-color, #e5e7eb)" stroke-dasharray="4 4" stroke-opacity="0.5"/>
-      <line x1="${paddingX}" y1="${height - paddingYBottom}" x2="${width - paddingX}" y2="${height - paddingYBottom}" stroke="var(--border-color, #e5e7eb)" stroke-opacity="0.8"/>
+      <line x1="${paddingX - (isMobile ? 12 : 0)}" y1="${paddingYTop}" x2="${width - paddingX + (isMobile ? 12 : 0)}" y2="${paddingYTop}" stroke="var(--border-color, #e5e7eb)" stroke-dasharray="${isMobile ? '3 3' : '4 4'}" stroke-opacity="${isMobile ? '0.65' : '0.5'}"/>
+      <line x1="${paddingX - (isMobile ? 12 : 0)}" y1="${paddingYTop + chartHeight / 2}" x2="${width - paddingX + (isMobile ? 12 : 0)}" y2="${paddingYTop + chartHeight / 2}" stroke="var(--border-color, #e5e7eb)" stroke-dasharray="${isMobile ? '3 3' : '4 4'}" stroke-opacity="${isMobile ? '0.65' : '0.5'}"/>
+      <line x1="${paddingX - (isMobile ? 12 : 0)}" y1="${height - paddingYBottom}" x2="${width - paddingX + (isMobile ? 12 : 0)}" y2="${height - paddingYBottom}" stroke="var(--border-color, #cbd5e1)" stroke-width="${isMobile ? '1.5' : '1'}" stroke-opacity="${isMobile ? '0.9' : '0.8'}"/>
 
       <!-- Area Fill Under Curve -->
       <path d="${areaPathD}" fill="url(#chartGradient)" />
 
       <!-- Smoothed Line -->
-      <path d="${linePathD}" fill="none" stroke="var(--color-primary, #3b82f6)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)" />
+      <path d="${linePathD}" fill="none" stroke="var(--color-primary, #3b82f6)" stroke-width="${isMobile ? '4.5' : '3.5'}" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)" />
 
       <!-- Data Points, Nominal Labels & Date Labels -->
   `;
 
   points.forEach((pt) => {
     const formattedNominal = pt.day.amount > 0 ? `Rp ${formatRupiah(pt.day.amount)}` : 'Rp 0';
-    const shortText = pt.day.amount > 0 ? (pt.day.amount >= 1000000 ? `${(pt.day.amount/1000000).toFixed(1)}Jt` : `${Math.round(pt.day.amount/1000)}Rb`) : '0';
+    let shortText = '0';
+    if (pt.day.amount > 0) {
+      if (pt.day.amount >= 1000000) {
+        const valM = pt.day.amount / 1000000;
+        shortText = valM >= 10 ? `${Math.round(valM)}Jt` : `${valM.toFixed(1).replace('.0', '')}Jt`;
+      } else {
+        shortText = `${Math.round(pt.day.amount / 1000)}Rb`;
+      }
+    }
     
-    svgHTML += `
-      <g class="chart-point-group">
-        <!-- Vertical guide line on hover -->
-        <line x1="${pt.x}" y1="${paddingYTop}" x2="${pt.x}" y2="${height - paddingYBottom}" stroke="var(--color-primary, #3b82f6)" stroke-width="1" stroke-dasharray="3 3" opacity="0.25"/>
-        
-        <!-- Outer Glow Circle -->
-        <circle cx="${pt.x}" cy="${pt.y}" r="4" fill="var(--bg-surface, #fff)" stroke="var(--color-primary, #3b82f6)" stroke-width="2.5" />
-        
-        <!-- Nominal Text on Top of Point -->
-        <text x="${pt.x}" y="${Math.max(paddingYTop - 4, pt.y - 12)}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-main, #1f2937)" class="chart-nominal-text">
-          ${shortText}
-        </text>
-        <title>${pt.day.label}: ${formattedNominal}</title>
-
-        <!-- Date Label below Bottom Line -->
-        <text x="${pt.x}" y="${height - 10}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text-muted, #6b7280)">
-          ${pt.day.label}
-        </text>
-      </g>
-    `;
+    if (isMobile) {
+      // Mobile: font besar & tebal (16.5px & 15px), stroke outline putih tebal agar terbaca sangat jelas
+      svgHTML += `
+        <g class="chart-point-group">
+          <line x1="${pt.x}" y1="${paddingYTop}" x2="${pt.x}" y2="${height - paddingYBottom}" stroke="var(--color-primary, #3b82f6)" stroke-width="1.2" stroke-dasharray="2 2" opacity="0.25"/>
+          <circle cx="${pt.x}" cy="${pt.y}" r="6.5" fill="#ffffff" stroke="var(--color-primary, #3b82f6)" stroke-width="4" />
+          <text x="${pt.x}" y="${Math.max(paddingYTop - 8, pt.y - 13)}" text-anchor="middle" font-size="16.5" font-weight="800" fill="var(--text-main, #0f172a)" class="chart-nominal-text" style="paint-order: stroke; stroke: #ffffff; stroke-width: 4px; stroke-linejoin: round;">
+            ${shortText}
+          </text>
+          <title>${pt.day.label}: ${formattedNominal}</title>
+          <text x="${pt.x}" y="${height - 12}" text-anchor="middle" font-size="15" font-weight="800" fill="var(--text-muted, #334155)">
+            ${pt.day.label}
+          </text>
+        </g>
+      `;
+    } else {
+      // Desktop: tampilan semula yang proporsional, rapi, dan luas
+      svgHTML += `
+        <g class="chart-point-group">
+          <line x1="${pt.x}" y1="${paddingYTop}" x2="${pt.x}" y2="${height - paddingYBottom}" stroke="var(--color-primary, #3b82f6)" stroke-width="1" stroke-dasharray="3 3" opacity="0.25"/>
+          <circle cx="${pt.x}" cy="${pt.y}" r="4" fill="var(--bg-surface, #fff)" stroke="var(--color-primary, #3b82f6)" stroke-width="2.5" />
+          <text x="${pt.x}" y="${Math.max(paddingYTop - 4, pt.y - 12)}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-main, #1f2937)" class="chart-nominal-text">
+            ${shortText}
+          </text>
+          <title>${pt.day.label}: ${formattedNominal}</title>
+          <text x="${pt.x}" y="${height - 10}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--text-muted, #6b7280)">
+            ${pt.day.label}
+          </text>
+        </g>
+      `;
+    }
   });
 
   svgHTML += `</svg>`;
@@ -2017,16 +2751,9 @@ function quickCorrectStock(productId) {
   p.stok = newQty;
   saveProductsLocally();
   
-  // Sinkronkan ke cloud
-  if (gasUrl) {
-    updateSyncStatus('syncing', 'Menyimpan koreksi stok...');
-    fetchFromGAS('upsertProduct', { product: p }).then(res => {
-      if (res && res.status === 'success') {
-        updateSyncStatus('online', 'Tersinkronisasi');
-      } else {
-        updateSyncStatus('offline', 'Koneksi Terputus');
-      }
-    });
+  // Sinkronkan ke cloud RTDB
+  if (firebaseDb) {
+    saveProductCloud(p);
   }
   
   // Refresh tabel analytics dan shopping list
@@ -3688,7 +4415,7 @@ async function processCheckout() {
   const change = status === 'Bon' ? (cash >= finalTotalToPay ? cash - finalTotalToPay : 0) : cash - finalTotalToPay;
   const sisaPiutang = status === 'Bon' ? (cash < finalTotalToPay ? finalTotalToPay - cash : 0) : 0;
   
-  const txId = 'TX-' + Date.now().toString().slice(-8);
+  const txId = 'TX-' + Date.now().toString() + Math.floor(100 + Math.random() * 900);
   const now = new Date();
   
   const transaction = {
@@ -3718,6 +4445,7 @@ async function processCheckout() {
     transaction.poin_didapat = earnedPoints; // Track poin didapat
     
     saveCustomersLocally();
+    saveCustomerCloud(customer);
     renderCustomersTable(); // Refresh tabel pelanggan di background
   }
   
@@ -3741,9 +4469,11 @@ async function processCheckout() {
   saveProductsLocally();
   checkPromoBanner();
   
-  // 2. Simpan transaksi ke riwayat lokal untuk dashboard analisis
-  transactions.push(transaction);
+  // 2. Simpan transaksi ke riwayat lokal (unshift di awal agar ada di paling atas)
+  transactions.unshift(transaction);
   saveTransactionsLocally();
+  renderTransactionsTable();
+  updateAnalytics();
 
   // Bersihkan cache analitik lokal agar data analitik terbaru langsung diperbarui
   try {
@@ -3772,8 +4502,22 @@ async function processCheckout() {
   // 4. Tampilkan struk
   showReceipt(transaction, lastCart);
   
-  // 5. Kirim ke Google Sheets
-  syncTransactionToCloud(transaction);
+  // 5. Kirim langsung ke Firebase Realtime Database
+  if (firebaseDb) {
+    updateSyncStatus('syncing', 'Mengunggah transaksi...');
+    try {
+      const cleanTx = JSON.parse(JSON.stringify(transaction));
+      await firebaseDb.ref(getStorePath('transactions/' + cleanTx.id)).set(cleanTx);
+      console.log('✅ Transaksi berhasil masuk RTDB:', cleanTx.id, cleanTx.waktu);
+      updateSyncStatus('online', 'Database Terhubung');
+    } catch (syncErr) {
+      console.error('❌ GAGAL simpan transaksi ke RTDB:', syncErr.message);
+      updateSyncStatus('offline', 'Gagal: ' + syncErr.message);
+    }
+  } else {
+    console.warn('⚠️ Firebase tidak terhubung. Transaksi hanya tersimpan lokal.');
+    updateSyncStatus('offline', 'Firebase tidak terhubung');
+  }
 
   } catch (err) {
     console.error('[Checkout] Error tidak terduga:', err);
@@ -4110,19 +4854,11 @@ function closeReceiptModal() {
 }
 
 async function syncTransactionToCloud(tx) {
-  if (!gasUrl) {
-    queueOfflineTransaction(tx);
-    return;
-  }
-  
-  updateSyncStatus('syncing', 'Mengirim transaksi...');
-  const result = await fetchFromGAS('addTransaction', { transaction: tx });
-  
-  if (result && result.status === 'success') {
-    updateSyncStatus('online', 'Tersinkronisasi');
-    // Proses queue hanya jika tidak sedang berjalan
-    if (!isProcessingOfflineQueue) {
-      processOfflineQueue();
+  if (firebaseDb) {
+    try {
+      await syncSingleTransactionToCloud(tx);
+    } catch (e) {
+      queueOfflineTransaction(tx);
     }
   } else {
     queueOfflineTransaction(tx);
@@ -4130,7 +4866,6 @@ async function syncTransactionToCloud(tx) {
 }
 
 function queueOfflineTransaction(tx) {
-  // Cegah duplikasi: jangan tambahkan ID yang sudah ada di queue
   const alreadyQueued = offlineQueue.some(q => q.id === tx.id);
   if (alreadyQueued) {
     console.warn('[OfflineQueue] Transaksi sudah ada di antrean, dilewati:', tx.id);
@@ -4145,12 +4880,10 @@ function saveOfflineQueue() {
   localStorage.setItem('kasir_offline_queue', JSON.stringify(offlineQueue));
 }
 
-// Flag untuk mencegah processOfflineQueue berjalan paralel (race condition)
 let isProcessingOfflineQueue = false;
 
 async function processOfflineQueue() {
-  if (offlineQueue.length === 0 || !gasUrl) return;
-  // Cegah eksekusi paralel
+  if (offlineQueue.length === 0 || !firebaseDb) return;
   if (isProcessingOfflineQueue) return;
   isProcessingOfflineQueue = true;
   
@@ -4161,10 +4894,10 @@ async function processOfflineQueue() {
   
   for (let i = 0; i < queueToProcess.length; i++) {
     const tx = queueToProcess[i];
-    const result = await fetchFromGAS('addTransaction', { transaction: tx });
-    if (result && result.status === 'success') {
+    try {
+      await syncSingleTransactionToCloud(tx);
       successCount++;
-    } else {
+    } catch (e) {
       break;
     }
   }
@@ -4174,7 +4907,7 @@ async function processOfflineQueue() {
   isProcessingOfflineQueue = false;
   
   if (offlineQueue.length === 0) {
-    updateSyncStatus('online', 'Tersinkronisasi');
+    updateSyncStatus('online', 'Database Terhubung');
   } else {
     updateSyncStatus('offline', `Offline (${offlineQueue.length} transaksi tertunda)`);
   }
@@ -4427,15 +5160,8 @@ function saveKulak(e) {
     closeKulakForm();
     
     // Sinkronkan ke cloud secara individual (Incremental)
-    if (gasUrl) {
-      updateSyncStatus('syncing', 'Menyimpan stok...');
-      fetchFromGAS('upsertProduct', { product: p }).then(res => {
-        if (res && res.status === 'success') {
-          updateSyncStatus('online', 'Tersinkronisasi');
-        } else {
-          updateSyncStatus('offline', 'Koneksi Terputus');
-        }
-      });
+    if (firebaseDb) {
+      saveProductCloud(p);
     }
 
     if (isPriceIncreased) {
@@ -4446,13 +5172,13 @@ function saveKulak(e) {
 
 // Sinkronisasi diam-diam di background (Kulak / Edit barang)
 async function syncProductsToCloudBackground() {
-  if (!gasUrl) return;
-  updateSyncStatus('syncing', 'Menyinkronkan...');
-  const result = await fetchFromGAS('updateProducts', { products: products });
-  if (result && result.status === 'success') {
-    updateSyncStatus('online', 'Tersinkronisasi');
-  } else {
-    updateSyncStatus('offline', 'Koneksi Terputus');
+  if (!firebaseDb) return;
+  try {
+    const updates = {};
+    products.forEach(p => { updates[getStorePath('products/' + p.id)] = JSON.parse(JSON.stringify(p)); });
+    await firebaseDb.ref('/').update(updates);
+  } catch (err) {
+    console.warn('Gagal sync background produk ke RTDB:', err);
   }
 }
 
@@ -4588,15 +5314,18 @@ function saveBulkEdit() {
   saveProductsLocally();
   renderBulkEditTable(); // Refresh tabel agar stok sekarang terupdate
   
-  // Sync ke cloud
-  if (gasUrl) {
-    updateSyncStatus('syncing', 'Menyimpan perubahan stok...');
-    fetchFromGAS('updateProducts', { products: products }).then(res => {
-      if (res && res.status === 'success') {
-        updateSyncStatus('online', 'Tersinkronisasi');
-      } else {
-        updateSyncStatus('offline', 'Koneksi Terputus');
-      }
+  // Sync ke cloud RTDB
+  if (firebaseDb) {
+    updateSyncStatus('syncing', 'Menyimpan perubahan ke database...');
+    const updates = {};
+    products.forEach(p => {
+      updates[getStorePath('products/' + p.id)] = JSON.parse(JSON.stringify(p));
+    });
+    firebaseDb.ref('/').update(updates).then(() => {
+      updateSyncStatus('online', 'Database Terhubung');
+    }).catch(err => {
+      console.error('Gagal simpan massal ke RTDB:', err);
+      updateSyncStatus('offline', 'Koneksi Gagal');
     });
   }
   alert(`✅ Berhasil menyimpan perubahan pada ${changedCount} produk!`);
@@ -4618,12 +5347,14 @@ function renderProductsTable(highlightProductId = null) {
   if (selectAllCb) selectAllCb.checked = false;
   
   const searchVal = document.getElementById('product-list-search').value.toLowerCase().trim();
+  const catFilterEl = document.getElementById('product-list-category-filter');
+  const catFilterVal = catFilterEl ? catFilterEl.value : 'All';
   
   if (searchVal !== '') {
     lastScannedProductId = null;
   }
   
-  let targetProduct = (searchVal === '' && lastScannedProductId) ? products.find(p => p.id === lastScannedProductId) : null;
+  let targetProduct = (searchVal === '' && catFilterVal === 'All' && lastScannedProductId) ? products.find(p => p.id === lastScannedProductId) : null;
   if (lastScannedProductId && !targetProduct && searchVal === '') {
     lastScannedProductId = null;
   }
@@ -4633,6 +5364,14 @@ function renderProductsTable(highlightProductId = null) {
     matched = [targetProduct];
   } else {
     matched = products.filter(p => {
+      // Filter kategori
+      if (catFilterVal !== 'All') {
+        const prodCat = (p.kategori || 'Umum').toLowerCase();
+        if (prodCat !== catFilterVal.toLowerCase()) return false;
+      }
+
+      // Filter search teks / barcode
+      if (!searchVal) return true;
       return String(p.nama).toLowerCase().includes(searchVal) || 
              String(p.id).toLowerCase().includes(searchVal) ||
              (p.barcode && String(p.barcode).toLowerCase().includes(searchVal)) ||
@@ -4647,10 +5386,16 @@ function renderProductsTable(highlightProductId = null) {
     matched.sort((a, b) => {
       if (sortValue === 'name_asc') {
         return a.nama.localeCompare(b.nama);
+      } else if (sortValue === 'name_desc') {
+        return b.nama.localeCompare(a.nama);
       } else if (sortValue === 'category_asc') {
         const catA = a.kategori || 'ZZZ';
         const catB = b.kategori || 'ZZZ';
         return catA.localeCompare(catB);
+      } else if (sortValue === 'category_desc') {
+        const catA = a.kategori || 'ZZZ';
+        const catB = b.kategori || 'ZZZ';
+        return catB.localeCompare(catA);
       } else if (sortValue === 'stock_asc') {
         return a.stok - b.stok;
       } else if (sortValue === 'stock_desc') {
@@ -5016,15 +5761,8 @@ function saveProduct(event) {
   alert("Produk berhasil disimpan!");
   closeProductModal(); // This will also reset the form
   
-  if (gasUrl) {
-    updateSyncStatus('syncing', 'Menyimpan produk...');
-    fetchFromGAS('upsertProduct', { product: productData }).then(res => {
-      if (res && res.status === 'success') {
-        updateSyncStatus('online', 'Tersinkronisasi');
-      } else {
-        updateSyncStatus('offline', 'Koneksi Terputus');
-      }
-    });
+  if (firebaseDb) {
+    saveProductCloud(productData);
   }
   
   if (isPriceIncreased) {
@@ -5041,6 +5779,7 @@ function toggleBoxPackagingFields() {
 }
 
 function openProductModal() {
+  populateCategorySelect();
   document.getElementById('product-edit-modal').classList.add('active');
 }
 
@@ -5057,7 +5796,7 @@ function editProduct(index) {
   document.getElementById('prod-id').value = p.id;
   document.getElementById('prod-id').disabled = true;
   document.getElementById('prod-name').value = p.nama;
-  document.getElementById('prod-category').value = p.kategori || 'Umum';
+  populateCategorySelect(p.kategori || 'Umum');
   document.getElementById('prod-price-buy').value = p.harga_beli || 0;
   document.getElementById('prod-price-sell').value = p.harga_jual || 0;
   document.getElementById('prod-stock').value = p.stok;
@@ -5090,37 +5829,31 @@ function editProduct(index) {
 
 function generateNextProductId() {
   if (products.length === 0) {
-    return "1001"; // Default start
+    return "P001"; // Format standar berawalan P
   }
   
   let maxNum = 0;
-  let prefix = "";
+  let prefix = "P";
+  let maxDigits = 3;
   
   products.forEach(p => {
-    const matches = p.id.match(/\d+/);
-    if (matches) {
-      const num = parseInt(matches[0]);
-      if (num > maxNum) {
-        maxNum = num;
-        prefix = p.id.substring(0, p.id.indexOf(matches[0]));
+    if (p && p.id) {
+      const matches = p.id.match(/(\d+)/);
+      if (matches) {
+        const num = parseInt(matches[1]);
+        if (num > maxNum) {
+          maxNum = num;
+          const pre = p.id.substring(0, p.id.indexOf(matches[1]));
+          if (pre) prefix = pre;
+          if (matches[1].length > maxDigits) maxDigits = matches[1].length;
+        }
       }
     }
   });
   
-  if (maxNum === 0) {
-    return "P" + (products.length + 1);
-  }
-  
   const nextNum = maxNum + 1;
-  const origMaxNumStr = maxNum.toString();
-  const nextNumStr = nextNum.toString();
-  
-  if (origMaxNumStr.length > nextNumStr.length) {
-    const paddedNum = nextNumStr.padStart(origMaxNumStr.length, '0');
-    return prefix + paddedNum;
-  }
-  
-  return prefix + nextNum;
+  const nextNumStr = nextNum.toString().padStart(maxDigits, '0');
+  return prefix + nextNumStr;
 }
 
 function resetProductForm() {
@@ -5132,7 +5865,7 @@ function resetProductForm() {
   idInput.disabled = false;
   
   document.getElementById('prod-name').value = "";
-  document.getElementById('prod-category').value = "";
+  populateCategorySelect('Umum');
   document.getElementById('prod-price-buy').value = "";
   document.getElementById('prod-price-sell').value = "";
   document.getElementById('prod-stock').value = "";
@@ -5170,15 +5903,8 @@ function deleteProduct(index) {
     updateCategoriesList();
     renderProductsTable();
     if (activeTab === 'products') focusProductListSearch();
-    if (gasUrl) {
-      updateSyncStatus('syncing', 'Menghapus produk...');
-      fetchFromGAS('deleteProduct', { productId: p.id }).then(res => {
-        if (res && res.status === 'success') {
-          updateSyncStatus('online', 'Tersinkronisasi');
-        } else {
-          updateSyncStatus('offline', 'Koneksi Terputus');
-        }
-      });
+    if (firebaseDb) {
+      deleteProductCloud(p.id);
     }
   }
 }
@@ -5218,279 +5944,789 @@ function exportToCSV() {
   document.body.removeChild(link);
 }
 
-// Kirim data inventaris ke Google Sheets (Mass-Sync - Sangat Cepat!)
-async function syncProductsToCloud() {
-  if (!gasUrl) {
-    alert("Silakan hubungkan aplikasi dengan Google Sheets terlebih dahulu di Pengaturan.");
-    return;
-  }
-  
-  if (confirm("Apakah Anda ingin mengganti semua data produk di Google Sheets dengan data lokal saat ini?")) {
-    updateSyncStatus('syncing', 'Menyinkronkan produk...');
-    const result = await fetchFromGAS('updateProducts', { products: products });
-    
-    if (result && result.status === 'success') {
-      alert("Sinkronisasi massal inventaris produk ke cloud BERHASIL!");
-      updateSyncStatus('online', 'Tersinkronisasi');
-    } else {
-      alert("Gagal menyinkronkan data: " + (result.message || "Koneksi terputus"));
-      updateSyncStatus('offline', 'Koneksi Terputus');
+// ─── FITUR IMPORT EXCEL & CONTOH TEMPLATE EXCEL ──────────────────────────────────
+
+// 1. Unduh Contoh Template File Excel (.xlsx)
+function downloadProductExcelTemplate() {
+  const sampleData = [
+    {
+      "ID Produk": "P1001",
+      "Nama Produk": "Kopi Susu Gula Aren",
+      "Kategori": "Minuman",
+      "Harga Beli": 10000,
+      "Harga Jual": 15000,
+      "Stok": 50,
+      "Barcode": "8991234567890",
+      "Tanggal Kadaluarsa": "2026-12-31",
+      "Gambar": "https://images.unsplash.com/photo-1541167760496-1628856ab772?w=200"
+    },
+    {
+      "ID Produk": "P1002",
+      "Nama Produk": "Roti Bakar Coklat Keju",
+      "Kategori": "Makanan",
+      "Harga Beli": 12000,
+      "Harga Jual": 18000,
+      "Stok": 30,
+      "Barcode": "8999876543210",
+      "Tanggal Kadaluarsa": "",
+      "Gambar": ""
+    },
+    {
+      "ID Produk": "P1003",
+      "Nama Produk": "Keripik Singkong Renyah",
+      "Kategori": "Snack",
+      "Harga Beli": 5000,
+      "Harga Jual": 8000,
+      "Stok": 100,
+      "Barcode": "8995551234567",
+      "Tanggal Kadaluarsa": "2027-06-30",
+      "Gambar": ""
     }
-  }
-}
+  ];
 
-// --- TAB 5: PENGATURAN KONEKSI ---
-
-function saveGASUrl() {
-  const urlInput = document.getElementById('gas-url-input').value.trim();
-  
-  if (urlInput === '') {
-    gasUrl = '';
-    localStorage.removeItem('kasir_gas_url');
-    updateSyncStatus('offline', 'Belum Terhubung');
-    alert("URL koneksi dihapus.");
-    return;
-  }
-  
-  if (!urlInput.startsWith('https://script.google.com/')) {
-    alert("Format URL salah! Harus berupa URL Google Apps Script Web App.");
-    return;
-  }
-  
-  gasUrl = urlInput;
-  localStorage.setItem('kasir_gas_url', gasUrl);
-  alert("URL koneksi berhasil disimpan!");
-  
-  testConnection();
-}
-
-async function testConnection() {
-  if (!gasUrl) {
-    alert("URL belum disetel!");
-    return;
-  }
-  
-  updateSyncStatus('syncing', 'Menguji koneksi...');
-  const result = await fetchFromGAS('getProducts');
-  
-  if (result && result.status === 'success') {
-    updateSyncStatus('online', 'Tersinkronisasi');
-    alert("Koneksi BERHASIL! Aplikasi kasir telah terhubung ke Google Sheets.");
-    processOfflineQueue();
-    syncTransactionsFromCloud();
+  if (typeof XLSX !== 'undefined') {
+    const ws = XLSX.utils.json_to_sheet(sampleData);
+    // Atur lebar kolom agar rapi
+    ws['!cols'] = [
+      { wch: 12 }, // ID Produk
+      { wch: 28 }, // Nama Produk
+      { wch: 15 }, // Kategori
+      { wch: 14 }, // Harga Beli
+      { wch: 14 }, // Harga Jual
+      { wch: 10 }, // Stok
+      { wch: 18 }, // Barcode
+      { wch: 18 }, // Tanggal Kadaluarsa
+      { wch: 35 }  // Gambar (URL / Path)
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Produk");
+    XLSX.writeFile(wb, "Contoh_Format_Import_Produk.xlsx");
   } else {
-    updateSyncStatus('offline', 'Koneksi Terputus');
-    alert("Koneksi GAGAL! Periksa kembali URL Web App Apps Script Anda, dan pastikan Anda sudah men-deploy script dengan akses 'Anyone'.");
+    // Fallback jika lib XLSX sedang loading
+    let csv = "ID Produk,Nama Produk,Kategori,Harga Beli,Harga Jual,Stok,Barcode,Tanggal Kadaluarsa,Gambar\n";
+    sampleData.forEach(r => {
+      csv += `"${r["ID Produk"]}","${r["Nama Produk"]}","${r["Kategori"]}",${r["Harga Beli"]},${r["Harga Jual"]},${r["Stok"]},"${r["Barcode"]}","${r["Tanggal Kadaluarsa"]}","${r["Gambar"]}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", "Contoh_Format_Import_Produk.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 }
 
-async function syncFromCloud() {
-  if (!gasUrl) return;
-  
-  updateSyncStatus('syncing', 'Menarik data...');
-  const result = await fetchFromGAS('getProducts');
-  
-  if (result && result.status === 'success') {
-    if (result.data && result.data.length > 0) {
-      products = result.data
-        .filter(p => p && p.id && p.id.toString().trim() !== '')
-        .map(p => ({
-        id: p.id ? p.id.toString() : '',
-        nama: p.nama ? p.nama.toString() : '',
-        kategori: p.kategori ? p.kategori.toString() : 'Umum',
-        harga_beli: parseFloat(p.harga_beli) || 0,
-        harga_jual: parseFloat(p.harga_jual) || 0,
-        stok: parseInt(p.stok) || 0,
-        barcode: p.barcode ? p.barcode.toString().trim().replace(/^'/, '') : '',
-        gambar: p.gambar ? p.gambar.toString() : '',
-        tanggal_kadaluarsa: p.tanggal_kadaluarsa ? p.tanggal_kadaluarsa.toString().slice(0, 10) : '',
-        harga_diskon: parseFloat(p.harga_diskon) || 0,
-        kuota_diskon: parseInt(p.kuota_diskon) || 0,
-        has_unit_box: p.has_unit_box === true || p.has_unit_box === "true" || p.has_unit_box === "TRUE",
-        barcode_box: p.barcode_box ? p.barcode_box.toString().trim().replace(/^'/, '') : '',
-        nama_box: p.nama_box ? p.nama_box.toString() : 'Kotak',
-        isi_box: parseInt(p.isi_box) || 0,
-        harga_box: parseFloat(p.harga_box) || 0,
-        grosir_qty: parseInt(p.grosir_qty || p.grosir_min_qty) || 0,
-        grosir_harga: parseFloat(p.grosir_harga) || 0,
-        promo_beli_x: parseInt(p.promo_beli_x) || 0,
-        promo_gratis_y: parseInt(p.promo_gratis_y) || 0
-      }));
-      
+// 2. Trigger dialog pilih file Excel
+function triggerImportExcel() {
+  const fileInput = document.getElementById('excel-product-file-input');
+  if (fileInput) {
+    fileInput.value = '';
+    fileInput.click();
+  }
+}
+
+// 3. Baca file Excel yang diunggah dan masukkan produk ke sistem
+function handleProductExcelUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  if (typeof XLSX === 'undefined') {
+    alert('❌ Library pembaca Excel belum siap. Pastikan terhubung internet saat pertama kali membuka halaman.');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+      if (!rows || rows.length === 0) {
+        alert("⚠️ File Excel kosong atau tidak memiliki baris data!");
+        return;
+      }
+
+      let addedCount = 0;
+      let updatedCount = 0;
+      const updatesCloud = {};
+
+      rows.forEach((row, idx) => {
+        // Toleransi nama kolom Bahasa Indonesia & Inggris
+        const rawName = row['Nama Produk'] || row['Nama'] || row['nama'] || row['Product Name'] || row['nama_produk'];
+        if (!rawName) return; // Lewati baris tanpa nama
+
+        let rawId = String(row['ID Produk'] || row['ID'] || row['id'] || row['Id'] || '').trim();
+        const rawCat = String(row['Kategori'] || row['kategori'] || row['Category'] || 'Umum').trim() || 'Umum';
+        const rawBuy = parseFloat(row['Harga Beli'] || row['harga_beli'] || row['Beli'] || row['Buy Price']) || 0;
+        const rawSell = parseFloat(row['Harga Jual'] || row['harga_jual'] || row['Jual'] || row['Sell Price']) || 0;
+        const rawStock = parseInt(row['Stok'] || row['stok'] || row['Stock'] || row['Jumlah']) || 0;
+        const rawBarcode = String(row['Barcode'] || row['barcode'] || '').trim();
+        const rawExpiry = String(row['Tanggal Kadaluarsa'] || row['tanggal_kadaluarsa'] || row['Kadaluarsa'] || row['Expiry'] || '').trim();
+        const rawImage = String(row['Gambar'] || row['gambar'] || row['Image'] || row['Foto'] || row['image'] || '').trim();
+
+        // Jika ID kosong di file Excel, generate ID otomatis sesuai urutan (P001, P002, dst)
+        if (!rawId) {
+          rawId = generateNextProductId();
+        }
+
+        const existingIdx = products.findIndex(p => p.id === rawId || (rawBarcode && p.barcode === rawBarcode));
+        
+        const prodData = {
+          id: rawId,
+          nama: String(rawName).trim(),
+          kategori: rawCat,
+          harga_beli: rawBuy,
+          harga_jual: rawSell,
+          stok: rawStock,
+          barcode: rawBarcode,
+          tanggal_kadaluarsa: rawExpiry,
+          gambar: rawImage
+        };
+
+        if (existingIdx !== -1) {
+          // Perbarui produk yang sudah ada
+          products[existingIdx] = { ...products[existingIdx], ...prodData };
+          updatedCount++;
+        } else {
+          // Tambah produk baru
+          products.push(prodData);
+          addedCount++;
+        }
+
+        // Simpan kategori baru jika belum ada di customCategories
+        if (rawCat && !customCategories.find(c => c.toLowerCase() === rawCat.toLowerCase())) {
+          customCategories.push(rawCat);
+        }
+
+        if (firebaseDb) {
+          updatesCloud[getStorePath('products/' + rawId)] = prodData;
+        }
+      });
+
+      // Simpan perubahan ke LocalStorage
+      localStorage.setItem('kasir_custom_categories', JSON.stringify(customCategories));
       saveProductsLocally();
       updateCategoriesList();
-      
-      renderCart();
       renderProductsTable();
-      updateAnalytics();
-      updateSyncStatus('online', 'Tersinkronisasi');
+
+      // Sinkronkan ke Firebase jika sedang online
+      if (firebaseDb && Object.keys(updatesCloud).length > 0) {
+        updateSyncStatus('syncing', 'Menyimpan produk dari Excel ke cloud...');
+        firebaseDb.ref('/').update(updatesCloud).then(() => {
+          updateSyncStatus('online', 'Database Terhubung');
+        }).catch(err => {
+          console.error('Gagal sinkron excel ke RTDB:', err);
+        });
+      }
+
+      alert(`✅ Berhasil Mengimpor Data Excel!\n\n• Produk Baru Ditambahkan: ${addedCount}\n• Produk Lama Diperbarui: ${updatedCount}\n• Total Produk di Kasir: ${products.length}`);
+    } catch (err) {
+      console.error('Gagal membaca file Excel:', err);
+      alert('❌ Gagal memproses file Excel: ' + err.message + '\n\nSilakan gunakan template dari tombol "Contoh Excel" sebagai acuan.');
+    } finally {
+      event.target.value = '';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+
+
+
+
+
+// ─── LOGIKA MANAJEMEN KARYAWAN & HAK AKSES ROLE (OWNER VS KASIR) ──────────
+
+// Cek apakah akun aktif berhak mengakses tab tertentu
+function canAccessTab(tabName) {
+  // Jika fitur wajib login dimatikan, semua tab terbuka bebas
+  if (!isStaffLoginEnabled) return true;
+
+  // Owner memiliki akses mutlak ke semua tab
+  if (currentUserRole === 'owner') return true;
+
+  // Tab POS kasir selalu diizinkan untuk siapa saja yang sudah login
+  if (tabName === 'pos') return true;
+
+  // Cari hak akses staf aktif
+  const staff = staffAccounts.find(s => s.name === activeCashier);
+  if (!staff || !staff.permissions) return false;
+
+  return !!staff.permissions[tabName];
+}
+
+// Perbarui badge tampilan kasir di Navbar & kontrol tombol Logout
+function updateCashierAuthUI() {
+  const roleBadge = document.getElementById('current-user-role-badge');
+  const nameSpan = document.getElementById('current-user-name');
+  const chkLogin = document.getElementById('chk-enable-staff-login');
+  const ownerPinInput = document.getElementById('owner-pin-input');
+  const logoutBtn = document.getElementById('btn-logout-staff');
+
+  const authWrapper = document.getElementById('cashier-auth-wrapper');
+
+  if (chkLogin) chkLogin.checked = !!isStaffLoginEnabled;
+  if (ownerPinInput) ownerPinInput.value = ownerPin || '1234';
+
+  if (!isStaffLoginEnabled) {
+    // JIKA FITUR LOGIN DIMATIKAN:
+    // Sembunyikan total tombol login & logout dari pojok kanan agar bersih dan tidak mengganggu
+    if (authWrapper) {
+      authWrapper.style.display = 'none';
+    }
+    if (logoutBtn) {
+      logoutBtn.style.display = 'none';
     }
   } else {
-    updateSyncStatus('offline', 'Koneksi Terputus');
+    // JIKA FITUR LOGIN DIAKTIFKAN:
+    // Tampilkan tombol status login kasir & tombol logout di pojok kanan
+    if (authWrapper) {
+      authWrapper.style.display = 'flex';
+    }
+    if (logoutBtn) {
+      logoutBtn.style.display = 'inline-flex';
+    }
+
+    if (roleBadge) {
+      if (currentUserRole === 'owner') {
+        roleBadge.textContent = 'Owner';
+        roleBadge.style.background = '#3b82f6';
+      } else {
+        roleBadge.textContent = 'Kasir';
+        roleBadge.style.background = '#10b981';
+      }
+    }
+
+    if (nameSpan) {
+      nameSpan.textContent = currentUserRole === 'owner' ? 'Owner Toko' : activeCashier;
+    }
+  }
+
+  // Terapkan izin akses menu tab
+  applyTabVisibilityByPermissions();
+}
+
+// Tombol Logout Kasir
+function logoutCashier() {
+  if (!confirm(`Keluar dari akun "${currentUserRole === 'owner' ? 'Owner' : activeCashier}"?`)) {
+    return;
+  }
+
+  // Reset sesi aktif
+  activeCashier = '';
+  currentUserRole = '';
+  localStorage.removeItem('kasir_active_cashier');
+  localStorage.removeItem('kasir_current_user_role');
+
+  updateCashierAuthUI();
+
+  // Langsung tampilkan modal login PIN (wajib)
+  openCashierLoginModal(true);
+}
+
+// Terapkan visibility tombol tab sesuai izin karyawan
+function applyTabVisibilityByPermissions() {
+  const tabs = ['analytics', 'pos', 'transactions', 'kulak', 'products', 'customers', 'settings'];
+  tabs.forEach(tabId => {
+    const btn = document.getElementById(`tab-${tabId}`);
+    if (btn) {
+      if (canAccessTab(tabId)) {
+        btn.style.opacity = '1';
+        btn.style.pointerEvents = 'auto';
+      } else {
+        btn.style.opacity = '0.35';
+        btn.title = 'Akses Terkunci (Khusus Owner)';
+      }
+    }
+  });
+}
+
+let isLoginModalForced = false;
+
+// Buka modal login kasir
+function openCashierLoginModal(isForced = false) {
+  const modal = document.getElementById('cashier-login-modal');
+  const select = document.getElementById('login-cashier-select');
+  const pinInput = document.getElementById('login-pin-input');
+  const closeBtn = modal ? modal.querySelector('.close-modal-btn') : null;
+  if (!modal || !select) return;
+
+  isLoginModalForced = isForced;
+  if (closeBtn) closeBtn.style.display = isForced ? 'none' : 'block';
+
+  pinInput.value = '';
+
+  // Isi daftar pilihan: Owner + Karyawan
+  select.innerHTML = '';
+  const optOwner = document.createElement('option');
+  optOwner.value = '__OWNER__';
+  optOwner.textContent = '👑 Owner Toko (Pemilik)';
+  if (currentUserRole === 'owner') optOwner.selected = true;
+  select.appendChild(optOwner);
+
+  staffAccounts.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.name;
+    opt.textContent = `👤 ${s.name}`;
+    if (currentUserRole === 'staff' && activeCashier === s.name) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  const pinContainer = document.getElementById('login-pin-container');
+  if (pinContainer) {
+    pinContainer.style.display = isStaffLoginEnabled ? 'block' : 'none';
+  }
+
+  modal.style.display = 'flex';
+}
+
+function closeCashierLoginModal() {
+  if (isLoginModalForced && isStaffLoginEnabled) {
+    alert("Silakan pilih akun dan masukkan PIN untuk mulai menggunakan kasir.");
+    return;
+  }
+  const modal = document.getElementById('cashier-login-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function onLoginAccountSelected() {
+  const pinInput = document.getElementById('login-pin-input');
+  if (pinInput) pinInput.value = '';
+}
+
+// Input PIN via Numpad
+function inputLoginPin(digit) {
+  const pinInput = document.getElementById('login-pin-input');
+  if (pinInput && pinInput.value.length < 6) {
+    pinInput.value += digit;
   }
 }
 
-function clearLocalCache() {
-  if (confirm("Apakah Anda yakin ingin menghapus seluruh cache lokal? Ini akan menghapus data URL, produk lokal, riwayat transaksi, pengaturan struk, dan antrean transaksi offline.")) {
-    localStorage.clear();
-    products = [...defaultProducts];
-    cart = [];
-    transactions = seedTransactions();
-    gasUrl = DEFAULT_GAS_URL;
-    localStorage.setItem('kasir_gas_url', DEFAULT_GAS_URL);
-    offlineQueue = [];
-    activeCategory = 'All';
-    selectedProductIds.clear();
-    receiptSettings = {
-      logo: '',
-      name: 'TOKO SAHIL',
-      phone: '0896-3649-2890',
-      address: 'Desa Sumurber Rt 21 Rw 07 Panceng Gresik',
-      fontSize: 12,
-      textFontSize: 12,
-      textTitleFontSize: 16,
-      textPaddingLeft: 1,
-      textWidth: 25
-    };
-    
-    document.getElementById('gas-url-input').value = '';
-    
-    saveProductsLocally();
-    saveTransactionsLocally();
-    localStorage.setItem('kasir_receipt_settings', JSON.stringify(receiptSettings));
-    
-    loadReceiptSettings();
-    renderCart();
-    renderProductsTable();
-    updateAnalytics();
-    resetProductForm();
-    
-    updateSyncStatus('offline', 'Belum Terhubung');
-    alert("Cache lokal berhasil dibersihkan!");
+function clearLoginPin() {
+  const pinInput = document.getElementById('login-pin-input');
+  if (pinInput) pinInput.value = '';
+}
+
+function backspaceLoginPin() {
+  const pinInput = document.getElementById('login-pin-input');
+  if (pinInput && pinInput.value.length > 0) {
+    pinInput.value = pinInput.value.slice(0, -1);
   }
 }
 
-// --- LOGIKA KASIR MULTI-USER (FITUR BARU) ---
-function initCashiers() {
-  const selectSelect = document.getElementById('active-cashier-select');
-  if (selectSelect) {
-    selectSelect.innerHTML = '';
-    cashiers.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c;
-      opt.textContent = c;
-      if (c === activeCashier) opt.selected = true;
-      selectSelect.appendChild(opt);
-    });
+// Submit login kasir / owner
+function submitCashierLogin() {
+  const select = document.getElementById('login-cashier-select');
+  const pinInput = document.getElementById('login-pin-input');
+  const selectedAccount = select.value;
+  const enteredPin = pinInput ? pinInput.value.trim() : '';
+
+  // JIKA FITUR WAJIB LOGIN DIAKTIFKAN: Validasi PIN secara ketat!
+  if (isStaffLoginEnabled) {
+    if (!enteredPin) {
+      alert("⚠️ PIN Keamanan wajib diisi!");
+      return;
+    }
+
+    if (selectedAccount === '__OWNER__') {
+      const currentOwnerPin = (ownerPin || '1234').toString();
+      if (enteredPin !== currentOwnerPin) {
+        alert("❌ PIN Owner SALAH! Silakan masukkan PIN Owner yang benar.");
+        if (pinInput) pinInput.value = '';
+        return;
+      }
+      currentUserRole = 'owner';
+      activeCashier = 'Owner Toko';
+      alert("✅ PIN Benar! Selamat datang, Owner Toko.");
+    } else {
+      const staff = staffAccounts.find(s => s.name === selectedAccount);
+      if (!staff) {
+        alert("Akun karyawan tidak ditemukan.");
+        return;
+      }
+
+      const expectedPin = (staff.pin || '1234').toString();
+      if (enteredPin !== expectedPin) {
+        alert(`❌ PIN Kasir untuk "${staff.name}" SALAH!\nSilakan coba lagi atau tanyakan ke Owner.`);
+        if (pinInput) pinInput.value = '';
+        return;
+      }
+
+      currentUserRole = 'staff';
+      activeCashier = staff.name;
+      alert(`✅ PIN Benar! Masuk sebagai Kasir "${staff.name}".`);
+    }
+  } else {
+    // JIKA FITUR WAJIB LOGIN DINONAKTIFKAN: Bebas ganti tanpa password
+    if (selectedAccount === '__OWNER__') {
+      currentUserRole = 'owner';
+      activeCashier = 'Owner Toko';
+    } else {
+      currentUserRole = 'staff';
+      activeCashier = selectedAccount;
+    }
   }
+
+  localStorage.setItem('kasir_current_user_role', currentUserRole);
+  localStorage.setItem('kasir_active_cashier', activeCashier);
+
+  isLoginModalForced = false;
+  const modal = document.getElementById('cashier-login-modal');
+  if (modal) modal.style.display = 'none';
+  updateCashierAuthUI();
+
+  // Jika tab yang aktif saat ini tidak boleh dibuka oleh kasir baru, pindahkan ke Kasir (POS)
+  if (!canAccessTab(activeTab)) {
+    switchTab('pos');
+  }
+}
+
+// Toggle on/off kewajiban login PIN
+function toggleStaffLoginRequirement() {
+  const chk = document.getElementById('chk-enable-staff-login');
+  const enabled = chk ? chk.checked : false;
+
+  // Jika ingin mengubah, minta konfirmasi PIN Owner jika sekarang bukan Owner
+  if (currentUserRole !== 'owner') {
+    const promptPin = prompt("Masukkan PIN Owner untuk mengubah pengaturan keamanan ini:");
+    if (promptPin !== ownerPin) {
+      alert("❌ PIN Owner salah. Perubahan dibatalkan.");
+      if (chk) chk.checked = isStaffLoginEnabled;
+      return;
+    }
+  }
+
+  isStaffLoginEnabled = enabled;
+  localStorage.setItem('kasir_staff_login_enabled', JSON.stringify(isStaffLoginEnabled));
+  updateCashierAuthUI();
+  alert(`Pengaturan disimpan: Wajib Login ${isStaffLoginEnabled ? 'DIAKTIFKAN' : 'DINONAKTIFKAN'}.`);
+}
+
+// Simpan PIN Owner Baru
+function saveOwnerPin() {
+  if (currentUserRole !== 'owner') {
+    const currentInput = prompt("Masukkan PIN Owner lama:");
+    if (currentInput !== ownerPin) {
+      alert("❌ PIN Owner salah.");
+      return;
+    }
+  }
+
+  const pinInput = document.getElementById('owner-pin-input');
+  const newPin = pinInput.value.trim();
+  if (newPin.length < 4) {
+    alert("PIN Owner minimal 4 digit angka!");
+    return;
+  }
+
+  ownerPin = newPin;
+  localStorage.setItem('kasir_owner_pin', ownerPin);
+  alert("✅ PIN Owner berhasil diperbarui!");
+}
+
+// ─── MASTER KEY PEMULIHAN PIN DEVELOPER ──────────────────────────────────────────
+function openForgotPinModal() {
+  const modal = document.getElementById('forgot-pin-modal');
+  const masterInput = document.getElementById('recovery-master-key-input');
+  const newPinInput = document.getElementById('recovery-new-pin-input');
+
+  if (masterInput) masterInput.value = '';
+  if (newPinInput) newPinInput.value = '';
+
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeForgotPinModal() {
+  const modal = document.getElementById('forgot-pin-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function resetOwnerPinWithMasterKey() {
+  const masterKey = document.getElementById('recovery-master-key-input').value.trim();
+  const newPin = document.getElementById('recovery-new-pin-input').value.trim();
+
+  if (!masterKey) {
+    alert("Silakan masukkan Master Key Developer!");
+    return;
+  }
+
+  const inputHash = await hashSecretStr(masterKey);
+  if (inputHash !== DEV_MASTER_HASH) {
+    alert("❌ Master Key Developer SALAH!\n\nJika Anda pemilik toko resmi, silakan klik tombol bantuan WhatsApp di bawah.");
+    return;
+  }
+
+  if (!newPin || newPin.length < 4) {
+    alert("PIN baru minimal harus 4 digit angka!");
+    return;
+  }
+
+  // Update PIN Owner
+  ownerPin = newPin;
+  localStorage.setItem('kasir_owner_pin', ownerPin);
+
+  // Otomatis login sebagai Owner
+  currentUserRole = 'owner';
+  activeCashier = 'Owner Toko';
+  localStorage.setItem('kasir_current_user_role', currentUserRole);
+  localStorage.setItem('kasir_active_cashier', activeCashier);
+
+  closeForgotPinModal();
+  closeCashierLoginModal();
+  updateCashierAuthUI();
+
+  alert(`🎉 SUKSES!\n\nPIN Owner Anda telah berhasil direset menjadi: "${newPin}".\nAnda sekarang telah masuk sebagai Owner Toko.`);
+}
+
+function contactAdminWhatsAppForPinReset() {
+  const storeName = receiptSettings.name || 'Toko Saya';
+  const licenseKey = currentLicenseKey || 'OFFLINE';
+  const message = `Halo Admin Kasir, saya pemilik toko *${storeName}* (Lisensi: ${licenseKey}). Saya lupa PIN Owner aplikasi kasir. Mohon bantuan untuk reset Master PIN.`;
+  const url = `https://wa.me/6289636492890?text=${encodeURIComponent(message)}`;
+  window.open(url, '_blank');
+}
+
+// Tambah Akun Karyawan Baru
+function addStaffAccount() {
+  const nameInput = document.getElementById('new-cashier-name');
+  const pinInput = document.getElementById('new-cashier-pin');
+  const name = nameInput.value.trim();
+  const pin = pinInput.value.trim();
+
+  if (!name) {
+    alert("Nama karyawan wajib diisi!");
+    return;
+  }
+  if (name.toLowerCase() === 'owner' || name.toLowerCase() === 'owner toko') {
+    alert("Nama ini dikhususkan untuk akun Owner.");
+    return;
+  }
+  if (staffAccounts.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+    alert("Karyawan dengan nama ini sudah terdaftar!");
+    return;
+  }
+  if (pin && pin.length < 4) {
+    alert("PIN karyawan minimal 4 digit angka!");
+    return;
+  }
+
+  const newStaff = {
+    name,
+    pin: pin || '1234',
+    permissions: {
+      pos: true,
+      transactions: document.getElementById('perm-transactions').checked,
+      products: document.getElementById('perm-products').checked,
+      kulak: document.getElementById('perm-kulak').checked,
+      customers: document.getElementById('perm-customers').checked,
+      analytics: document.getElementById('perm-analytics').checked,
+      settings: document.getElementById('perm-settings').checked
+    }
+  };
+
+  staffAccounts.push(newStaff);
+  localStorage.setItem('kasir_staff_accounts', JSON.stringify(staffAccounts));
+
+  // Sinkronkan ke daftar kasir lama (kompatibilitas)
+  if (!cashiers.includes(name)) {
+    cashiers.push(name);
+    localStorage.setItem('kasir_cashiers', JSON.stringify(cashiers));
+  }
+
+  nameInput.value = '';
+  pinInput.value = '';
   renderCashierSettingsList();
+  alert(`✅ Karyawan "${name}" berhasil ditambahkan dengan PIN: ${newStaff.pin}!`);
 }
 
-function setActiveCashier(name) {
-  activeCashier = name;
-  localStorage.setItem('kasir_active_cashier', name);
-  initCashiers(); // Render ulang daftar pengaturan agar label (Aktif) ter-update
-}
-
+// Render Tabel Daftar Karyawan & Hak Akses
 function renderCashierSettingsList() {
   const listContainer = document.getElementById('cashier-settings-list');
   if (!listContainer) return;
   listContainer.innerHTML = '';
-  
-  cashiers.forEach(c => {
-    const item = document.createElement('div');
-    item.style.display = 'flex';
-    item.style.justify = 'space-between';
-    item.style.alignItems = 'center';
-    item.style.padding = '0.35rem 0.5rem';
-    item.style.backgroundColor = 'var(--bg-card)';
-    item.style.border = '1px solid var(--border-color)';
-    item.style.borderRadius = 'var(--border-radius-sm)';
-    item.style.marginBottom = '0.25rem';
+
+  if (staffAccounts.length === 0) {
+    listContainer.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; padding:0.5rem;">Belum ada karyawan. Silakan tambah karyawan di atas.</div>';
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'data-table';
+  table.style.fontSize = '0.85rem';
+  table.style.width = '100%';
+
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Nama</th>
+        <th>PIN</th>
+        <th>Hak Akses Menu</th>
+        <th style="width: 130px; text-align: center;">Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="staff-settings-tbody"></tbody>
+  `;
+
+  listContainer.appendChild(table);
+  const tbody = table.querySelector('#staff-settings-tbody');
+
+  staffAccounts.forEach((s, idx) => {
+    const tr = document.createElement('tr');
     
-    // Jangan izinkan hapus jika hanya ada 1 kasir tersisa
-    const deleteBtnHtml = cashiers.length > 1 
-      ? `<button class="action-icon-btn btn-delete" onclick="deleteCashier('${c}')" title="Hapus Kasir" style="padding: 2px 4px;">
-           <svg viewBox="0 0 24 24" class="icon-sm" style="width:14px; height:14px;"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
-         </button>` 
-      : '';
-      
-    const editBtnHtml = `<button class="action-icon-btn btn-edit" onclick="renameCashier('${c}')" title="Ubah Nama Kasir" style="padding: 2px 4px; color: var(--color-primary); background-color: rgba(59,130,246,0.1);">
-                           <svg viewBox="0 0 24 24" class="icon-sm" style="width:14px; height:14px;"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                         </button>`;
-      
-    item.innerHTML = `
-      <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">${c} ${c === activeCashier ? '<small style="color:var(--color-success); font-weight:700; margin-left:0.25rem;">(Aktif)</small>' : ''}</span>
-      <div style="display: flex; gap: 0.35rem; align-items: center;">
-        ${editBtnHtml}
-        ${deleteBtnHtml}
-      </div>
+    // Ringkasan izin yang aktif
+    const perms = [];
+    if (s.permissions.pos) perms.push('Kasir');
+    if (s.permissions.transactions) perms.push('Transaksi');
+    if (s.permissions.products) perms.push('Produk');
+    if (s.permissions.kulak) perms.push('Kulak');
+    if (s.permissions.customers) perms.push('Member');
+    if (s.permissions.analytics) perms.push('📊 Laba');
+    if (s.permissions.settings) perms.push('⚙️ Pengaturan');
+
+    const permBadges = perms.map(p => `<span style="display:inline-block; background:rgba(59,130,246,0.1); color:var(--primary-color); padding:1px 6px; border-radius:4px; font-size:0.75rem; margin:1px;">${p}</span>`).join(' ');
+
+    tr.innerHTML = `
+      <td>
+        <strong>${s.name}</strong>
+        ${(currentUserRole === 'staff' && activeCashier === s.name) ? '<span style="color:#10b981; font-weight:700; margin-left:4px;">(Sedang Aktif)</span>' : ''}
+      </td>
+      <td>
+        <span style="font-family: monospace; background: var(--bg-surface-elevated); padding: 2px 6px; border-radius: 4px;">••••</span>
+      </td>
+      <td>${permBadges || '<span style="color:red;">Hanya Kasir POS</span>'}</td>
+      <td style="text-align: center;">
+        <div style="display: flex; gap: 0.35rem; justify-content: center;">
+          <button class="btn btn-secondary btn-sm" onclick="openEditStaffModal(${idx})" title="Edit Hak Akses & PIN" style="padding: 3px 8px; font-size: 0.78rem;">
+            Edit
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="deleteStaffAccount(${idx})" title="Hapus Karyawan" style="padding: 3px 8px; font-size: 0.78rem;">
+            Hapus
+          </button>
+        </div>
+      </td>
     `;
-    listContainer.appendChild(item);
+    tbody.appendChild(tr);
   });
 }
 
-function addCashier() {
-  const input = document.getElementById('new-cashier-name');
-  const name = input.value.trim();
-  if (name === '') {
-    alert("Nama kasir tidak boleh kosong!");
-    return;
-  }
-  if (cashiers.includes(name)) {
-    alert("Nama kasir sudah ada!");
-    return;
-  }
-  
-  cashiers.push(name);
-  localStorage.setItem('kasir_cashiers', JSON.stringify(cashiers));
-  input.value = '';
-  
-  initCashiers();
-  alert(`Kasir "${name}" berhasil ditambahkan!`);
+// Buka Modal Edit Karyawan
+function openEditStaffModal(index) {
+  const staff = staffAccounts[index];
+  if (!staff) return;
+
+  document.getElementById('edit-staff-original-name').value = staff.name;
+  document.getElementById('edit-staff-name-input').value = staff.name;
+  document.getElementById('edit-staff-pin-input').value = '';
+  document.getElementById('edit-staff-modal-title').textContent = `Edit Hak Akses: ${staff.name}`;
+
+  // Checklist
+  document.getElementById('edit-perm-transactions').checked = !!staff.permissions.transactions;
+  document.getElementById('edit-perm-products').checked = !!staff.permissions.products;
+  document.getElementById('edit-perm-kulak').checked = !!staff.permissions.kulak;
+  document.getElementById('edit-perm-customers').checked = !!staff.permissions.customers;
+  document.getElementById('edit-perm-analytics').checked = !!staff.permissions.analytics;
+  document.getElementById('edit-perm-settings').checked = !!staff.permissions.settings;
+
+  document.getElementById('edit-staff-modal').style.display = 'flex';
 }
 
-function deleteCashier(name) {
-  if (confirm(`Apakah Anda yakin ingin menghapus kasir "${name}"?`)) {
-    cashiers = cashiers.filter(c => c !== name);
-    localStorage.setItem('kasir_cashiers', JSON.stringify(cashiers));
-    
-    if (activeCashier === name) {
-      activeCashier = cashiers[0];
-      localStorage.setItem('kasir_active_cashier', activeCashier);
+function closeEditStaffModal() {
+  const modal = document.getElementById('edit-staff-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Simpan Perubahan Edit Karyawan
+function saveStaffPermissions() {
+  const origName = document.getElementById('edit-staff-original-name').value;
+  const newName = document.getElementById('edit-staff-name-input').value.trim();
+  const newPin = document.getElementById('edit-staff-pin-input').value.trim();
+
+  if (!newName) {
+    alert("Nama karyawan tidak boleh kosong!");
+    return;
+  }
+
+  const staff = staffAccounts.find(s => s.name === origName);
+  if (!staff) return;
+
+  staff.name = newName;
+  if (newPin) {
+    if (newPin.length < 4) {
+      alert("PIN baru minimal 4 digit angka!");
+      return;
     }
-    
-    initCashiers();
-    alert(`Kasir "${name}" berhasil dihapus.`);
+    staff.pin = newPin;
+  }
+
+  staff.permissions = {
+    pos: true,
+    transactions: document.getElementById('edit-perm-transactions').checked,
+    products: document.getElementById('edit-perm-products').checked,
+    kulak: document.getElementById('edit-perm-kulak').checked,
+    customers: document.getElementById('edit-perm-customers').checked,
+    analytics: document.getElementById('edit-perm-analytics').checked,
+    settings: document.getElementById('edit-perm-settings').checked
+  };
+
+  localStorage.setItem('kasir_staff_accounts', JSON.stringify(staffAccounts));
+
+  // Update nama di daftar cashiers jika berubah
+  const cIdx = cashiers.indexOf(origName);
+  if (cIdx !== -1) {
+    cashiers[cIdx] = newName;
+    localStorage.setItem('kasir_cashiers', JSON.stringify(cashiers));
+  }
+
+  if (activeCashier === origName) {
+    activeCashier = newName;
+    localStorage.setItem('kasir_active_cashier', activeCashier);
+  }
+
+  closeEditStaffModal();
+  renderCashierSettingsList();
+  updateCashierAuthUI();
+  alert(`✅ Data dan hak akses "${newName}" berhasil diperbarui!`);
+}
+
+// Hapus Karyawan
+function deleteStaffAccount(index) {
+  const staff = staffAccounts[index];
+  if (!staff) return;
+
+  if (confirm(`Yakin ingin menghapus karyawan "${staff.name}"?`)) {
+    staffAccounts.splice(index, 1);
+    localStorage.setItem('kasir_staff_accounts', JSON.stringify(staffAccounts));
+
+    cashiers = cashiers.filter(c => c !== staff.name);
+    localStorage.setItem('kasir_cashiers', JSON.stringify(cashiers));
+
+    if (activeCashier === staff.name) {
+      activeCashier = 'Owner Toko';
+      currentUserRole = 'owner';
+      localStorage.setItem('kasir_active_cashier', activeCashier);
+      localStorage.setItem('kasir_current_user_role', currentUserRole);
+    }
+
+    renderCashierSettingsList();
+    updateCashierAuthUI();
+    alert(`Karyawan "${staff.name}" telah dihapus.`);
   }
 }
 
-function renameCashier(oldName) {
-  const newName = prompt(`Ubah nama kasir "${oldName}" menjadi:`, oldName);
-  if (newName === null) return; // Batal
-  const cleanName = newName.trim();
-  if (cleanName === '') {
-    alert("Nama kasir tidak boleh kosong!");
-    return;
-  }
-  if (cleanName === oldName) return;
-  if (cashiers.includes(cleanName)) {
-    alert("Nama kasir sudah terdaftar!");
-    return;
-  }
-  
-  const idx = cashiers.indexOf(oldName);
-  if (idx !== -1) {
-    cashiers[idx] = cleanName;
-    localStorage.setItem('kasir_cashiers', JSON.stringify(cashiers));
-    
-    if (activeCashier === oldName) {
-      activeCashier = cleanName;
-      localStorage.setItem('kasir_active_cashier', activeCashier);
-    }
-    
-    initCashiers();
-    alert(`Nama kasir "${oldName}" berhasil diubah menjadi "${cleanName}".`);
+// Inisialisasi kasir saat pertama kali aplikasi dibuka
+function initCashiers() {
+  updateCashierAuthUI();
+  renderCashierSettingsList();
+
+  // Jika wajib login diaktifkan oleh Owner, langsung suguhkan modal login saat buka aplikasi
+  if (isStaffLoginEnabled) {
+    setTimeout(() => {
+      openCashierLoginModal(true); // mode wajib
+    }, 400);
   }
 }
 
@@ -5624,11 +6860,18 @@ function renderTransactionsTable() {
   
   // Urutkan transaksi dari yang terbaru ke terlama
   const sortedTxs = [...transactions].sort((a, b) => {
-    return new Date(b.waktu) - new Date(a.waktu);
+    return parseTxDate(b.waktu).getTime() - parseTxDate(a.waktu).getTime();
   });
   
-  const startDateVal = document.getElementById('tx-filter-start-date').value;
-  const endDateVal = document.getElementById('tx-filter-end-date').value;
+  const startDateEl = document.getElementById('tx-filter-start-date');
+  const endDateEl = document.getElementById('tx-filter-end-date');
+  const todayStr = getLocalISODate(new Date()).slice(0, 10);
+  
+  if (startDateEl && !startDateEl.value) startDateEl.value = todayStr;
+  if (endDateEl && !endDateEl.value) endDateEl.value = todayStr;
+  
+  const startDateVal = startDateEl ? startDateEl.value : todayStr;
+  const endDateVal = endDateEl ? endDateEl.value : todayStr;
   
   let startLimit = startDateVal ? new Date(startDateVal + "T00:00:00") : null;
   let endLimit = endDateVal ? new Date(endDateVal + "T23:59:59") : null;
@@ -5638,8 +6881,9 @@ function renderTransactionsTable() {
       ? tx.items.map(item => item.nama).join(" ").toLowerCase()
       : (tx.daftar_item || tx.items || "").toLowerCase();
       
-    const waktuStr = new Date(tx.waktu).toLocaleString('id-ID').toLowerCase();
-    const customerName = (tx.pelanggan || '').toLowerCase();
+    const txDate = parseTxDate(tx.waktu);
+    const waktuStr = txDate.toLocaleString('id-ID').toLowerCase();
+    const customerName = (tx.nama_pelanggan || tx.pelanggan || '').toLowerCase();
     
     const matchesSearch = String(tx.id).toLowerCase().includes(searchVal) || 
                           waktuStr.includes(searchVal) ||
@@ -5653,9 +6897,8 @@ function renderTransactionsTable() {
     if (statusFilter === 'Lunas' && tx.status_pembayaran === 'Bon') return false;
     if (statusFilter === 'Bon' && tx.status_pembayaran !== 'Bon') return false;
     
-    // Abaikan filter tanggal jika sedang melakukan pencarian (searchVal tidak kosong)
-    if (tx.waktu && searchVal === '') {
-      const txDate = new Date(tx.waktu);
+    // Filter rentang tanggal (hanya jika diisi oleh pengguna)
+    if (searchVal === '') {
       if (startLimit && txDate < startLimit) return false;
       if (endLimit && txDate > endLimit) return false;
     }
@@ -5710,7 +6953,7 @@ function renderTransactionsTable() {
       itemsDisplay = tx.daftar_item || tx.items || "";
     }
     
-    const timeStr = new Date(tx.waktu).toLocaleString('id-ID', { hour12: false });
+    const timeStr = parseTxDate(tx.waktu).toLocaleString('id-ID', { hour12: false });
     
     // Status Pembayaran badge & kembalian display
     let statusBadge = '';
@@ -5910,17 +7153,12 @@ function filterTransactionsTable() {
     const todayStr = new Date().toISOString().slice(0, 10);
     const isSearchingHistory = (startDate && startDate !== todayStr) || (endDate && endDate !== todayStr);
 
-    if (gasUrl && isSearchingHistory) {
-      // Panggil pencarian ke cloud (data lama tidak ada di lokal)
-      searchTransactionsFromCloud(startDate, endDate, keyword);
-    } else {
-      // Filter lokal biasa (transaksi hari ini sudah di-load)
-      renderTransactionsTable();
-    }
+    // Filter lokal - data selalu up-to-date dari Realtime Database listener
+    renderTransactionsTable();
   }, 600);
 }
 
-function deleteTransaction(txId) {
+async function deleteTransaction(txId) {
   if (confirm(`Apakah Anda yakin ingin menghapus transaksi "${txId}"? Tindakan ini akan mengembalikan stok barang ke inventaris.`)) {
     const txIndex = transactions.findIndex(t => t.id === txId);
     if (txIndex === -1) {
@@ -5955,24 +7193,33 @@ function deleteTransaction(txId) {
     renderProductsTable();
     updateAnalytics();
     
-    // Hapus dari cloud secara aman (tanpa menimpa sheet massal)
-    if (gasUrl) {
-      updateSyncStatus('syncing', 'Menghapus transaksi dari cloud...');
-      fetchFromGAS('deleteTransaction', { transactionId: txId }).catch(err => console.error(err));
-    }
-    
-    if (gasUrl) {
-      updateSyncStatus('syncing', 'Menyimpan perubahan stok...');
-      const promises = tx.items.map(item => {
-        const p = products.find(prod => prod.id === item.id);
-        if (p) return fetchFromGAS('upsertProduct', { product: p });
-        return Promise.resolve();
-      });
-      Promise.all(promises).then(() => {
-        updateSyncStatus('online', 'Tersinkronisasi');
-      }).catch(() => {
-        updateSyncStatus('offline', 'Koneksi Terputus');
-      });
+    // Hapus dari RTDB & update stok produk
+    if (firebaseDb) {
+      updateSyncStatus('syncing', 'Menghapus transaksi dari database...');
+      try {
+        // Hapus transaksi dari RTDB
+        await firebaseDb.ref(getStorePath('transactions/' + txId)).remove();
+        console.log('✅ Transaksi berhasil dihapus dari RTDB:', txId);
+
+        // Update stok produk di RTDB
+        if (Array.isArray(tx.items)) {
+          const stockUpdates = {};
+          tx.items.forEach(item => {
+            const p = products.find(prod => prod.id === item.id);
+            if (p) {
+              stockUpdates[getStorePath('products/' + p.id + '/stok')] = p.stok;
+              stockUpdates[getStorePath('products/' + p.id + '/kuota_diskon')] = p.kuota_diskon || 0;
+            }
+          });
+          if (Object.keys(stockUpdates).length > 0) {
+            await firebaseDb.ref('/').update(stockUpdates);
+          }
+        }
+        updateSyncStatus('online', 'Database Terhubung');
+      } catch (err) {
+        console.error('❌ Gagal hapus transaksi dari RTDB:', err.message);
+        updateSyncStatus('offline', 'Gagal hapus: ' + err.message);
+      }
     }
     
     alert(`Transaksi ${txId} berhasil dihapus dan stok barang dikembalikan.`);
@@ -6036,13 +7283,24 @@ function closeEditTransactionModal() {
 
 function renderEditTxItems() {
   const container = document.getElementById('edit-tx-items-list');
+  const countBadge = document.getElementById('edit-tx-items-count');
   if (!container) return;
   container.innerHTML = '';
+  
+  if (countBadge) {
+    const totalCount = editTxItems.reduce((acc, it) => acc + (it.qty || 1), 0);
+    countBadge.textContent = `${totalCount} item (${editTxItems.length} jenis)`;
+  }
   
   let total = 0;
   
   if (editTxItems.length === 0) {
-    container.innerHTML = '<div style="padding: 1rem; text-align: center; color: var(--text-muted);">Tidak ada barang belanjaan. Silakan cari dan tambahkan barang.</div>';
+    container.innerHTML = `
+      <div style="padding: 2rem 1rem; text-align: center; color: var(--text-muted); background: var(--bg-surface-elevated); border: 1px dashed var(--border-color); border-radius: 12px;">
+        <svg viewBox="0 0 24 24" style="width: 32px; height: 32px; stroke: currentColor; fill: none; margin: 0 auto 0.5rem; opacity: 0.5;"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        <p style="margin: 0; font-size: 0.88rem; font-weight: 600;">Belum ada barang di transaksi ini</p>
+        <small style="font-size: 0.78rem; opacity: 0.8;">Cari barang di atas untuk menambahkan</small>
+      </div>`;
     document.getElementById('edit-tx-total-amount').textContent = 'Rp 0';
     document.getElementById('edit-tx-change-amount').textContent = 'Rp 0';
     return;
@@ -6059,21 +7317,31 @@ function renderEditTxItems() {
     }
     
     const div = document.createElement('div');
-    div.className = 'edit-tx-item-row';
+    div.className = 'edit-tx-item-card';
     div.innerHTML = `
-      <div class="edit-tx-item-info">
-        <div class="edit-tx-item-name">${item.nama}</div>
-        <div class="edit-tx-item-price-row" style="display:flex; align-items:baseline; gap:0.35rem; flex-wrap:wrap;">
-          <span class="edit-tx-item-price">Rp ${formatRupiah(subtotal)}</span>
-          ${item.qty > 1 && !item.isBox ? `<span style="font-size:0.75rem; color:var(--text-muted);">(${item.qty} pcs @Rp ${formatRupiah(Math.round(subtotal / item.qty))})</span>` : ''}
+      <div class="edit-tx-item-main">
+        <div class="edit-tx-item-name" title="${item.nama}">${item.nama}</div>
+        <div class="edit-tx-item-meta">
+          <span class="edit-tx-unit-price">Rp ${formatRupiah(item.harga)}</span>
+          ${item.isBox ? `<span style="color: var(--color-primary); font-weight:600;">(Dus/Box)</span>` : ''}
         </div>
-        ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:0.25rem; margin-top:0.2rem;">${badgesHtml}</div>` : ''}
+        ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:0.25rem; margin-top:0.25rem;">${badgesHtml}</div>` : ''}
       </div>
-      <div class="edit-tx-item-controls">
-        <input type="number" class="edit-tx-qty-input" value="${item.qty}" min="1" onchange="updateEditTxQty('${item.cartId}', this.value)">
-        <span class="edit-tx-item-subtotal">Rp ${formatRupiah(subtotal)}</span>
-        <button class="remove-item-btn" onclick="removeEditTxItem('${item.cartId}')" style="margin-left: 0.5rem;" title="Hapus">
-          <svg viewBox="0 0 24 24" class="icon-sm"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
+      
+      <div class="edit-tx-item-action">
+        <div class="edit-tx-qty-stepper">
+          <button type="button" class="edit-tx-stepper-btn" onclick="stepEditTxQty('${item.cartId}', -1)">−</button>
+          <input type="number" class="edit-tx-stepper-input" value="${item.qty}" min="1" onchange="updateEditTxQty('${item.cartId}', this.value)">
+          <button type="button" class="edit-tx-stepper-btn" onclick="stepEditTxQty('${item.cartId}', 1)">+</button>
+        </div>
+        
+        <span class="edit-tx-item-subtotal-val">Rp ${formatRupiah(subtotal)}</span>
+        
+        <button type="button" class="edit-tx-remove-btn" onclick="removeEditTxItem('${item.cartId}')" title="Hapus Barang">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
         </button>
       </div>
     `;
@@ -6082,6 +7350,17 @@ function renderEditTxItems() {
   
   document.getElementById('edit-tx-total-amount').textContent = `Rp ${formatRupiah(total)}`;
   calculateChangeEditTx();
+}
+
+function stepEditTxQty(cartId, delta) {
+  const item = editTxItems.find(it => it.cartId === cartId);
+  if (!item) return;
+  const newQty = (item.qty || 1) + delta;
+  if (newQty <= 0) {
+    removeEditTxItem(cartId);
+  } else {
+    updateEditTxQty(cartId, newQty);
+  }
 }
 
 function applyPricingToEditTxItem(item) {
@@ -6443,243 +7722,55 @@ function saveEditedTransaction() {
   
   syncSingleTransactionToCloud(tx);
   
-  if (gasUrl && allProductIds && allProductIds.size > 0) {
-    updateSyncStatus('syncing', 'Menyimpan perubahan stok...');
-    const promises = Array.from(allProductIds).map(id => {
+  if (firebaseDb && allProductIds && allProductIds.size > 0) {
+    allProductIds.forEach(id => {
       const p = products.find(prod => prod.id === id);
-      if (p) return fetchFromGAS('upsertProduct', { product: p });
-      return Promise.resolve();
-    });
-    Promise.all(promises).then(() => {
-      updateSyncStatus('online', 'Tersinkronisasi');
-    }).catch(() => {
-      updateSyncStatus('offline', 'Koneksi Terputus');
+      if (p) saveProductCloud(p);
     });
   }
   
   alert("Transaksi berhasil diperbarui!");
 }
 
-async function syncTransactionsToCloud() {
-  if (!gasUrl) {
-    alert("Silakan hubungkan aplikasi dengan Google Sheets terlebih dahulu di Pengaturan.");
+async function syncProductsToCloud() {
+  if (!firebaseDb) {
+    alert('Firebase Realtime Database belum terhubung. Silakan atur di Pengaturan.');
     return;
   }
-  
-  if (confirm("Apakah Anda ingin mengganti semua data transaksi di Google Sheets dengan data lokal saat ini?")) {
-    updateSyncStatus('syncing', 'Menyinkronkan transaksi...');
-    const result = await fetchFromGAS('updateTransactions', { transactions: transactions });
-    
-    if (result && result.status === 'success') {
-      alert("Sinkronisasi massal transaksi ke cloud BERHASIL!");
-      updateSyncStatus('online', 'Tersinkronisasi');
-    } else {
-      alert("Gagal menyinkronkan data: " + (result.message || "Koneksi terputus"));
-      updateSyncStatus('offline', 'Koneksi Terputus');
-    }
-  }
-}
-
-async function syncSingleTransactionToCloud(tx) {
-  if (!gasUrl || !tx) return;
-  updateSyncStatus('syncing', 'Menyimpan transaksi ke cloud...');
-  const result = await fetchFromGAS('addTransaction', { transaction: tx });
-  if (result && result.status === 'success') {
-    updateSyncStatus('online', 'Tersinkronisasi');
-  } else {
-    updateSyncStatus('offline', 'Koneksi Terputus');
-  }
-}
-
-async function syncTransactionsFromCloud() {
-  if (!gasUrl) return;
-
-  updateSyncStatus('syncing', 'Menarik transaksi...');
-  const result = await fetchFromGAS('getTransactions');
-
-  if (result && result.status === 'success') {
-    if (result.data) {
-      // Simpan data lokal sebagai referensi untuk merge piutang
-      const localTxMap = {};
-      transactions.forEach(ltx => {
-        localTxMap[ltx.id] = ltx;
-      });
-      
-      transactions = result.data
-        .filter(tx => {
-          const txId = tx.id_transaksi || tx.id || '';
-          return txId.toString().trim() !== '';
-        })
-        .map(tx => {
-        let itemsList = [];
-        const itemsStr = tx.daftar_item || tx.items || "";
-        if (itemsStr) {
-          const parts = itemsStr.split(", ");
-          parts.forEach(part => {
-            const match = part.match(/(.+) \((\d+)x @(\d+)\)/);
-            if (match) {
-              const nama = match[1].trim();
-              const qty = parseInt(match[2]) || 1;
-              const harga = parseFloat(match[3]) || 0;
-              
-              const prod = products.find(p => p.nama.toLowerCase() === nama.toLowerCase());
-              itemsList.push({
-                id: prod ? prod.id : '',
-                nama: nama,
-                harga: harga,
-                harga_beli: prod ? prod.harga_beli : Math.round(harga * 0.7),
-                qty: qty
-              });
-            }
-          });
-        }
-        
-        const txId = tx.id_transaksi ? tx.id_transaksi.toString() : (tx.id ? tx.id.toString() : '');
-        
-        // Ambil data piutang dari cloud
-        const cloudSisa = parseFloat(tx.sisa_piutang) || 0;
-        const cloudStatus = tx.status_pembayaran || '';
-        const cloudCustomer = tx.nama_pelanggan || '';
-        
-        // Cek data lokal sebagai referensi merge
-        const localTx = localTxMap[txId];
-        
-        // Tentukan sisa_piutang: prioritaskan data lokal jika cloud kosong
-        let finalSisa = cloudSisa;
-        let finalStatus = '';
-        let finalCustomer = cloudCustomer;
-        
-        if (localTx) {
-          // Ada data lokal — jika cloud tidak punya info piutang, pakai lokal
-          if (cloudSisa === 0 && cloudStatus === '' && localTx.sisa_piutang > 0) {
-            finalSisa = localTx.sisa_piutang;
-          }
-          if (!cloudCustomer && localTx.nama_pelanggan) {
-            finalCustomer = localTx.nama_pelanggan;
-          }
-          if (!cloudStatus && localTx.status_pembayaran) {
-            finalStatus = localTx.status_pembayaran;
-          }
-        }
-        
-        // Tentukan status akhir: sisa_piutang > 0 = pasti Bon
-        if (!finalStatus) {
-          finalStatus = finalSisa > 0 ? 'Bon' : (cloudStatus || 'Lunas');
-        }
-        if (finalSisa > 0) {
-          finalStatus = 'Bon';
-        }
-        
-        return {
-          id: txId,
-          waktu: tx.waktu || '',
-          items: itemsList,
-          total: parseFloat(tx.total) || 0,
-          bayar: parseFloat(tx.uang_bayar) || parseFloat(tx.bayar) || 0,
-          kembalian: parseFloat(tx.kembalian) || 0,
-          metode_pembayaran: tx.metode_pembayaran || "Tunai",
-          kasir: tx.kasir || "Kasir Utama",
-          sisa_piutang: finalSisa,
-          nama_pelanggan: finalCustomer,
-          status_pembayaran: finalStatus
-        };
-      });
-      
-      saveTransactionsLocally();
-      renderTransactionsTable();
-      initAnalyticsFilter();
-      updateAnalytics();
-      updateSyncStatus('online', 'Tersinkronisasi');
-    }
-  } else {
-    updateSyncStatus('offline', 'Koneksi Terputus');
-  }
-}
-
-function clearTransactionFilters() {
-  document.getElementById('transaction-list-search').value = '';
-  document.getElementById('tx-filter-start-date').value = '';
-  document.getElementById('tx-filter-end-date').value = '';
-
-  // Kembali ke mode hari ini: reload dari cloud jika ada koneksi
-  if (gasUrl) {
-    syncTransactionsFromCloud();
-  } else {
-    renderTransactionsTable();
-  }
-}
-
-// Cari transaksi lama dari cloud berdasarkan rentang tanggal & kata kunci
-async function searchTransactionsFromCloud(startDate, endDate, keyword) {
-  if (!gasUrl) {
-    alert('Tidak ada koneksi ke Google Sheets. Hubungkan terlebih dahulu di Pengaturan.');
-    return;
-  }
-
-  updateSyncStatus('syncing', 'Mencari transaksi...');
-
-  // Bangun URL dengan parameter query
-  let url = cleanGasUrl(gasUrl) + '?action=searchTransactions';
-  if (startDate) url += '&startDate=' + encodeURIComponent(startDate);
-  if (endDate)   url += '&endDate='   + encodeURIComponent(endDate);
-  if (keyword)   url += '&keyword='   + encodeURIComponent(keyword);
-
+  updateSyncStatus('syncing', 'Mengunggah semua produk...');
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    const result = await response.json();
-
-    if (result && result.status === 'success' && result.data) {
-      // Parse dan tampilkan hasil pencarian sebagai data sementara (tidak replace transactions harian)
-      const searchResults = result.data
-        .filter(tx => (tx.id_transaksi || '').toString().trim() !== '')
-        .map(tx => {
-          let itemsList = [];
-          const itemsStr = tx.daftar_item || tx.items || '';
-          if (itemsStr) {
-            itemsStr.split(', ').forEach(part => {
-              const match = part.match(/(.+) \((\d+)x @(\d+)\)/);
-              if (match) {
-                const nama = match[1].trim();
-                const qty = parseInt(match[2]) || 1;
-                const harga = parseFloat(match[3]) || 0;
-                const prod = products.find(p => p.nama.toLowerCase() === nama.toLowerCase());
-                itemsList.push({ id: prod ? prod.id : '', nama, harga, harga_beli: prod ? prod.harga_beli : Math.round(harga * 0.7), qty });
-              }
-            });
-          }
-          const txId = (tx.id_transaksi || tx.id || '').toString();
-          const sisa = parseFloat(tx.sisa_piutang) || 0;
-          const status = sisa > 0 ? 'Bon' : (tx.status_pembayaran || 'Lunas');
-          return {
-            id: txId,
-            waktu: tx.waktu || '',
-            items: itemsList,
-            total: parseFloat(tx.total) || 0,
-            bayar: parseFloat(tx.uang_bayar) || parseFloat(tx.bayar) || 0,
-            kembalian: parseFloat(tx.kembalian) || 0,
-            metode_pembayaran: tx.metode_pembayaran || 'Tunai',
-            kasir: tx.kasir || 'Kasir Utama',
-            sisa_piutang: sisa,
-            nama_pelanggan: tx.nama_pelanggan || '',
-            status_pembayaran: status
-          };
-        });
-
-      // Tampilkan hasil pencarian di tabel (mode sementara)
-      renderTransactionsTableFromData(searchResults);
-      updateSyncStatus('online', `Ditemukan ${searchResults.length} transaksi`);
-    } else {
-      updateSyncStatus('offline', 'Pencarian gagal');
-      alert('Pencarian gagal: ' + (result ? result.message : 'Tidak ada respons dari server'));
-    }
+    const updates = {};
+    products.forEach(p => { updates[getStorePath('products/' + p.id)] = JSON.parse(JSON.stringify(p)); });
+    await firebaseDb.ref('/').update(updates);
+    updateSyncStatus('online', 'Database Terhubung');
+    alert('Berhasil menyinkronkan ' + products.length + ' produk ke Firebase Realtime Database! 🚀');
   } catch (err) {
-    updateSyncStatus('offline', 'Koneksi Terputus');
-    alert('Koneksi terputus saat mencari transaksi.');
+    console.error('Gagal sync produk:', err);
+    alert('Gagal menyinkronkan produk: ' + err.message);
   }
 }
+
+async function syncTransactionsToCloud() {
+  if (!firebaseDb) {
+    alert('Firebase Realtime Database belum terhubung. Silakan atur di Pengaturan.');
+    return;
+  }
+  updateSyncStatus('syncing', 'Mengunggah semua transaksi...');
+  try {
+    const updates = {};
+    transactions.forEach(t => { updates[getStorePath('transactions/' + t.id)] = JSON.parse(JSON.stringify(t)); });
+    await firebaseDb.ref('/').update(updates);
+    updateSyncStatus('online', 'Database Terhubung');
+    alert('Berhasil menyinkronkan ' + transactions.length + ' transaksi ke Firebase Realtime Database! 🚀');
+  } catch (err) {
+    console.error('Gagal sync transaksi:', err);
+    alert('Gagal menyinkronkan transaksi: ' + err.message);
+  }
+}
+
+
+
+
 
 
 function exportTransactionsToCSV() {
@@ -7478,6 +8569,13 @@ function saveCustomer(event) {
   
   saveCustomersLocally();
   renderCustomersTable();
+  
+  // Sinkronkan ke Firebase jika terhubung
+  const savedCustomer = id ? customers.find(c => c.id === id) : customers[customers.length - 1];
+  if (savedCustomer) {
+    saveCustomerCloud(savedCustomer);
+  }
+  
   resetCustomerForm();
 }
 
@@ -7498,6 +8596,7 @@ function deleteCustomer(id) {
     customers = customers.filter(c => c.id !== id);
     saveCustomersLocally();
     renderCustomersTable();
+    deleteCustomerCloud(id);
   }
 }
 
@@ -7656,4 +8755,35 @@ document.addEventListener('DOMContentLoaded', () => {
     updateHeldCartsUI();
     loadWeeklyTrendInBackground();
   }, 1000);
+
+  // Registrasi PWA Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then((reg) => {
+          console.log('KasirKilat PWA Service Worker terdaftar:', reg.scope);
+        })
+        .catch((err) => {
+          console.warn('Gagal mendaftarkan Service Worker:', err);
+        });
+    });
+  }
+
+  // Auto re-render grafik tren & sesuaikan elemen mobile saat resize/rotasi layar
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const pane = document.getElementById('pane-analytics');
+      if (pane && pane.classList.contains('active')) {
+        render7DayChart();
+      }
+      if (typeof updateMobileCartBadge === 'function') {
+        updateMobileCartBadge();
+      }
+      if (window.innerWidth > 768 && typeof closeMobileCheckout === 'function') {
+        closeMobileCheckout();
+      }
+    }, 150);
+  });
 });
