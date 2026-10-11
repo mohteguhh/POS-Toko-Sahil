@@ -459,6 +459,14 @@
                 </div>
               </div>
             </div>
+
+            <!-- POS CATALOG GRID CONTAINER (Hanya aktif jika opsi di Pengaturan diaktifkan) -->
+            <div id="pos-catalog-container" class="pos-catalog-wrapper" style="display: none;">
+              <!-- Filter Kategori Cepat -->
+              <div id="pos-grid-category-chips" class="pos-category-chips" style="margin-bottom: 0.75rem;"></div>
+              <!-- Grid Produk 1 Baris 2 Produk di Mobile -->
+              <div id="pos-product-grid" class="pos-product-grid"></div>
+            </div>
             
             <!-- Cart Card -->
             <div class="cart-card-left">
@@ -1138,6 +1146,10 @@
               <label style="display: flex; align-items: center; gap: 0.75rem; font-size: 0.95rem; font-weight: 500; cursor: pointer;">
                 <input type="checkbox" id="chk-show-promo-banner" style="width: 1.25rem; height: 1.25rem; accent-color: var(--primary-color);">
                 Tampilkan Banner Carousel Produk Diskon ("Sedang Diskon")
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.75rem; font-size: 0.95rem; font-weight: 500; cursor: pointer;">
+                <input type="checkbox" id="chk-pos-grid-mode" style="width: 1.25rem; height: 1.25rem; accent-color: var(--primary-color);">
+                Gunakan Tampilan Menu Grid di Kasir (1 baris 2 produk, cocok untuk Cafe/Resto)
               </label>
             </div>
             <div class="settings-actions" style="margin-top: 1.5rem;">
