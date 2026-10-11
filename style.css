@@ -1040,6 +1040,184 @@ svg.icon-empty {
   box-shadow: var(--shadow-sm);
   z-index: 10;
 }
+
+/* --- POS VIEW SWITCH BUTTONS --- */
+.pos-view-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.pos-view-tab-btn:hover {
+  color: var(--text-main);
+}
+.pos-view-tab-btn.active {
+  background: var(--bg-surface, #ffffff);
+  color: var(--color-primary, #d97706);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+.pos-category-chips {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  max-width: 100%;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.pos-category-chips::-webkit-scrollbar {
+  display: none;
+}
+.pos-cat-chip {
+  padding: 0.3rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.pos-cat-chip.active {
+  background: var(--color-primary, #d97706);
+  border-color: var(--color-primary, #d97706);
+  color: #ffffff;
+}
+
+/* --- POS PRODUCT GRID (1 BARIS 2 PRODUK DI MOBILE / CAFE MODE) --- */
+.pos-catalog-wrapper {
+  width: 100%;
+}
+.pos-product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+  width: 100%;
+}
+.pos-grid-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+  position: relative;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+.pos-grid-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: rgba(217, 119, 6, 0.4);
+}
+.pos-grid-card:active {
+  transform: scale(0.97);
+}
+.pos-grid-card.out-of-stock {
+  opacity: 0.6;
+  filter: grayscale(0.6);
+  cursor: not-allowed;
+}
+.pos-grid-img-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+.pos-grid-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.pos-grid-stock-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 20px;
+}
+.pos-grid-stock-badge.empty {
+  background: rgba(239, 68, 68, 0.9);
+}
+.pos-grid-stock-badge.low {
+  background: rgba(245, 158, 11, 0.9);
+}
+.pos-grid-body {
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: space-between;
+}
+.pos-grid-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.25;
+  margin-bottom: 0.35rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pos-grid-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+.pos-grid-price {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--color-primary, #d97706);
+}
+.pos-grid-add-btn {
+  background: rgba(217, 119, 6, 0.12);
+  color: var(--color-primary, #d97706);
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  /* Pastikan di HP tepat 1 baris 2 kolom produk */
+  .pos-product-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.6rem !important;
+  }
+  .pos-grid-name {
+    font-size: 0.8rem;
+  }
+  .pos-grid-price {
+    font-size: 0.85rem;
+  }
+}
 .search-bar {
   position: relative;
   width: 100%;
