@@ -2948,71 +2948,76 @@ tr:hover td {
 @media (max-width: 768px) {
   .metrics-grid {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 0.65rem !important;
+    gap: 0.5rem !important;
   }
   .fin-card {
-    padding: 0.65rem 0.65rem 0.55rem 0.65rem;
-    border-radius: 18px;
+    padding: 0.55rem 0.55rem 0.5rem 0.55rem;
+    border-radius: 16px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
   }
   .fin-card-top {
-    padding: 0.2rem 0.25rem 0.45rem 0.25rem;
+    padding: 0.15rem 0.2rem 0.35rem 0.2rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
   .fin-card-title {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     font-weight: 700;
   }
   .fin-card-top-icon {
-    width: 1.1rem;
-    height: 1.1rem;
+    width: 1rem;
+    height: 1rem;
   }
   .fin-card-white-box {
-    padding: 0.65rem 0.65rem;
-    border-radius: 14px;
-    min-height: 85px;
+    padding: 0.55rem 0.6rem;
+    border-radius: 12px;
+    min-height: auto;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
   }
   .fin-card-label {
-    font-size: 0.62rem;
+    font-size: 0.58rem;
     letter-spacing: 0.02em;
-    line-height: 1.2;
-    margin-bottom: 0.25rem;
+    line-height: 1.15;
+    margin-bottom: 0.3rem;
     font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .fin-card-main-content {
     display: flex;
+    flex-direction: row;
     align-items: center;
     justify-content: space-between;
     gap: 0.25rem;
-    margin: 0.15rem 0;
+    margin: 0.1rem 0 0 0;
   }
   .fin-card-val-group {
     display: flex;
-    align-items: center;
-    gap: 0.25rem;
+    align-items: baseline;
+    gap: 0.2rem;
     min-width: 0;
     flex: 1;
   }
   .fin-card-val {
-    /* Font nominal diperbesar nyata tapi tetap responsif untuk puluhan juta */
-    font-size: clamp(1.15rem, 4.2vw, 1.55rem) !important;
+    /* Ukuran font dinamis agar nominal 7-9 digit (jutaan s.d puluhan juta) muat utuh */
+    font-size: clamp(0.88rem, 3.2vw, 1.08rem) !important;
     font-weight: 800;
     letter-spacing: -0.02em;
     white-space: nowrap;
     line-height: 1.1;
   }
   .fin-card-arrow {
-    font-size: 1.1rem;
+    font-size: 0.85rem;
     font-weight: 900;
+    flex-shrink: 0;
   }
-  /* Tampilkan kembali ikon grafik mini dengan ukuran pas dan rapi di mobile */
+  /* Ikon grafik mini di mobile dibuat ringkas dan proporsional */
   .fin-card-graphic {
     display: flex !important;
     align-items: center;
@@ -3020,20 +3025,20 @@ tr:hover td {
     flex-shrink: 0;
   }
   .mini-bar-graphic {
-    width: 36px;
-    height: 24px;
+    width: 26px;
+    height: 18px;
   }
   .mini-line-graphic {
-    width: 40px;
-    height: 24px;
+    width: 28px;
+    height: 18px;
   }
   .mini-donut-graphic {
-    width: 26px;
-    height: 26px;
+    width: 18px;
+    height: 18px;
   }
   .mini-bell-graphic {
-    width: 38px;
-    height: 20px;
+    width: 26px;
+    height: 16px;
   }
   .fin-card-desc {
     display: none !important; /* Deskripsi teks panjang tetap di-hide agar kotak tidak melar */
