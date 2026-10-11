@@ -460,15 +460,7 @@
               </div>
             </div>
 
-            <!-- POS CATALOG GRID CONTAINER (Hanya aktif jika opsi di Pengaturan diaktifkan) -->
-            <div id="pos-catalog-container" class="pos-catalog-wrapper" style="display: none;">
-              <!-- Filter Kategori Cepat -->
-              <div id="pos-grid-category-chips" class="pos-category-chips" style="margin-bottom: 0.75rem;"></div>
-              <!-- Grid Produk 1 Baris 2 Produk di Mobile -->
-              <div id="pos-product-grid" class="pos-product-grid"></div>
-            </div>
-            
-            <!-- Cart Card -->
+            <!-- Cart Card (Diletakkan di atas daftar produk) -->
             <div class="cart-card-left">
               <div class="cart-header">
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -492,9 +484,17 @@
               <div class="cart-list" id="cart-list">
                 <div class="empty-cart-state">
                   <svg viewBox="0 0 24 24" class="icon-empty"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
-                  <p>Keranjang kosong. Cari barang atau gunakan tombol scan kamera di atas.</p>
+                  <p>Keranjang kosong. Cari barang atau pilih dari menu di bawah.</p>
                 </div>
               </div>
+            </div>
+
+            <!-- POS CATALOG GRID CONTAINER (Diletakkan di bawah keranjang) -->
+            <div id="pos-catalog-container" class="pos-catalog-wrapper" style="display: none;">
+              <!-- Filter Kategori Cepat -->
+              <div id="pos-grid-category-chips" class="pos-category-chips" style="margin-bottom: 0.75rem;"></div>
+              <!-- Grid Produk 1 Baris 2 Produk di Mobile -->
+              <div id="pos-product-grid" class="pos-product-grid"></div>
             </div>
           </div>
           

@@ -1791,25 +1791,63 @@ svg.icon-empty {
   gap: 0.4rem;
 }
 
-/* Kembalikan ukuran font keranjang ke semula di mobile */
+/* Desain Keranjang Belanja Kompak & Rapi di Mobile (Terutama Saat di Atas Grid Menu) */
 @media (max-width: 768px) {
+  .cart-card-left {
+    padding: 0.75rem !important;
+    border-radius: 14px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin-bottom: 0.25rem;
+  }
+  .cart-header {
+    margin-bottom: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+  }
+  .cart-header h2 {
+    font-size: 0.92rem !important;
+  }
+  .cart-list {
+    max-height: 240px !important;
+    overflow-y: auto !important;
+    min-height: auto !important;
+    gap: 0.4rem !important;
+  }
+  .empty-cart-state {
+    padding: 1.25rem 0.75rem !important;
+  }
+  .empty-cart-state svg {
+    width: 2rem !important;
+    height: 2rem !important;
+    margin-bottom: 0.4rem !important;
+  }
+  .empty-cart-state p {
+    font-size: 0.8rem !important;
+    margin: 0 !important;
+  }
   .cart-item {
-    padding: 0.55rem 0.7rem;
+    padding: 0.5rem 0.65rem !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+    border-radius: 10px !important;
   }
   .cart-item-name {
-    font-size: 0.85rem;
+    font-size: 0.82rem !important;
+    line-height: 1.2 !important;
   }
   .cart-item-price {
-    font-size: 0.8rem;
+    font-size: 0.8rem !important;
   }
   .qty-btn {
-    width: 22px;
-    height: 22px;
-    font-size: 0.85rem;
+    width: 24px !important;
+    height: 24px !important;
+    font-size: 0.85rem !important;
   }
   .qty-input {
-    font-size: 0.85rem;
-    width: 36px;
+    font-size: 0.85rem !important;
+    width: 32px !important;
   }
 }
 .qty-btn {
