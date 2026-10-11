@@ -1200,6 +1200,46 @@ svg.icon-empty {
   font-weight: bold;
   flex-shrink: 0;
 }
+.pos-grid-qty-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(16, 185, 129, 0.12);
+  padding: 2px 4px;
+  border-radius: 20px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.pos-grid-btn-qty {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.pos-grid-btn-qty.minus {
+  background: #f43f5e;
+  color: #ffffff;
+}
+.pos-grid-btn-qty.plus {
+  background: #10b981;
+  color: #ffffff;
+}
+.pos-grid-btn-qty:active {
+  transform: scale(0.9);
+}
+.pos-grid-qty-num {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #065f46;
+  min-width: 14px;
+  text-align: center;
+}
 
 @media (max-width: 600px) {
   /* Di ponsel (Mobile): 1 baris tepat 2 produk */

@@ -3253,6 +3253,22 @@ function renderPosCatalogGrid() {
 
     const card = document.createElement('div');
     card.className = `pos-grid-card ${isOutOfStock ? 'out-of-stock' : ''} ${inCartClass}`;
+
+    let actionButtonsHtml = '';
+    if (cartQty > 0) {
+      actionButtonsHtml = `
+        <div class="pos-grid-qty-controls" onclick="event.stopPropagation();">
+          <button type="button" class="pos-grid-btn-qty minus" onclick="reduceProductFromGrid('${p.id}')" title="Kurangi 1">-</button>
+          <span class="pos-grid-qty-num">${cartQty}</span>
+          <button type="button" class="pos-grid-btn-qty plus" onclick="addToCart(products.find(pr => pr.id === '${p.id}')); playBeep();" title="Tambah 1">+</button>
+        </div>
+      `;
+    } else {
+      actionButtonsHtml = `
+        <button type="button" class="pos-grid-add-btn" title="Tambah ke keranjang" tabindex="-1">+</button>
+      `;
+    }
+
     card.onclick = () => {
       if (!isOutOfStock) {
         addToCart(p);
@@ -3272,12 +3288,25 @@ function renderPosCatalogGrid() {
         <div class="pos-grid-name" title="${p.nama}">${p.nama}</div>
         <div class="pos-grid-footer">
           <span class="pos-grid-price">Rp ${formatRupiah(p.harga_jual)}</span>
-          <button type="button" class="pos-grid-add-btn" title="Tambah ke keranjang" tabindex="-1">+</button>
+          ${actionButtonsHtml}
         </div>
       </div>
     `;
     container.appendChild(card);
   });
+}
+
+function reduceProductFromGrid(productId) {
+  const itemIndex = cart.findIndex(it => it.id === productId && !it.isBox);
+  if (itemIndex === -1) return;
+  const item = cart[itemIndex];
+  if (item.qty > 1) {
+    updateCartQty(item.cartId, -1);
+  } else {
+    // Jika sisa 1 dan ditekan minus, langsung hapus dari keranjang
+    cart.splice(itemIndex, 1);
+    renderCart();
+  }
 }
 
 // --- TAB POS: PENCARIAN & DROPDOWN ---
