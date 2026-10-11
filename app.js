@@ -1969,6 +1969,21 @@ function updateMobileCartBadge() {
       floatBtn.style.display = 'none';
     }
   }
+
+  // Update badge tombol toggle tab Keranjang
+  const tabCartBadge = document.getElementById('pos-tab-cart-badge');
+  if (tabCartBadge) {
+    tabCartBadge.textContent = totalQty;
+    tabCartBadge.style.display = totalQty > 0 ? 'inline-block' : 'none';
+  }
+
+  // Jika sedang membuka mode grid, update badge angka di setiap kartu produk grid
+  if (posViewMode === 'grid') {
+    const catalogContainer = document.getElementById('pos-catalog-container');
+    if (catalogContainer && catalogContainer.style.display !== 'none') {
+      renderPosCatalogGrid();
+    }
+  }
 }
 
 // Fokuskan kursor ke input Kulak
@@ -3245,8 +3260,14 @@ function renderPosCatalogGrid() {
 
     const imgUrl = p.gambar || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=200';
 
+    // Cek apakah produk ini sudah ada di keranjang dan berapa jumlahnya
+    const cartItem = cart.find(it => it.id === p.id && !it.isBox);
+    const cartQty = cartItem ? cartItem.qty : 0;
+    const inCartClass = cartQty > 0 ? 'in-cart' : '';
+    const cartBadgeHtml = cartQty > 0 ? `<span class="pos-grid-qty-badge">🛒 ${cartQty}</span>` : '';
+
     const card = document.createElement('div');
-    card.className = `pos-grid-card ${isOutOfStock ? 'out-of-stock' : ''}`;
+    card.className = `pos-grid-card ${isOutOfStock ? 'out-of-stock' : ''} ${inCartClass}`;
     card.onclick = () => {
       if (!isOutOfStock) {
         addToCart(p);
@@ -3259,6 +3280,7 @@ function renderPosCatalogGrid() {
     card.innerHTML = `
       <div class="pos-grid-img-wrap">
         <img src="${imgUrl}" alt="${p.nama}" class="pos-grid-img" onerror="handleImageError(this)">
+        ${cartBadgeHtml}
         <span class="pos-grid-stock-badge ${stockBadgeClass}">${stockText}</span>
       </div>
       <div class="pos-grid-body">
