@@ -434,7 +434,7 @@ function setupDatabaseListeners() {
       saveProductsLocally();
       updateCategoriesList();
       if (typeof renderProductsTable === 'function') renderProductsTable();
-      if (typeof renderPosCatalogGrid === 'function' && posViewMode === 'grid') renderPosCatalogGrid();
+      if (typeof renderPosProducts === 'function') renderPosProducts();
     }
   };
   prodRef.on('value', prodCallback, err => console.error('❌ RTDB Products Error:', err.message));
@@ -1234,11 +1234,6 @@ function loadData() {
   const rpInput = document.getElementById('setting-rp-per-point');
   if (ptsInput) ptsInput.value = loyaltySettings.pointsPerRp;
   if (rpInput) rpInput.value = loyaltySettings.rpPerPoint;
-
-  // Inisialisasi tampilan POS (Keranjang atau Katalog Grid)
-  if (typeof switchPosView === 'function') {
-    switchPosView(posViewMode);
-  }
 }
 
 // Batas maksimal transaksi yang disimpan di LocalStorage agar aplikasi tidak hang/freeze
@@ -1967,21 +1962,6 @@ function updateMobileCartBadge() {
       floatBtn.style.display = 'flex';
     } else {
       floatBtn.style.display = 'none';
-    }
-  }
-
-  // Update badge tombol toggle tab Keranjang
-  const tabCartBadge = document.getElementById('pos-tab-cart-badge');
-  if (tabCartBadge) {
-    tabCartBadge.textContent = totalQty;
-    tabCartBadge.style.display = totalQty > 0 ? 'inline-block' : 'none';
-  }
-
-  // Jika sedang membuka mode grid, update badge angka di setiap kartu produk grid
-  if (posViewMode === 'grid') {
-    const catalogContainer = document.getElementById('pos-catalog-container');
-    if (catalogContainer && catalogContainer.style.display !== 'none') {
-      renderPosCatalogGrid();
     }
   }
 }
@@ -3162,150 +3142,11 @@ function closeCameraScanner() {
   }
 }
 
-// --- TAB POS: MODE VIEW (KERANJANG VS KATALOG GRID 1 BARIS 2 PRODUK) ---
-let posViewMode = localStorage.getItem('kasir_pos_view_mode') || 'cart';
-let posGridCategory = 'All';
-
-function switchPosView(mode) {
-  posViewMode = mode;
-  localStorage.setItem('kasir_pos_view_mode', mode);
-
-  const btnCart = document.getElementById('btn-pos-view-cart');
-  const btnGrid = document.getElementById('btn-pos-view-grid');
-  const cartCard = document.querySelector('.cart-card-left');
-  const catalogWrap = document.getElementById('pos-catalog-container');
-  const categoryChips = document.getElementById('pos-grid-category-chips');
-
-  if (mode === 'grid') {
-    if (btnCart) btnCart.classList.remove('active');
-    if (btnGrid) btnGrid.classList.add('active');
-    if (cartCard) cartCard.style.display = 'none';
-    if (catalogWrap) catalogWrap.style.display = 'block';
-    if (categoryChips) categoryChips.style.display = 'flex';
-    renderPosCategoryChips();
-    renderPosCatalogGrid();
-  } else {
-    if (btnCart) btnCart.classList.add('active');
-    if (btnGrid) btnGrid.classList.remove('active');
-    if (cartCard) cartCard.style.display = 'flex';
-    if (catalogWrap) catalogWrap.style.display = 'none';
-    if (categoryChips) categoryChips.style.display = 'none';
-  }
-}
-
-function renderPosCategoryChips() {
-  const container = document.getElementById('pos-grid-category-chips');
-  if (!container) return;
-  container.innerHTML = '';
-
-  const catsFromProducts = products.map(p => p.kategori || 'Umum').filter(Boolean);
-  const allCats = ['All', ...Array.from(new Set(catsFromProducts))];
-
-  allCats.forEach(cat => {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = `pos-cat-chip ${posGridCategory === cat ? 'active' : ''}`;
-    chip.textContent = cat === 'All' ? 'Semua' : cat;
-    chip.onclick = () => {
-      posGridCategory = cat;
-      renderPosCategoryChips();
-      renderPosCatalogGrid();
-    };
-    container.appendChild(chip);
-  });
-}
-
-function renderPosCatalogGrid() {
-  const container = document.getElementById('pos-product-grid');
-  if (!container) return;
-  container.innerHTML = '';
-
-  const searchInput = document.getElementById('search-input');
-  const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : '';
-
-  let list = products;
-  if (posGridCategory !== 'All') {
-    list = list.filter(p => (p.kategori || 'Umum') === posGridCategory);
-  }
-  if (searchVal) {
-    list = list.filter(p => 
-      String(p.nama).toLowerCase().includes(searchVal) ||
-      String(p.id).toLowerCase().includes(searchVal) ||
-      (p.barcode && String(p.barcode).toLowerCase().includes(searchVal))
-    );
-  }
-
-  if (list.length === 0) {
-    container.innerHTML = `
-      <div style="grid-column: 1 / -1; text-align: center; padding: 2rem 1rem; color: var(--text-muted); background: var(--bg-surface); border-radius: 14px; border: 1px dashed var(--border-color);">
-        <svg viewBox="0 0 24 24" class="icon-empty" style="width: 2.5rem; height: 2.5rem; margin-bottom: 0.5rem;"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
-        <p style="font-weight: 600; font-size: 0.9rem; margin: 0;">Tidak ada produk ditemukan.</p>
-      </div>
-    `;
-    return;
-  }
-
-  list.forEach(p => {
-    const isOutOfStock = p.stok <= 0;
-    const isLowStock = p.stok > 0 && p.stok <= 5;
-    let stockBadgeClass = '';
-    let stockText = `${p.stok} pcs`;
-    if (isOutOfStock) {
-      stockBadgeClass = 'empty';
-      stockText = 'Habis';
-    } else if (isLowStock) {
-      stockBadgeClass = 'low';
-      stockText = `Sisa ${p.stok}`;
-    }
-
-    const imgUrl = p.gambar || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=200';
-
-    // Cek apakah produk ini sudah ada di keranjang dan berapa jumlahnya
-    const cartItem = cart.find(it => it.id === p.id && !it.isBox);
-    const cartQty = cartItem ? cartItem.qty : 0;
-    const inCartClass = cartQty > 0 ? 'in-cart' : '';
-    const cartBadgeHtml = cartQty > 0 ? `<span class="pos-grid-qty-badge">🛒 ${cartQty}</span>` : '';
-
-    const card = document.createElement('div');
-    card.className = `pos-grid-card ${isOutOfStock ? 'out-of-stock' : ''} ${inCartClass}`;
-    card.onclick = () => {
-      if (!isOutOfStock) {
-        addToCart(p);
-        playBeep();
-      } else {
-        alert(`Stok "${p.nama}" habis!`);
-      }
-    };
-
-    card.innerHTML = `
-      <div class="pos-grid-img-wrap">
-        <img src="${imgUrl}" alt="${p.nama}" class="pos-grid-img" onerror="handleImageError(this)">
-        ${cartBadgeHtml}
-        <span class="pos-grid-stock-badge ${stockBadgeClass}">${stockText}</span>
-      </div>
-      <div class="pos-grid-body">
-        <div class="pos-grid-name" title="${p.nama}">${p.nama}</div>
-        <div class="pos-grid-footer">
-          <span class="pos-grid-price">Rp ${formatRupiah(p.harga_jual)}</span>
-          <button type="button" class="pos-grid-add-btn" title="Tambah ke keranjang" tabindex="-1">+</button>
-        </div>
-      </div>
-    `;
-    container.appendChild(card);
-  });
-}
-
 // --- TAB POS: PENCARIAN & DROPDOWN ---
 function filterProducts() {
   const searchInput = document.getElementById('search-input');
   const searchVal = searchInput.value.toLowerCase().trim();
   const dropdown = document.getElementById('floating-results');
-  
-  if (posViewMode === 'grid') {
-    renderPosCatalogGrid();
-    if (dropdown) closeFloatingResults();
-    return;
-  }
   
   if (searchVal === '') {
     closeFloatingResults();
