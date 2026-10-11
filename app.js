@@ -3155,6 +3155,11 @@ function closeCameraScanner() {
       html5QrcodeScanner = null;
       focusActiveTabSearch();
     });
+  } else {
+    focusActiveTabSearch();
+  }
+}
+
 // --- LOGIKA TAMPILAN POS MENU GRID (CAFE / RESTO DARI PENGATURAN) ---
 let posGridCategory = 'All';
 
