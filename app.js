@@ -110,7 +110,7 @@ let fbUnsubscribes = [];
 // Database URL Realtime Database (hardcoded + override dari config)
 const RTDB_URL = 'https://db-toko-sahil-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-let currentLicenseKey = localStorage.getItem('kasir_license_key') || 'TOKO-SAHIL-PRO';
+let currentLicenseKey = localStorage.getItem('kasir_license_key') || '';
 let currentLicenseData = null;
 const ADMIN_WA_NUMBER = '6289636492890'; // Nomor WA Admin untuk konfirmasi pembayaran Rp 50.000/bln
 
@@ -199,6 +199,7 @@ async function checkSubscriptionLicense() {
   
   if (!currentLicenseKey || currentLicenseKey.trim() === '' || currentLicenseKey === 'DEFAULT') {
     updateSyncStatus('offline', 'Kode Lisensi Belum Diatur');
+    updateLicenseUI({ status: 'not_set', expired_at: null });
     return false;
   }
 
@@ -236,7 +237,31 @@ async function checkSubscriptionLicense() {
 function updateLicenseUI(lic) {
   const badge = document.getElementById('license-badge');
   const info = document.getElementById('license-expired-info');
-  if (!lic || !lic.expired_at) return;
+  if (!lic) return;
+
+  if (lic.status === 'not_set') {
+    if (badge) {
+      badge.textContent = 'Belum Diatur';
+      badge.style.background = '#64748b';
+    }
+    if (info) {
+      info.innerHTML = `Silakan masukkan Kode Lisensi Toko Anda lalu klik <b>Simpan Lisensi</b>.`;
+    }
+    return;
+  }
+
+  if (lic.status === 'unregistered') {
+    if (badge) {
+      badge.textContent = 'Tidak Terdaftar';
+      badge.style.background = '#ef4444';
+    }
+    if (info) {
+      info.innerHTML = `Kode lisensi tidak valid atau belum terdaftar di sistem.`;
+    }
+    return;
+  }
+
+  if (!lic.expired_at) return;
 
   const expDate = new Date(lic.expired_at);
   const now = new Date();
@@ -767,7 +792,7 @@ function clearFirestoreTransactions() {
 // Fungsi Backup & Restore Database Lokal (JSON)
 function exportFullDatabaseJSON() {
   const backupData = {
-    app: "KasirKilat POS",
+    app: "Toko Sahil POS",
     version: "3.2",
     exportedAt: new Date().toISOString(),
     storeName: receiptSettings.name || 'Toko',
@@ -1884,7 +1909,7 @@ function toggleMobileMoreSheet() {
     const userTitle = document.getElementById('m3-sheet-user-title');
     const storeInfo = document.getElementById('m3-sheet-store-info');
     if (userTitle) userTitle.textContent = `${activeCashier} (${currentUserRole === 'owner' ? 'Owner' : 'Kasir'})`;
-    if (storeInfo) storeInfo.textContent = receiptSettings.name || 'KasirKilat POS';
+    if (storeInfo) storeInfo.textContent = receiptSettings.name || 'Toko Sahil POS';
 
     backdrop.classList.add('active');
     sheet.classList.add('active');
@@ -3252,7 +3277,8 @@ function renderPosCatalogGrid() {
     const cartBadgeHtml = cartQty > 0 ? `<span class="pos-grid-qty-badge">🛒 ${cartQty}</span>` : '';
 
     const card = document.createElement('div');
-    card.className = `pos-grid-card ${isOutOfStock ? 'out-of-stock' : ''} ${inCartClass}`;
+    const isGridCardDisabled = isOutOfStock && !appConfig.allowZeroStock;
+    card.className = `pos-grid-card ${isGridCardDisabled ? 'out-of-stock' : ''} ${inCartClass}`;
 
     let actionButtonsHtml = '';
     if (cartQty > 0) {
@@ -3270,7 +3296,7 @@ function renderPosCatalogGrid() {
     }
 
     card.onclick = () => {
-      if (!isOutOfStock) {
+      if (!isOutOfStock || appConfig.allowZeroStock) {
         addToCart(p);
         playBeep();
       } else {
@@ -3377,13 +3403,16 @@ function renderFloatingDropdown() {
     }
     
     const div = document.createElement('div');
-    div.className = `floating-item ${isSelected ? 'selected' : ''} ${isOutOfStock ? 'out-of-stock' : ''}`;
+    const isDropdownItemDisabled = isOutOfStock && !appConfig.allowZeroStock;
+    div.className = `floating-item ${isSelected ? 'selected' : ''} ${isDropdownItemDisabled ? 'out-of-stock' : ''}`;
     div.onclick = () => {
-      if (!isOutOfStock) {
+      if (!isOutOfStock || appConfig.allowZeroStock) {
         addToCart(p);
         document.getElementById('search-input').value = '';
         closeFloatingResults();
         focusSearchInput();
+      } else {
+        alert(`Stok "${p.nama}" habis!`);
       }
     };
     
@@ -7634,9 +7663,10 @@ function renderEditTxFloatingDropdown() {
     const isOutOfStock = p.stok <= 0;
     
     const div = document.createElement('div');
-    div.className = `floating-item ${isSelected ? 'selected' : ''} ${isOutOfStock ? 'out-of-stock' : ''}`;
+    const isDropdownDisabled = isOutOfStock && !appConfig.allowZeroStock;
+    div.className = `floating-item ${isSelected ? 'selected' : ''} ${isDropdownDisabled ? 'out-of-stock' : ''}`;
     div.onclick = () => {
-      if (!isOutOfStock) {
+      if (!isOutOfStock || appConfig.allowZeroStock) {
         addEditTxItem(p);
       } else {
         alert("Stok barang habis!");
@@ -7696,7 +7726,7 @@ function handleEditTxSearchInputKeydowns(e) {
     e.preventDefault();
     if (selectedEditTxFloatIndex > -1 && selectedEditTxFloatIndex < editTxFilteredProducts.length) {
       const prod = editTxFilteredProducts[selectedEditTxFloatIndex];
-      if (prod.stok > 0) {
+      if (prod.stok > 0 || appConfig.allowZeroStock) {
         addEditTxItem(prod);
       } else {
         alert("Stok barang habis!");
@@ -8934,7 +8964,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js')
         .then((reg) => {
-          console.log('KasirKilat PWA Service Worker terdaftar:', reg.scope);
+          console.log('Toko Sahil PWA Service Worker terdaftar:', reg.scope);
         })
         .catch((err) => {
           console.warn('Gagal mendaftarkan Service Worker:', err);

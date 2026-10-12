@@ -1,6 +1,6 @@
 {
-  "name": "KasirKilat POS",
-  "short_name": "KasirKilat",
+  "name": "Toko Sahil POS",
+  "short_name": "Toko Sahil",
   "description": "Aplikasi Kasir POS & Analisis Penjualan Ringan, Cepat, dan Modern",
   "start_url": "./index.html",
   "display": "standalone",
