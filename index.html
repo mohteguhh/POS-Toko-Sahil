@@ -79,8 +79,8 @@
           <span>Riwayat Transaksi</span>
         </button>
         <button class="tab-btn" id="tab-kulak" onclick="switchTab('kulak')">
-          <svg viewBox="0 0 24 24" class="icon"><path d="M12 5v14M5 12h14"/></svg>
-          <span>Kulak (Restock)</span>
+          <svg viewBox="0 0 24 24" class="icon"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/><path d="M12 11h6m-3-3v6"/></svg>
+          <span>Sales & Kulak</span>
         </button>
         <button class="tab-btn" id="tab-products" onclick="switchTab('products')">
           <svg viewBox="0 0 24 24" class="icon"><path d="m7.5 4.27 9 5.15M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.27 6.96 8.73 5 8.73-5M12 22.08V12"/></svg>
@@ -479,7 +479,7 @@
                     Jeda
                   </button>
                   <button class="clear-cart-btn" onclick="clearCart()">
-                    <svg viewBox="0 0 24 24" class="icon-sm"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg>
+                    <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                     <span>Kosong</span>
                   </button>
                 </div>
@@ -652,156 +652,403 @@
         </div>
       </section>
 
-      <!-- TAB 3: KULAK / RESTOCK (TAB BARU!) -->
+      <!-- TAB 3: SALES & KULAK -->
       <section id="pane-kulak" class="tab-pane">
-        <div class="kulak-layout">
+        <div class="sales-kulak-container" style="display: flex; flex-direction: column; gap: 1.25rem;">
           
-          <div class="card kulak-search-card">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
+          <!-- Header Bar Tab Sales & Kulak -->
+          <div class="card" style="padding: 1rem 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
               <div>
-                <h2 style="margin: 0;">Pencarian Produk untuk Kulak</h2>
-                <p class="settings-desc" style="margin: 0.25rem 0 0;">Cari nama produk atau barcode untuk menambahkan stok datang dan memperbarui harga.</p>
+                <h2 style="margin: 0; display: flex; align-items: center; gap: 0.5rem; font-size: 1.35rem;">
+                  <span style="font-size: 1.5rem;">🤝</span>
+                  <span>Manajemen Sales &amp; Kulak Barang</span>
+                </h2>
+                <p class="settings-desc" style="margin: 0.25rem 0 0;">Kelola data sales, penerimaan nota kirim barang, retur barang bermasalah, kulak beli sendiri, serta rekap harian/bulanan.</p>
               </div>
-              <button class="btn btn-secondary btn-sm" onclick="openBulkEdit()" style="display: flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
-                <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Edit Semua Stok &amp; Harga
-              </button>
-            </div>
-            
-            <div class="search-bar">
-              <svg viewBox="0 0 24 24" class="icon-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-              <input type="text" id="kulak-search-input" placeholder="Ketik nama atau scan barcode barang datang..." autocomplete="off" oninput="filterKulakSearch()">
-              <button class="btn-scan-camera" onclick="openCameraScanner('kulak')" title="Scan Barcode dengan Kamera">
-                <svg viewBox="0 0 24 24" class="icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 12h8M12 8v8"/></svg>
-              </button>
-              <div class="floating-results" id="kulak-floating-results"></div>
+
+              <!-- Sub-tab Switcher -->
+              <div style="display: flex; gap: 0.35rem; background: var(--bg-surface-elevated); padding: 0.3rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); flex-wrap: wrap;">
+                <button type="button" class="btn btn-sm" id="btn-subtab-sales" onclick="switchSalesSubTab('sales')" style="font-weight: 600; padding: 0.45rem 0.85rem; border-radius: 6px; background: var(--color-primary); color: #fff;">
+                  👥 Daftar Sales
+                </button>
+                <button type="button" class="btn btn-sm" id="btn-subtab-invoices" onclick="switchSalesSubTab('invoices')" style="font-weight: 600; padding: 0.45rem 0.85rem; border-radius: 6px; background: transparent; color: var(--text-main);">
+                  📦 Penerimaan Nota Sales
+                </button>
+                <button type="button" class="btn btn-sm" id="btn-subtab-returns" onclick="switchSalesSubTab('returns')" style="font-weight: 600; padding: 0.45rem 0.85rem; border-radius: 6px; background: transparent; color: var(--text-main);">
+                  🔄 Retur Produk
+                </button>
+                <button type="button" class="btn btn-sm" id="btn-subtab-kulak-manual" onclick="switchSalesSubTab('kulak-manual')" style="font-weight: 600; padding: 0.45rem 0.85rem; border-radius: 6px; background: transparent; color: var(--text-main);">
+                  🛒 Kulak Beli Sendiri
+                </button>
+                <button type="button" class="btn btn-sm" id="btn-subtab-logs" onclick="switchSalesSubTab('logs')" style="font-weight: 600; padding: 0.45rem 0.85rem; border-radius: 6px; background: transparent; color: var(--text-main);">
+                  📊 Rekap Transaksi Sales
+                </button>
+              </div>
             </div>
           </div>
-          
-          <!-- Form Kulak -->
-          <div class="card kulak-form-card" id="kulak-form-card" style="display: none;">
-            <div class="kulak-prod-preview">
-              <img id="kulak-prod-img" src="" alt="Pratinjau" onerror="handleImageError(this)">
-              <div class="kulak-prod-detail">
-                <h3 id="kulak-prod-name">Nama Barang</h3>
-                <span id="kulak-prod-id">ID: P001</span>
-                <span id="kulak-prod-current-stock">Stok Sekarang: 0 pcs</span>
-              </div>
-            </div>
-            
-            <div class="divider" style="margin: 1rem 0;"></div>
-            
-            <form id="kulak-form" onsubmit="saveKulak(event)">
-              <input type="hidden" id="kulak-edit-id">
-              
-              <!-- Pilihan Mode Update Stok (Modern Cards) -->
-              <div class="form-group" style="margin-bottom: 1.25rem;">
-                <label style="font-weight: 700; margin-bottom: 0.5rem; display: block; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Pilih Cara Update Stok:</label>
-                <div class="stock-mode-selector-grid">
-                  <!-- Opsi 1: Tambah Stok Datang -->
-                  <div class="stock-mode-card active" id="card-mode-add" onclick="selectKulakMode('add')">
-                    <input type="radio" name="kulak-mode" value="add" checked>
-                    <div class="stock-mode-icon-box">
-                      <svg viewBox="0 0 24 24" class="icon" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-                    </div>
-                    <div class="stock-mode-details">
-                      <div class="stock-mode-title">
-                        <span>Tambah Stok Datang</span>
-                        <span class="stock-mode-badge-check">✓</span>
-                      </div>
-                      <span class="stock-mode-desc">Barang baru datang dari supplier. Ditambahkan ke stok saat ini.</span>
-                    </div>
-                  </div>
 
-                  <!-- Opsi 2: Set Stok Fisik di Rak -->
-                  <div class="stock-mode-card" id="card-mode-set" onclick="selectKulakMode('set')">
-                    <input type="radio" name="kulak-mode" value="set">
-                    <div class="stock-mode-icon-box">
-                      <svg viewBox="0 0 24 24" class="icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    </div>
-                    <div class="stock-mode-details">
-                      <div class="stock-mode-title">
-                        <span>Set Stok di Rak</span>
-                        <span class="stock-mode-badge-check">✓</span>
-                      </div>
-                      <span class="stock-mode-desc">Hitung fisik / stock opname. Stok langsung diubah sesuai angka di rak.</span>
-                    </div>
-                  </div>
+          <!-- SUB-PANE 1: DAFTAR SALES -->
+          <div id="subpane-sales" class="sales-subpane">
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
+                <div>
+                  <h3 style="margin: 0; font-size: 1.1rem;">Daftar Rekanan Sales</h3>
+                  <p class="settings-desc" style="margin: 0.2rem 0 0;">Daftarkan nama sales, kontak WA/Telp, perusahaan/distributor, dan produk-produk yang ditangani.</p>
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                  <button type="button" class="btn btn-primary btn-sm" onclick="openAddSalesModal()" style="display: flex; align-items: center; gap: 0.35rem;">
+                    <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                    <span>+ Input Sales Baru</span>
+                  </button>
                 </div>
               </div>
 
-              <div class="form-grid-2">
-                <div class="form-group">
-                  <label for="kulak-qty-add" id="kulak-qty-label" style="font-weight: 600;">Stok Tambahan Masuk*</label>
-                  <input type="number" id="kulak-qty-add" required min="0" placeholder="Misal: 24" oninput="calculateKulakFinalStockPreview()" style="font-size: 1.05rem; font-weight: 600;">
-                  <div class="stock-preview-box" id="kulak-preview-box">
-                    <svg viewBox="0 0 24 24" class="icon-sm" style="color: var(--color-primary); flex-shrink: 0;" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-                    <span id="kulak-final-stock-preview">Stok akhir: 0 pcs</span>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label for="kulak-date-expiry" style="font-weight: 600;">Tanggal Kadaluarsa Baru (Opsional)</label>
-                  <input type="date" id="kulak-date-expiry">
-                </div>
+              <!-- Search Bar Sales -->
+              <div style="margin-bottom: 1rem;">
+                <input type="text" id="sales-list-search" placeholder="Cari nama sales, perusahaan, atau no hp..." oninput="renderSalesTable()" style="width: 100%; padding: 0.6rem 0.85rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background: var(--bg-surface); color: var(--text-main); font-size: 0.95rem;">
               </div>
-              <div class="form-grid-2">
-                <div class="form-group">
-                  <label for="kulak-price-buy">Harga Beli Baru (Rp)*</label>
-                  <input type="number" id="kulak-price-buy" required min="0" placeholder="10000">
+
+              <div class="table-wrapper">
+                <table id="sales-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 50px;">No</th>
+                      <th>Nama Sales</th>
+                      <th>Perusahaan / Distributor</th>
+                      <th>No. WhatsApp / HP</th>
+                      <th>Produk yang Ditangani</th>
+                      <th>Status Stok Sales</th>
+                      <th style="text-align: center; width: 180px;">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sales-table-body">
+                    <!-- Diisi dinamis -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-PANE 2: INPUT & DAFTAR PENERIMAAN BARANG DARI SALES (NOTA PEMBELIAN) -->
+          <div id="subpane-invoices" class="sales-subpane" style="display: none;">
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
+                <div>
+                  <h3 style="margin: 0; font-size: 1.1rem;">Penerimaan Nota Kirim Barang dari Sales</h3>
+                  <p class="settings-desc" style="margin: 0.2rem 0 0;">Catat kedatangan barang: No Nota, barang, tanggal, harga beli &amp; jual, stok bertambah otomatis, diskon, dan bonus gratis.</p>
                 </div>
-                <div class="form-group">
-                  <label for="kulak-price-sell">Harga Jual Baru (Rp)*</label>
-                  <input type="number" id="kulak-price-sell" required min="0" placeholder="15000">
+                <button type="button" class="btn btn-success btn-sm" onclick="openAddSalesDeliveryModal()" style="display: flex; align-items: center; gap: 0.35rem;">
+                  <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                  <span>+ Input Nota Pembelian Sales</span>
+                </button>
+              </div>
+
+              <!-- Filter Waktu & Sales untuk Penerimaan -->
+              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: 0.75rem; background: var(--bg-surface-elevated); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
+                <span style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted);">Filter Nota:</span>
+                <select id="filter-invoice-sales" onchange="renderSalesDeliveriesTable()" style="padding: 0.4rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                  <option value="All">-- Semua Sales --</option>
+                </select>
+                <select id="filter-invoice-status" onchange="renderSalesDeliveriesTable()" style="padding: 0.4rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                  <option value="All">-- Semua Status Bayar --</option>
+                  <option value="Tempo">⏳ Tempo / Belum Lunas</option>
+                  <option value="Lunas">✅ Lunas</option>
+                </select>
+                <input type="month" id="filter-invoice-month" onchange="renderSalesDeliveriesTable()" style="padding: 0.35rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="resetInvoiceFilters()" style="padding: 0.35rem 0.65rem;">Reset</button>
+              </div>
+
+              <div class="table-wrapper">
+                <table id="sales-deliveries-table">
+                  <thead>
+                    <tr>
+                      <th>Tanggal Masuk</th>
+                      <th>No. Nota</th>
+                      <th>Nama Sales</th>
+                      <th>Daftar Barang Datang</th>
+                      <th>Total Tagihan</th>
+                      <th>Diskon</th>
+                      <th>Total Bersih</th>
+                      <th>Status Pembayaran</th>
+                      <th>Bonus / Hadiah</th>
+                      <th style="text-align: center;">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sales-deliveries-body">
+                    <!-- Diisi dinamis -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-PANE 3: RETUR PRODUK BERMASALAH KE SALES -->
+          <div id="subpane-returns" class="sales-subpane" style="display: none;">
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
+                <div>
+                  <h3 style="margin: 0; font-size: 1.1rem; color: var(--color-danger, #ef4444); display: flex; align-items: center; gap: 0.4rem;">
+                    <span>🔄</span>
+                    <span>Retur Produk Bermasalah / Kadaluarsa</span>
+                  </h3>
+                  <p class="settings-desc" style="margin: 0.2rem 0 0;">Retur barang rusak/expired ke sales terkait. Stok barang di toko otomatis berkurang sesuai jumlah yang diretur.</p>
+                </div>
+                <button type="button" class="btn btn-danger btn-sm" onclick="openAddSalesReturnModal()" style="display: flex; align-items: center; gap: 0.35rem; background: var(--color-danger, #ef4444); border-color: var(--color-danger, #ef4444); color: #fff;">
+                  <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                  <span>+ Buat Retur Baru</span>
+                </button>
+              </div>
+
+              <!-- Filter Retur -->
+              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: 0.75rem; background: var(--bg-surface-elevated); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
+                <span style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted);">Filter Retur:</span>
+                <select id="filter-return-sales" onchange="renderSalesReturnsTable()" style="padding: 0.4rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                  <option value="All">-- Semua Sales --</option>
+                </select>
+                <input type="month" id="filter-return-month" onchange="renderSalesReturnsTable()" style="padding: 0.35rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="resetReturnFilters()" style="padding: 0.35rem 0.65rem;">Reset</button>
+              </div>
+
+              <div class="table-wrapper">
+                <table id="sales-returns-table">
+                  <thead>
+                    <tr>
+                      <th>Tanggal Retur</th>
+                      <th>Sales Tujuan</th>
+                      <th>Nama Produk</th>
+                      <th>Qty Retur (Pcs)</th>
+                      <th>Alasan Retur</th>
+                      <th>Status Penggantian</th>
+                      <th>Catatan / Keterangan</th>
+                      <th style="text-align: center;">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sales-returns-body">
+                    <!-- Diisi dinamis -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUB-PANE 4: KULAK MANUAL (NON SALES / BELI SENDIRI DI PASAR / GROSIR) -->
+          <div id="subpane-kulak-manual" class="sales-subpane" style="display: none;">
+            <div class="card kulak-search-card">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
+                <div>
+                  <h3 style="margin: 0; font-size: 1.15rem;">Kulak Beli Sendiri (Non-Sales / Pasar / Grosir Bebas)</h3>
+                  <p class="settings-desc" style="margin: 0.25rem 0 0;">Cari nama produk atau scan barcode untuk menambah stok belanja mandiri toko dan memperbarui harga.</p>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="openBulkEdit()" style="display: flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
+                  <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit Semua Stok &amp; Harga
+                </button>
+              </div>
+              
+              <div class="search-bar">
+                <svg viewBox="0 0 24 24" class="icon-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="kulak-search-input" placeholder="Ketik nama atau scan barcode barang belanja mandiri..." autocomplete="off" oninput="filterKulakSearch()">
+                <button class="btn-scan-camera" onclick="openCameraScanner('kulak')" title="Scan Barcode dengan Kamera">
+                  <svg viewBox="0 0 24 24" class="icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 12h8M12 8v8"/></svg>
+                </button>
+                <div class="floating-results" id="kulak-floating-results"></div>
+              </div>
+            </div>
+
+            <!-- Form Kulak Manual -->
+            <div class="card kulak-form-card" id="kulak-form-card" style="display: none; margin-top: 1rem;">
+              <div class="kulak-prod-preview">
+                <img id="kulak-prod-img" src="" alt="Pratinjau" onerror="handleImageError(this)">
+                <div class="kulak-prod-detail">
+                  <h3 id="kulak-prod-name">Nama Barang</h3>
+                  <span id="kulak-prod-id">ID: P001</span>
+                  <span id="kulak-prod-current-stock">Stok Sekarang: 0 pcs</span>
                 </div>
               </div>
               
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary" onclick="closeKulakForm()">Batal</button>
-                <button type="submit" class="btn btn-success">Simpan Data Kulak</button>
+              <div class="divider" style="margin: 1rem 0;"></div>
+              
+              <form id="kulak-form" onsubmit="saveKulak(event)">
+                <input type="hidden" id="kulak-edit-id">
+                
+                <!-- Pilihan Mode Update Stok -->
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                  <label style="font-weight: 700; margin-bottom: 0.5rem; display: block; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Pilih Cara Update Stok:</label>
+                  <div class="stock-mode-selector-grid">
+                    <!-- Opsi 1: Tambah Stok Datang -->
+                    <div class="stock-mode-card active" id="card-mode-add" onclick="selectKulakMode('add')">
+                      <input type="radio" name="kulak-mode" value="add" checked>
+                      <div class="stock-mode-icon-box">
+                        <svg viewBox="0 0 24 24" class="icon" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                      </div>
+                      <div class="stock-mode-details">
+                        <div class="stock-mode-title">
+                          <span>Tambah Stok Masuk</span>
+                          <span class="stock-mode-badge-check">✓</span>
+                        </div>
+                        <span class="stock-mode-desc">Barang baru dibeli mandiri. Ditambahkan ke stok saat ini.</span>
+                      </div>
+                    </div>
+
+                    <!-- Opsi 2: Set Stok Fisik di Rak -->
+                    <div class="stock-mode-card" id="card-mode-set" onclick="selectKulakMode('set')">
+                      <input type="radio" name="kulak-mode" value="set">
+                      <div class="stock-mode-icon-box">
+                        <svg viewBox="0 0 24 24" class="icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </div>
+                      <div class="stock-mode-details">
+                        <div class="stock-mode-title">
+                          <span>Set Stok Fisik di Rak</span>
+                          <span class="stock-mode-badge-check">✓</span>
+                        </div>
+                        <span class="stock-mode-desc">Hitung fisik / stock opname mandiri. Stok langsung diubah sesuai angka di rak.</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="form-group">
+                    <label for="kulak-qty-add" id="kulak-qty-label" style="font-weight: 600;">Stok Tambahan Masuk*</label>
+                    <input type="number" id="kulak-qty-add" required min="0" placeholder="Misal: 24" oninput="calculateKulakFinalStockPreview()" style="font-size: 1.05rem; font-weight: 600;">
+                    <div class="stock-preview-box" id="kulak-preview-box">
+                      <svg viewBox="0 0 24 24" class="icon-sm" style="color: var(--color-primary); flex-shrink: 0;" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                      <span id="kulak-final-stock-preview">Stok akhir: 0 pcs</span>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="kulak-date-expiry" style="font-weight: 600;">Tanggal Kadaluarsa Baru (Opsional)</label>
+                    <input type="date" id="kulak-date-expiry">
+                  </div>
+                </div>
+                <div class="form-grid-2">
+                  <div class="form-group">
+                    <label for="kulak-price-buy">Harga Beli Baru (Rp)*</label>
+                    <input type="number" id="kulak-price-buy" required min="0" placeholder="10000">
+                  </div>
+                  <div class="form-group">
+                    <label for="kulak-price-sell">Harga Jual Baru (Rp)*</label>
+                    <input type="number" id="kulak-price-sell" required min="0" placeholder="15000">
+                  </div>
+                </div>
+                
+                <div class="form-actions">
+                  <button type="button" class="btn btn-secondary" onclick="closeKulakForm()">Batal</button>
+                  <button type="submit" class="btn btn-success">Simpan Stok Masuk</button>
+                </div>
+              </form>
+            </div>
+            
+            <!-- Bulk Edit Stok & Harga Semua Produk -->
+            <div class="card" id="kulak-bulk-edit-card" style="display: none; margin-top: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
+                <div>
+                  <h3 style="margin: 0; font-size: 1.1rem;">Edit Stok &amp; Harga Semua Produk</h3>
+                  <p class="settings-desc" style="margin: 0.25rem 0 0;">Pilih mode perubahan stok lalu ubah angka di tabel.</p>
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                  <div style="display: flex; align-items: center; gap: 0.35rem; background: var(--bg-surface); padding: 0.35rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md);">
+                    <label for="bulk-edit-mode" style="font-size: 0.85rem; font-weight: 600; margin: 0;">Mode Stok:</label>
+                    <select id="bulk-edit-mode" onchange="renderBulkEditTable()" style="border: none; background: transparent; font-family: var(--font-main); font-size: 0.85rem; font-weight: 600; color: var(--color-primary); outline: none; cursor: pointer;">
+                      <option value="add">➕ Tambah Stok Masuk</option>
+                      <option value="set">📝 Ubah Total Stok Fisik di Rak</option>
+                    </select>
+                  </div>
+                  <input type="text" id="bulk-edit-search" placeholder="Cari nama / ID..." oninput="renderBulkEditTable()" style="padding: 0.45rem 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); font-family: var(--font-main); font-size: 0.85rem; background: var(--bg-card); color: var(--text-main); outline: none; min-width: 180px;">
+                  <button class="btn btn-success btn-sm" onclick="saveBulkEdit()">
+                    <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Simpan Semua
+                  </button>
+                  <button class="btn btn-secondary btn-sm" onclick="closeBulkEdit()">Tutup</button>
+                </div>
               </div>
-            </form>
+              <div class="table-wrapper" style="max-height: 60vh; overflow-y: auto;">
+                <table id="bulk-edit-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Nama Produk</th>
+                      <th>Kategori</th>
+                      <th style="width: 100px;">Stok Sekarang</th>
+                      <th style="width: 130px;" id="bulk-edit-th-stock">➕ Tambah Stok</th>
+                      <th style="width: 130px;">Harga Beli (Rp)</th>
+                      <th style="width: 130px;">Harga Jual (Rp)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="bulk-edit-table-body">
+                    <!-- diisi JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-          
-          <!-- Bulk Edit Stok & Harga Semua Produk -->
-          <div class="card" id="kulak-bulk-edit-card" style="display: none; margin-top: 1rem;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
-              <div>
-                <h2 style="margin: 0;">Edit Stok &amp; Harga Semua Produk</h2>
-                <p class="settings-desc" style="margin: 0.25rem 0 0;">Pilih mode perubahan stok lalu ubah angka di tabel.</p>
-              </div>
-              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-                <div style="display: flex; align-items: center; gap: 0.35rem; background: var(--bg-surface); padding: 0.35rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md);">
-                  <label for="bulk-edit-mode" style="font-size: 0.85rem; font-weight: 600; margin: 0;">Mode Stok:</label>
-                  <select id="bulk-edit-mode" onchange="renderBulkEditTable()" style="border: none; background: transparent; font-family: var(--font-main); font-size: 0.85rem; font-weight: 600; color: var(--color-primary); outline: none; cursor: pointer;">
-                    <option value="add">➕ Tambah Stok Masuk</option>
-                    <option value="set">📝 Ubah Total Stok Fisik di Rak</option>
+
+          <!-- SUB-PANE 5: REKAP PEMBELIAN & RETUR SALES SETIAP HARI / BULAN -->
+          <div id="subpane-logs" class="sales-subpane" style="display: none;">
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+                <div>
+                  <h3 style="margin: 0; font-size: 1.15rem;">Rekapitulasi Pembelian &amp; Retur Sales</h3>
+                  <p class="settings-desc" style="margin: 0.25rem 0 0;">Lihat total pembelian masuk, nilai belanja, dan barang retur dari sales per hari atau per bulan tertentu.</p>
+                </div>
+                <!-- Filter Periode Rekap -->
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                  <select id="sales-rekap-type" onchange="onSalesRekapFilterChange()" style="padding: 0.5rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-family: var(--font-main); font-weight: 600; background: var(--bg-surface); color: var(--text-main);">
+                    <option value="hari">Harian (Per Tanggal)</option>
+                    <option value="bulan" selected>Bulanan (Per Bulan)</option>
+                  </select>
+                  <input type="date" id="sales-rekap-date" onchange="renderSalesRekapView()" style="display: none; padding: 0.45rem 0.65rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main);">
+                  <input type="month" id="sales-rekap-month" onchange="renderSalesRekapView()" style="padding: 0.45rem 0.65rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main);">
+                  <select id="sales-rekap-sales-target" onchange="renderSalesRekapView()" style="padding: 0.5rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-size: 0.9rem;">
+                    <option value="All">Semua Sales</option>
                   </select>
                 </div>
-                <input type="text" id="bulk-edit-search" placeholder="Cari nama / ID..." oninput="renderBulkEditTable()" style="padding: 0.45rem 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); font-family: var(--font-main); font-size: 0.85rem; background: var(--bg-card); color: var(--text-main); outline: none; min-width: 180px;">
-                <button class="btn btn-success btn-sm" onclick="saveBulkEdit()">
-                  <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                  Simpan Semua
-                </button>
-                <button class="btn btn-secondary btn-sm" onclick="closeBulkEdit()">Tutup</button>
               </div>
-            </div>
-            <div class="table-wrapper" style="max-height: 60vh; overflow-y: auto;">
-              <table id="bulk-edit-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Nama Produk</th>
-                    <th>Kategori</th>
-                    <th style="width: 100px;">Stok Sekarang</th>
-                    <th style="width: 130px;" id="bulk-edit-th-stock">➕ Tambah Stok</th>
-                    <th style="width: 130px;">Harga Beli (Rp)</th>
-                    <th style="width: 130px;">Harga Jual (Rp)</th>
-                  </tr>
-                </thead>
-                <tbody id="bulk-edit-table-body">
-                  <!-- diisi JS -->
-                </tbody>
-              </table>
+
+              <!-- Stat Cards Rekap -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background: rgba(37, 99, 235, 0.07); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: 10px; padding: 1rem;">
+                  <div style="font-size: 0.85rem; color: #2563eb; font-weight: 700; text-transform: uppercase;">Total Pembelian Sales</div>
+                  <div id="rekap-total-beli-amount" style="font-size: 1.5rem; font-weight: 800; color: #1e3a8a; margin-top: 0.35rem;">Rp 0</div>
+                  <div id="rekap-total-beli-count" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">0 Nota Pembelian</div>
+                </div>
+                <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 10px; padding: 1rem;">
+                  <div style="font-size: 0.85rem; color: #d97706; font-weight: 700; text-transform: uppercase;">Tagihan Belum Lunas (Tempo)</div>
+                  <div id="rekap-total-tempo-amount" style="font-size: 1.5rem; font-weight: 800; color: #b45309; margin-top: 0.35rem;">Rp 0</div>
+                  <div id="rekap-total-tempo-count" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">0 Nota Hutang</div>
+                </div>
+                <div style="background: rgba(239, 68, 68, 0.07); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 10px; padding: 1rem;">
+                  <div style="font-size: 0.85rem; color: #dc2626; font-weight: 700; text-transform: uppercase;">Total Retur Produk</div>
+                  <div id="rekap-total-retur-qty" style="font-size: 1.5rem; font-weight: 800; color: #991b1b; margin-top: 0.35rem;">0 Pcs</div>
+                  <div id="rekap-total-retur-count" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">0 Transaksi Retur</div>
+                </div>
+                <div style="background: rgba(16, 185, 129, 0.07); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 10px; padding: 1rem;">
+                  <div style="font-size: 0.85rem; color: #059669; font-weight: 700; text-transform: uppercase;">Total Bonus / Gratis</div>
+                  <div id="rekap-total-bonus-count" style="font-size: 1.5rem; font-weight: 800; color: #065f46; margin-top: 0.35rem;">0 Pcs</div>
+                  <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Diterima dari Supplier Sales</div>
+                </div>
+              </div>
+
+              <!-- Rincian Tabel Rekap Gabungan -->
+              <h4 style="margin: 0 0 0.5rem 0;">Rincian Transaksi Sales Periode Ini:</h4>
+              <div class="table-wrapper">
+                <table id="sales-rekap-table">
+                  <thead>
+                    <tr>
+                      <th>Tanggal</th>
+                      <th>Tipe Transaksi</th>
+                      <th>Sales</th>
+                      <th>No. Nota / Referensi</th>
+                      <th>Rincian Produk</th>
+                      <th style="text-align: right;">Total Nilai</th>
+                    </tr>
+                  </thead>
+                  <tbody id="sales-rekap-body">
+                    <!-- Diisi dinamis -->
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
@@ -907,12 +1154,15 @@
                   </div>
                   <div class="form-group">
                     <label for="prod-category">Kategori</label>
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <div style="display: flex; gap: 0.35rem; align-items: center;">
                       <select id="prod-category" class="form-control" style="flex: 1; padding: 0.6rem 0.75rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main); font-size: 0.95rem;">
                         <option value="Umum">Umum</option>
                       </select>
-                      <button type="button" class="btn btn-secondary" onclick="promptAddNewCategory()" title="Tambah Kategori Baru" style="padding: 0.6rem 0.9rem; font-weight: 700; font-size: 1.1rem; line-height: 1; border-radius: var(--border-radius-sm);">
+                      <button type="button" class="btn btn-secondary" onclick="promptAddNewCategory()" title="Tambah Kategori Baru" style="padding: 0.6rem 0.75rem; font-weight: 700; font-size: 1.1rem; line-height: 1; border-radius: var(--border-radius-sm);">
                         +
+                      </button>
+                      <button type="button" class="btn btn-secondary" onclick="promptDeleteCategory()" title="Hapus Kategori yang Dipilih" style="padding: 0.6rem 0.75rem; border-radius: var(--border-radius-sm); color: var(--color-danger, #ef4444); display: flex; align-items: center; justify-content: center;">
+                        <svg viewBox="0 0 24 24" style="width: 17px; height: 17px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                       </button>
                     </div>
                   </div>
@@ -926,7 +1176,7 @@
                       <input type="number" id="prod-price-sell" required min="0" placeholder="15000">
                     </div>
                   </div>
-                  <div class="form-grid-2">
+                  <div class="form-grid-3" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
                     <div class="form-group">
                       <label for="prod-stock">Stok Awal*</label>
                       <input type="number" id="prod-stock" required min="0" placeholder="50">
@@ -934,6 +1184,20 @@
                     <div class="form-group">
                       <label for="prod-barcode">Barcode (Opsional)</label>
                       <input type="text" id="prod-barcode" placeholder="Scan Barcode">
+                    </div>
+                    <div class="form-group">
+                      <label for="prod-rack">Lokasi Rak</label>
+                      <div style="display: flex; gap: 0.35rem; align-items: center;">
+                        <select id="prod-rack" class="form-control" style="flex: 1; padding: 0.6rem 0.5rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main); font-size: 0.95rem;">
+                          <option value="">-- Tanpa Rak --</option>
+                        </select>
+                        <button type="button" class="btn btn-secondary" onclick="promptAddNewRack()" title="Tambah Rak Baru" style="padding: 0.6rem 0.75rem; font-weight: 700; font-size: 1.1rem; line-height: 1; border-radius: var(--border-radius-sm);">
+                          +
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="promptDeleteRack()" title="Hapus Rak yang Dipilih" style="padding: 0.6rem 0.75rem; border-radius: var(--border-radius-sm); color: var(--color-danger, #ef4444); display: flex; align-items: center; justify-content: center;">
+                          <svg viewBox="0 0 24 24" style="width: 17px; height: 17px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div class="form-group" style="margin-top: 0.5rem;">
@@ -1084,12 +1348,18 @@
                 </button>
               </div>
               <!-- FILTER KATEGORI PRODUK -->
-              <select id="product-list-category-filter" onchange="filterProductListTable()" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; min-width: 150px;">
+              <select id="product-list-category-filter" onchange="filterProductListTable()" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; min-width: 140px;">
                 <option value="All">Semua Kategori</option>
+              </select>
+              <!-- FILTER LOKASI RAK -->
+              <select id="product-list-rack-filter" onchange="filterProductListTable()" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; min-width: 140px;">
+                <option value="All">Semua Rak</option>
               </select>
               <!-- SORTIR PRODUK -->
               <select id="product-list-sort" onchange="filterProductListTable()" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none;">
                 <option value="newest">Urutan: Terbaru</option>
+                <option value="rack_asc">Nama Rak (A-Z)</option>
+                <option value="rack_desc">Nama Rak (Z-A)</option>
                 <option value="name_asc">Nama (A-Z)</option>
                 <option value="name_desc">Nama (Z-A)</option>
                 <option value="category_asc">Kategori (A-Z)</option>
@@ -1099,6 +1369,11 @@
                 <option value="price_asc">Harga (Termurah)</option>
                 <option value="price_desc">Harga (Termahal)</option>
               </select>
+              <!-- TOMBOL CETAK DAFTAR BARANG DI RAK -->
+              <button type="button" class="btn btn-secondary btn-sm" onclick="openPrintRackModal()" title="Cetak Daftar Barang per Rak" style="padding: 0.5rem 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
+                <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+                <span>Cetak Isi Rak</span>
+              </button>
               <span class="help-text" id="table-search-count" style="width: 100%;">Menampilkan 10 data teratas. Ketik kata kunci untuk mencari data lainnya.</span>
             </div>
             
@@ -1115,6 +1390,7 @@
                     <th>Harga Jual</th>
                     <th>Stok</th>
                     <th>Barcode</th>
+                    <th>Rak</th>
                     <th>Kadaluarsa</th>
                     <th>Aksi</th>
                   </tr>
@@ -1741,7 +2017,10 @@
             <p class="settings-desc">Gunakan fitur di bawah ini untuk mereset riwayat transaksi atau membersihkan cache lokal browser.</p>
             
             <div class="settings-actions" style="flex-wrap: wrap; gap: 0.5rem;">
-              <button class="btn btn-danger" onclick="clearAllTransactions()">🗑️ Kosongkan Semua Transaksi (Database & Lokal)</button>
+              <button class="btn btn-danger" onclick="clearAllTransactions()" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                <span>Kosongkan Semua Transaksi (Database &amp; Lokal)</span>
+              </button>
               <button class="btn btn-secondary" onclick="clearLocalCache()">Hapus Seluruh Cache Lokal</button>
             </div>
           </div>
@@ -2241,35 +2520,67 @@
   <!-- DAILY REPORT PRINT LAYOUT (HANYA MUNCUL SAAT DI-PRINT) -->
   <div id="daily-report-print-area" class="daily-report-print-area" style="display: none;">
     <div style="text-align: center; margin-bottom: 1.5rem;">
-      <h2 id="print-rep-store-name">NAMA TOKO</h2>
-      <p id="print-rep-store-address">Alamat Toko</p>
-      <div class="divider-dashed"></div>
-      <h3>LAPORAN RINGKASAN PENJUALAN HARIAN</h3>
-      <p id="print-rep-date">Tanggal: --</p>
+      <h2 id="print-rep-store-name" style="margin: 0; font-size: 1.4rem;">NAMA TOKO</h2>
+      <p id="print-rep-store-address" style="margin: 0.25rem 0; font-size: 0.85rem; color: #444;">Alamat Toko</p>
+      <div class="divider-dashed" style="margin: 0.75rem 0; border-bottom: 1px dashed #333;"></div>
+      <h3 style="margin: 0.25rem 0; font-size: 1.15rem; letter-spacing: 0.5px;">LAPORAN PENJUALAN &amp; STOK LENGKAP</h3>
+      <p id="print-rep-date" style="margin: 0.25rem 0; font-weight: bold; font-size: 0.95rem;">Periode: --</p>
     </div>
     
-    <div style="margin-bottom: 1.5rem;">
-      <h4 style="border-bottom: 1px solid #444; padding-bottom: 0.25rem;">METRIK KEUANGAN HARI INI</h4>
-      <table style="width: 100%; font-family: monospace; font-size: 0.9rem; margin-top: 0.5rem; border-collapse: collapse;">
+    <!-- 1. RINGKASAN KEUANGAN -->
+    <div style="margin-bottom: 1.25rem;">
+      <h4 style="border-bottom: 1.5px solid #222; padding-bottom: 0.3rem; margin-bottom: 0.5rem; font-size: 0.95rem; text-transform: uppercase;">1. Ringkasan Keuangan</h4>
+      <table style="width: 100%; font-family: monospace; font-size: 0.85rem; border-collapse: collapse;">
         <tr>
           <td style="padding: 0.25rem 0;">Total Omzet (Tunai):</td>
           <td id="print-rep-revenue" style="text-align: right; font-weight: bold;">Rp 0</td>
         </tr>
         <tr>
+          <td style="padding: 0.25rem 0;">Total HPP (Modal Barang Terjual):</td>
+          <td id="print-rep-gross-profit" style="text-align: right; font-weight: bold;">Rp 0</td>
+        </tr>
+        <tr>
           <td style="padding: 0.25rem 0;">Total Laba Bersih:</td>
-          <td id="print-rep-net-profit" style="text-align: right; font-weight: bold;">Rp 0</td>
+          <td id="print-rep-net-profit" style="text-align: right; font-weight: bold; color: #000;">Rp 0</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.25rem 0;">Total Jumlah Transaksi:</td>
+          <td id="print-rep-tx-count" style="text-align: right; font-weight: bold;">0 Transaksi</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.25rem 0;">Total Barang Terjual:</td>
+          <td id="print-rep-items-sold" style="text-align: right; font-weight: bold;">0 Pcs</td>
         </tr>
       </table>
     </div>
 
-    <div style="margin-bottom: 1.5rem;">
-      <h4 style="border-bottom: 1px solid #444; padding-bottom: 0.25rem;">PRODUK TERLARIS HARI INI</h4>
-      <table style="width: 100%; font-family: monospace; font-size: 0.85rem; margin-top: 0.5rem; border-collapse: collapse;">
+    <!-- 2. RINCIAN METODE PEMBAYARAN -->
+    <div style="margin-bottom: 1.25rem;">
+      <h4 style="border-bottom: 1.5px solid #222; padding-bottom: 0.3rem; margin-bottom: 0.5rem; font-size: 0.95rem; text-transform: uppercase;">2. Rincian Metode Pembayaran</h4>
+      <table style="width: 100%; font-family: monospace; font-size: 0.85rem; border-collapse: collapse;">
         <thead>
-          <tr style="border-bottom: 1px dashed #444;">
-            <th style="text-align: left; padding: 0.25rem 0; font-weight: bold;">Nama Produk</th>
-            <th style="text-align: center; font-weight: bold;">Qty</th>
-            <th style="text-align: right; font-weight: bold;">Total Nilai</th>
+          <tr style="border-bottom: 1px dashed #555;">
+            <th style="text-align: left; padding: 0.25rem 0;">Metode</th>
+            <th style="text-align: center; padding: 0.25rem 0;">Jml Tx</th>
+            <th style="text-align: right; padding: 0.25rem 0;">Total Nilai</th>
+          </tr>
+        </thead>
+        <tbody id="print-rep-payment-methods">
+          <!-- Dinamis -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 3. PRODUK TERLARIS -->
+    <div style="margin-bottom: 1.25rem;">
+      <h4 style="border-bottom: 1.5px solid #222; padding-bottom: 0.3rem; margin-bottom: 0.5rem; font-size: 0.95rem; text-transform: uppercase;">3. Produk Terlaris Periode Ini</h4>
+      <table style="width: 100%; font-family: monospace; font-size: 0.82rem; border-collapse: collapse;">
+        <thead>
+          <tr style="border-bottom: 1px dashed #555;">
+            <th style="text-align: left; padding: 0.25rem 0;">No</th>
+            <th style="text-align: left; padding: 0.25rem 0;">Nama Produk</th>
+            <th style="text-align: center; padding: 0.25rem 0;">Qty</th>
+            <th style="text-align: right; padding: 0.25rem 0;">Total Nilai</th>
           </tr>
         </thead>
         <tbody id="print-rep-best-sellers">
@@ -2278,24 +2589,451 @@
       </table>
     </div>
 
-    <div>
-      <h4 style="border-bottom: 1px solid #444; padding-bottom: 0.25rem;">STOK MENIPIS / HABIS</h4>
-      <table style="width: 100%; font-family: monospace; font-size: 0.85rem; margin-top: 0.5rem; border-collapse: collapse;">
+    <!-- 4. DAFTAR TRANSAKSI PENJUALAN LENGKAP -->
+    <div style="margin-bottom: 1.25rem;">
+      <h4 style="border-bottom: 1.5px solid #222; padding-bottom: 0.3rem; margin-bottom: 0.5rem; font-size: 0.95rem; text-transform: uppercase;">4. Daftar Transaksi Penjualan</h4>
+      <table style="width: 100%; font-family: monospace; font-size: 0.8rem; border-collapse: collapse;">
         <thead>
-          <tr style="border-bottom: 1px dashed #444;">
-            <th style="text-align: left; padding: 0.25rem 0; font-weight: bold;">Nama Produk</th>
-            <th style="text-align: right; font-weight: bold;">Sisa Stok</th>
+          <tr style="border-bottom: 1px dashed #555;">
+            <th style="text-align: left; padding: 0.25rem 0; width: 65px;">Waktu</th>
+            <th style="text-align: left; padding: 0.25rem 0; width: 110px;">ID Transaksi</th>
+            <th style="text-align: left; padding: 0.25rem 0;">Item / Produk</th>
+            <th style="text-align: center; padding: 0.25rem 0; width: 70px;">Metode</th>
+            <th style="text-align: right; padding: 0.25rem 0; width: 90px;">Total</th>
           </tr>
         </thead>
-        <tbody id="print-rep-low-stocks">
+        <tbody id="print-rep-transactions-list">
+          <!-- Dinamis -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 5. STATUS STOK BARANG PADA PERIODE INI -->
+    <div style="margin-bottom: 1.5rem;">
+      <h4 style="border-bottom: 1.5px solid #222; padding-bottom: 0.3rem; margin-bottom: 0.5rem; font-size: 0.95rem; text-transform: uppercase;">5. Status &amp; Posisi Stok Barang</h4>
+      <p style="font-size: 0.75rem; color: #555; margin: 0 0 0.4rem 0;">* Stok yang tercantum adalah posisi stok per tanggal/periode laporan ini.</p>
+      <table style="width: 100%; font-family: monospace; font-size: 0.8rem; border-collapse: collapse;">
+        <thead>
+          <tr style="border-bottom: 1px dashed #555;">
+            <th style="text-align: left; padding: 0.25rem 0;">Nama Barang</th>
+            <th style="text-align: left; padding: 0.25rem 0;">Kategori</th>
+            <th style="text-align: right; padding: 0.25rem 0;">Harga Jual</th>
+            <th style="text-align: center; padding: 0.25rem 0; width: 70px;">Terjual</th>
+            <th style="text-align: right; padding: 0.25rem 0; width: 75px;">Sisa Stok</th>
+            <th style="text-align: center; padding: 0.25rem 0; width: 70px;">Status</th>
+          </tr>
+        </thead>
+        <tbody id="print-rep-stock-status-list">
           <!-- Dinamis -->
         </tbody>
       </table>
     </div>
     
-    <div style="text-align: center; margin-top: 3rem; font-size: 0.8rem; color: #555;">
-      <p>Dicetak otomatis oleh Sistem Toko Sahil POS</p>
-      <p id="print-rep-timestamp">Waktu Cetak: --</p>
+    <div style="text-align: center; margin-top: 2.5rem; font-size: 0.8rem; color: #555; border-top: 1px dashed #999; padding-top: 0.75rem;">
+      <p style="margin: 0.2rem 0;">Dicetak otomatis oleh Sistem Toko Sahil POS</p>
+      <p id="print-rep-timestamp" style="margin: 0.2rem 0;">Waktu Cetak: --</p>
+    </div>
+  </div>
+
+  <!-- RACK REPORT PRINT LAYOUT (HANYA MUNCUL SAAT CETAK DAFTAR ISI RAK) -->
+  <div id="rack-report-print-area" class="rack-report-print-area" style="display: none;">
+    <div style="text-align: center; margin-bottom: 1.25rem;">
+      <h2 id="print-rack-store-name" style="margin: 0; font-size: 1.4rem;">NAMA TOKO</h2>
+      <p id="print-rack-store-address" style="margin: 0.25rem 0; font-size: 0.85rem; color: #444;">Alamat Toko</p>
+      <div style="margin: 0.75rem 0; border-bottom: 1px dashed #333;"></div>
+      <h3 id="print-rack-title" style="margin: 0.25rem 0; font-size: 1.2rem; letter-spacing: 0.5px;">DAFTAR BARANG DI RAK</h3>
+      <p id="print-rack-subtitle" style="margin: 0.25rem 0; font-weight: bold; font-size: 0.95rem; color: #333;">Lokasi Rak: Semua Rak</p>
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <table style="width: 100%; font-family: monospace; font-size: 0.85rem; border-collapse: collapse;">
+        <thead>
+          <tr style="border-bottom: 1.5px solid #222; border-top: 1.5px solid #222;">
+            <th style="text-align: left; padding: 0.4rem 0.25rem; width: 35px;">No</th>
+            <th style="text-align: left; padding: 0.4rem 0.25rem; width: 65px;">ID</th>
+            <th style="text-align: left; padding: 0.4rem 0.25rem;">Nama Barang</th>
+            <th style="text-align: left; padding: 0.4rem 0.25rem; width: 85px;">Lokasi Rak</th>
+            <th style="text-align: left; padding: 0.4rem 0.25rem; width: 80px;">Kategori</th>
+            <th style="text-align: right; padding: 0.4rem 0.25rem; width: 85px;">Harga Jual</th>
+            <th style="text-align: center; padding: 0.4rem 0.25rem; width: 60px;">Stok</th>
+            <th style="text-align: center; padding: 0.4rem 0.25rem; width: 65px;">Status</th>
+          </tr>
+        </thead>
+        <tbody id="print-rack-items-body">
+          <!-- Diisi dinamis -->
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top: 1rem; padding-top: 0.5rem; border-top: 1px dashed #666; font-family: monospace; font-size: 0.85rem; display: flex; justify-content: space-between;">
+      <span id="print-rack-total-types">Total Jenis Produk: 0</span>
+      <span id="print-rack-total-stock">Total Kuantitas Fisik: 0 pcs</span>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem; font-size: 0.8rem; color: #555; border-top: 1px dashed #999; padding-top: 0.5rem;">
+      <p style="margin: 0.2rem 0;">Dicetak otomatis oleh Sistem Toko Sahil POS</p>
+      <p id="print-rack-timestamp" style="margin: 0.2rem 0;">Waktu Cetak: --</p>
+    </div>
+  </div>
+
+  <!-- MODAL PILIH & CETAK BARANG PER RAK -->
+  <div class="modal-overlay" id="print-rack-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 540px; width: 92%;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 0.5rem; margin: 0; font-size: 1.15rem;">
+          <svg viewBox="0 0 24 24" class="icon" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--color-primary);"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+          <span>Cetak Daftar Barang di Rak</span>
+        </h3>
+        <button class="close-modal-btn" onclick="closePrintRackModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 1.25rem;">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0; margin-bottom: 1rem;">
+          Pilih rak yang ingin dicetak isinya (misal: <em>Rak Minuman, Rak Snack, atau Semua Rak</em>) untuk mempermudah pengecekan stok fisik di toko.
+        </p>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="select-print-rack-target" style="font-weight: 700; display: block; margin-bottom: 0.4rem;">Pilih Rak Tujuan:</label>
+          <select id="select-print-rack-target" style="width: 100%; padding: 0.65rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-family: var(--font-main); font-size: 0.95rem; background: var(--bg-surface); color: var(--text-main); outline: none;">
+            <!-- Diisi dinamis -->
+          </select>
+        </div>
+        <div id="print-rack-preview-summary" style="padding: 0.75rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.85rem;">
+          <div style="font-weight: 600; color: var(--text-main);">Ringkasan:</div>
+          <div id="print-rack-preview-text" style="color: var(--text-muted); margin-top: 0.25rem;">Memuat data barang di rak...</div>
+        </div>
+      </div>
+      <div class="modal-footer flex-end">
+        <button type="button" class="btn btn-secondary" onclick="closePrintRackModal()">Batal</button>
+        <button type="button" class="btn btn-primary" onclick="executePrintRackReport()" style="display: flex; align-items: center; gap: 0.4rem;">
+          <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
+          <span>Cetak Sekarang</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: INPUT & EDIT SALES -->
+  <!-- ======================================================== -->
+  <div class="modal-overlay" id="sales-form-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 580px; width: 92%;">
+      <div class="modal-header">
+        <h3 id="sales-form-title" style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+          <span>👤</span>
+          <span>Input Sales Baru</span>
+        </h3>
+        <button class="close-modal-btn" onclick="closeSalesModal()">&times;</button>
+      </div>
+      <form id="sales-form" onsubmit="saveSales(event)">
+        <div class="modal-body" style="padding: 1.25rem; max-height: 75vh; overflow-y: auto;">
+          <input type="hidden" id="sales-edit-id" value="">
+          
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="sales-input-name" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">Nama Sales*</label>
+            <input type="text" id="sales-input-name" required placeholder="Contoh: Budi Susanto" style="width: 100%; padding: 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px;">
+          </div>
+
+          <div class="form-grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label for="sales-input-company" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Perusahaan / Distributor</label>
+              <input type="text" id="sales-input-company" placeholder="Contoh: PT Wings / Indofood" style="width: 100%; padding: 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px;">
+            </div>
+            <div class="form-group">
+              <label for="sales-input-phone" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">No. WhatsApp / HP*</label>
+              <input type="text" id="sales-input-phone" required placeholder="Contoh: 081234567890" style="width: 100%; padding: 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px;">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label style="font-weight: 700; display: block; margin-bottom: 0.35rem;">Daftarkan Produk yang Ditangani Sales Ini:</label>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.5rem 0;">Pilih produk apa saja yang disuplai oleh sales ini agar toko dapat mengecek stok kosong dan share ke WA secara instan.</p>
+            
+            <input type="text" id="sales-product-search" placeholder="Cari nama barang di toko..." oninput="filterSalesProductSelection()" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 0.5rem; font-size: 0.85rem;">
+            
+            <div id="sales-products-checkbox-container" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 0.5rem; background: var(--bg-surface-elevated); display: flex; flex-direction: column; gap: 0.35rem;">
+              <!-- Checkbox produk diisi dinamis -->
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.35rem; font-size: 0.8rem; color: var(--text-muted);">
+              <span id="sales-selected-products-count">0 produk dipilih</span>
+              <div style="display: flex; gap: 0.5rem;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="selectAllSalesProducts(true)" style="padding: 0.15rem 0.5rem; font-size: 0.75rem;">Pilih Semua</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="selectAllSalesProducts(false)" style="padding: 0.15rem 0.5rem; font-size: 0.75rem;">Batal Semua</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="sales-input-notes" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Catatan Tambahan (Hari Kunjungan, Jadwal, dll)</label>
+            <input type="text" id="sales-input-notes" placeholder="Misal: Datang tiap hari Selasa & Jumat" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
+          </div>
+        </div>
+        <div class="modal-footer flex-end">
+          <button type="button" class="btn btn-secondary" onclick="closeSalesModal()">Batal</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-sales">Simpan Data Sales</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: INPUT NOTA PENGIRIMAN BARANG DARI SALES -->
+  <!-- ======================================================== -->
+  <div class="modal-overlay" id="sales-delivery-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 800px; width: 95%;">
+      <div class="modal-header">
+        <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+          <span>📦</span>
+          <span>Input Nota Pembelian &amp; Kirim Barang dari Sales</span>
+        </h3>
+        <button class="close-modal-btn" onclick="closeSalesDeliveryModal()">&times;</button>
+      </div>
+      <form id="sales-delivery-form" onsubmit="saveSalesDelivery(event)">
+        <div class="modal-body" style="padding: 1.25rem; max-height: 75vh; overflow-y: auto;">
+          <!-- Info Header Nota -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; padding: 0.85rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: 8px;">
+            <div class="form-group">
+              <label for="delivery-sales-select" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">Pilih Sales*</label>
+              <select id="delivery-sales-select" required onchange="onDeliverySalesChanged()" style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main);">
+                <option value="">-- Pilih Sales --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="delivery-invoice-no" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">No. Nota / Faktur*</label>
+              <input type="text" id="delivery-invoice-no" required placeholder="Misal: INV-2026-0901" style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 6px;">
+            </div>
+            <div class="form-group">
+              <label for="delivery-date" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">Tanggal Datang Barang*</label>
+              <input type="date" id="delivery-date" required style="width: 100%; padding: 0.5rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 6px;">
+            </div>
+          </div>
+
+          <!-- Section Item Datang -->
+          <div style="margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <h4 style="margin: 0; font-size: 0.95rem;">Rincian Barang yang Datang:</h4>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addDeliveryItemRow()" style="font-weight: 600;">+ Tambah Baris Barang</button>
+            </div>
+            
+            <div class="table-wrapper" style="border: 1px solid var(--border-color); border-radius: 8px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;" id="delivery-items-table">
+                <thead>
+                  <tr style="background: var(--bg-surface-elevated); border-bottom: 1px solid var(--border-color);">
+                    <th style="padding: 0.5rem; text-align: left; min-width: 180px;">Produk*</th>
+                    <th style="padding: 0.5rem; width: 85px;">Jumlah Masuk (Pcs)*</th>
+                    <th style="padding: 0.5rem; width: 110px;">Harga Beli (Rp)*</th>
+                    <th style="padding: 0.5rem; width: 110px;">Harga Jual Baru (Rp)*</th>
+                    <th style="padding: 0.5rem; width: 130px;">Tgl Expired Baru</th>
+                    <th style="padding: 0.5rem; width: 110px; text-align: right;">Subtotal</th>
+                    <th style="padding: 0.5rem; width: 45px; text-align: center;">Hapus</th>
+                  </tr>
+                </thead>
+                <tbody id="delivery-items-tbody">
+                  <!-- Baris item dinamis -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Kalkulasi Total, Diskon & Bonus Gratis -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; padding: 0.85rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label for="delivery-discount" style="font-weight: 600; display: block; margin-bottom: 0.25rem;">Diskon Nota / Potongan (Rp):</label>
+              <input type="number" id="delivery-discount" min="0" value="0" oninput="calculateDeliveryGrandTotal()" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px;">
+            </div>
+            <div class="form-group">
+              <label for="delivery-bonus-info" style="font-weight: 600; display: block; margin-bottom: 0.25rem;">Gratis Produk / Bonus dari Sales:</label>
+              <input type="text" id="delivery-bonus-info" placeholder="Contoh: Gratis 2 pcs Minyak Goreng" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px;">
+            </div>
+            <div class="form-group" style="text-align: right;">
+              <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">Total Bersih Tagihan:</span>
+              <span id="delivery-grand-total-display" style="font-size: 1.4rem; font-weight: 800; color: var(--color-primary);">Rp 0</span>
+            </div>
+          </div>
+
+          <!-- OPSI SISTEM PEMBAYARAN & TEMPO / HUTANG -->
+          <div style="padding: 0.85rem; background: var(--bg-card); border: 1.5px dashed var(--border-color); border-radius: 8px;">
+            <div style="font-weight: 700; font-size: 0.92rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; color: var(--text-main);">
+              <span>💳</span>
+              <span>Sistem Pembayaran Nota Sales</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.75rem;">
+              <div class="form-group">
+                <label for="delivery-pay-status" style="font-weight: 600; display: block; margin-bottom: 0.25rem;">Status Pembayaran*</label>
+                <select id="delivery-pay-status" onchange="onDeliveryPayStatusChanged()" style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-weight: 600;">
+                  <option value="Lunas">✅ Langsung Lunas (Tunai/Transfer)</option>
+                  <option value="Tempo">⏳ Tempo / Tagihan (Belum Lunas)</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="delivery-tempo-due-group" style="display: none;">
+                <label for="delivery-due-date" style="font-weight: 600; display: block; margin-bottom: 0.25rem; color: #dc2626;">Tanggal Jatuh Tempo*</label>
+                <input type="date" id="delivery-due-date" style="width: 100%; padding: 0.5rem 0.75rem; border: 1.5px solid #dc2626; border-radius: 6px;">
+              </div>
+
+              <div class="form-group" id="delivery-tempo-paid-group" style="display: none;">
+                <label for="delivery-paid-amount" style="font-weight: 600; display: block; margin-bottom: 0.25rem;">Dibayar Sekarang / DP (Rp):</label>
+                <input type="number" id="delivery-paid-amount" min="0" value="0" oninput="calculateDeliveryGrandTotal()" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px;">
+              </div>
+            </div>
+
+            <div id="delivery-tempo-balance-info" style="display: none; margin-top: 0.5rem; font-size: 0.85rem; font-weight: 700; color: #dc2626; background: rgba(239, 68, 68, 0.08); padding: 0.4rem 0.75rem; border-radius: 6px;">
+              Sisa Hutang Tagihan: <span id="delivery-remaining-balance-display">Rp 0</span>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer flex-end">
+          <button type="button" class="btn btn-secondary" onclick="closeSalesDeliveryModal()">Batal</button>
+          <button type="submit" class="btn btn-success" style="display: flex; align-items: center; gap: 0.4rem;">
+            <span>✓ Simpan Nota &amp; Update Stok</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: PELUNASAN / BAYAR TAGIHAN NOTA SALES -->
+  <!-- ======================================================== -->
+  <div class="modal-overlay" id="sales-pay-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 480px; width: 92%;">
+      <div class="modal-header">
+        <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+          <span>💵</span>
+          <span>Pelunasan Tagihan Nota Sales</span>
+        </h3>
+        <button class="close-modal-btn" onclick="closeSalesPayModal()">&times;</button>
+      </div>
+      <form id="sales-pay-form" onsubmit="saveSalesPayment(event)">
+        <input type="hidden" id="pay-delivery-id">
+        <div class="modal-body" style="padding: 1.25rem;">
+          <div style="background: var(--bg-surface-elevated); padding: 0.85rem; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;">
+              <span style="color: var(--text-muted);">No. Nota:</span>
+              <strong id="pay-nota-display" style="font-family: monospace;">-</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;">
+              <span style="color: var(--text-muted);">Nama Sales:</span>
+              <strong id="pay-sales-display">-</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;">
+              <span style="color: var(--text-muted);">Total Tagihan Bersih:</span>
+              <strong id="pay-grandtotal-display" style="font-family: monospace;">Rp 0</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;">
+              <span style="color: var(--text-muted);">Sudah Dibayar Sebelumnya:</span>
+              <span id="pay-already-paid-display" style="font-family: monospace; color: #059669; font-weight: 600;">Rp 0</span>
+            </div>
+            <div class="divider" style="margin: 0.5rem 0;"></div>
+            <div style="display: flex; justify-content: space-between; font-size: 1rem;">
+              <span style="font-weight: 700; color: #dc2626;">Sisa Tagihan Belum Lunas:</span>
+              <strong id="pay-remaining-display" style="font-family: monospace; color: #dc2626; font-size: 1.15rem;">Rp 0</strong>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="pay-amount-input" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">Nominal Pembayaran Sekarang (Rp)*</label>
+            <input type="number" id="pay-amount-input" required min="1" placeholder="Masukkan nominal bayar..." style="width: 100%; padding: 0.65rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 1.05rem; font-weight: 700;">
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.35rem;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="setPayAmountFull()" style="font-size: 0.78rem; padding: 0.2rem 0.5rem;">Bayar Lunas Penuh</button>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="pay-date-input" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Tanggal Pembayaran*</label>
+            <input type="date" id="pay-date-input" required style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px;">
+          </div>
+
+          <div class="form-group">
+            <label for="pay-notes-input" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Metode / Catatan Pembayaran</label>
+            <input type="text" id="pay-notes-input" placeholder="Misal: Tunai langsung ke sales Budi / Transfer BCA" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
+          </div>
+        </div>
+        <div class="modal-footer flex-end">
+          <button type="button" class="btn btn-secondary" onclick="closeSalesPayModal()">Batal</button>
+          <button type="submit" class="btn btn-primary" style="font-weight: 700;">Simpan Pembayaran</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ======================================================== -->
+  <!-- MODAL: RETUR PRODUK BERMASALAH KE SALES -->
+  <!-- ======================================================== -->
+  <div class="modal-overlay" id="sales-return-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 560px; width: 92%;">
+      <div class="modal-header">
+        <h3 style="margin: 0; font-size: 1.15rem; color: var(--color-danger, #ef4444); display: flex; align-items: center; gap: 0.4rem;">
+          <span>🔄</span>
+          <span>Form Retur Produk ke Sales</span>
+        </h3>
+        <button class="close-modal-btn" onclick="closeSalesReturnModal()">&times;</button>
+      </div>
+      <form id="sales-return-form" onsubmit="saveSalesReturn(event)">
+        <div class="modal-body" style="padding: 1.25rem; max-height: 75vh; overflow-y: auto;">
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="return-sales-select" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">Sales Tujuan Retur*</label>
+            <select id="return-sales-select" required onchange="onReturnSalesChanged()" style="width: 100%; padding: 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main);">
+              <option value="">-- Pilih Sales --</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="return-product-select" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">Pilih Produk yang Diretur*</label>
+            <select id="return-product-select" required onchange="onReturnProductChanged()" style="width: 100%; padding: 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main);">
+              <option value="">-- Pilih Produk --</option>
+            </select>
+            <span id="return-current-stock-info" style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 0.25rem;">Stok saat ini di toko: -</span>
+          </div>
+
+          <div class="form-grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label for="return-qty" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">Jumlah Retur (Pcs)*</label>
+              <input type="number" id="return-qty" required min="1" placeholder="Misal: 5" style="width: 100%; padding: 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px;">
+            </div>
+            <div class="form-group">
+              <label for="return-date" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">Tanggal Retur*</label>
+              <input type="date" id="return-date" required style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px;">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="return-reason" style="font-weight: 700; display: block; margin-bottom: 0.35rem;">Alasan Retur*</label>
+            <select id="return-reason" required style="width: 100%; padding: 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main);">
+              <option value="Kadaluarsa / Expired">Kadaluarsa / Expired</option>
+              <option value="Kemasan Rusak / Bocor">Kemasan Rusak / Bocor</option>
+              <option value="Cacat Produksi / Basi">Cacat Produksi / Basi</option>
+              <option value="Salah Kirim Barang">Salah Kirim Barang</option>
+              <option value="Lainnya">Alasan Lainnya</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="return-status" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Status Penggantian</label>
+            <select id="return-status" style="width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main);">
+              <option value="Menunggu Barang Pengganti">Menunggu Barang Pengganti</option>
+              <option value="Potong Tagihan Nota Berikutnya">Potong Tagihan Nota Berikutnya</option>
+              <option value="Sudah Diganti Fisik">Sudah Diganti Fisik</option>
+              <option value="Uang Dikembalikan">Uang Dikembalikan</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="return-notes" style="font-weight: 600; display: block; margin-bottom: 0.35rem;">Catatan / Keterangan</label>
+            <input type="text" id="return-notes" placeholder="Misal: Dibawa sales A, penggantian minggu depan" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
+          </div>
+          
+          <div style="margin-top: 0.75rem; padding: 0.65rem 0.85rem; background: rgba(239,68,68,0.08); border-left: 3px solid var(--color-danger, #ef4444); border-radius: 4px; font-size: 0.8rem; color: #991b1b;">
+            ⚠️ <strong>Catatan:</strong> Stok produk di inventaris toko akan <strong>otomatis berkurang</strong> sejumlah barang yang diretur setelah form ini disimpan.
+          </div>
+        </div>
+        <div class="modal-footer flex-end">
+          <button type="button" class="btn btn-secondary" onclick="closeSalesReturnModal()">Batal</button>
+          <button type="submit" class="btn btn-danger" style="background: var(--color-danger, #ef4444); border-color: var(--color-danger, #ef4444); color: #fff;">Simpan Retur</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -2671,12 +3409,12 @@
     </div>
 
     <div class="m3-sheet-grid">
-      <!-- Item Kulak -->
+      <!-- Item Sales & Kulak -->
       <button type="button" class="m3-sheet-item" onclick="switchTabFromSheet('kulak')">
         <div class="m3-sheet-icon" style="background:#eff6ff; color:#2563eb;">
-          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/><path d="M12 11h6m-3-3v6"/></svg>
         </div>
-        <span>Kulak Restock</span>
+        <span>Sales &amp; Kulak</span>
       </button>
 
       <!-- Item Pelanggan -->
