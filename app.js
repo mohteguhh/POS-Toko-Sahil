@@ -12,10 +12,40 @@ let loyaltySettings = JSON.parse(localStorage.getItem('kasir_loyalty_settings'))
   rpPerPoint: 100
 };
 
-// --- Helper Gambar Offline (Flicker-Free) ---
+// --- Helper Gambar Offline (Flicker-Free) & Lightbox Perbesar Gambar ---
 function handleImageError(img) {
   img.onerror = null; // Mencegah loop tak terbatas
   img.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="%23cbd5e1" stroke-width="2"><rect width="100" height="100" fill="%23f8fafc"/><circle cx="50" cy="45" r="15"/><path d="M20,80 C20,60 80,60 80,80"/></svg>';
+  img.style.cursor = 'default';
+  img.onclick = null;
+}
+
+// Buka dialog lightbox perbesar gambar produk
+function openProductImageLightbox(src, name = 'Gambar Produk') {
+  if (!src || src.includes('data:image/svg+xml')) return;
+  const modal = document.getElementById('product-image-lightbox-modal');
+  const img = document.getElementById('lightbox-img');
+  const caption = document.getElementById('lightbox-caption');
+  if (modal && img) {
+    img.src = src;
+    if (caption) caption.textContent = name;
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+  }
+}
+
+// Tutup dialog lightbox perbesar gambar
+function closeProductImageLightbox(event) {
+  const modal = document.getElementById('product-image-lightbox-modal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+  }
+}
+
+function escapeJsQuotes(str) {
+  if (!str) return '';
+  return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 let cart = JSON.parse(localStorage.getItem('kasir_active_cart')) || [];
 let lastTransactionChange = null;
@@ -38,7 +68,9 @@ let selectedKulakFloatIndex = -1;
 let html5QrcodeScanner = null;
 
 // State Pemilihan Tombol Cetak Nota
-let selectedReceiptButtonIndex = 0; // 0 = Cetak Nota, 1 = Tidak
+let selectedReceiptButtonIndex = 0; // 0 = Cetak Nota, 1 = Kirim WA, 2 = Tutup
+let currentActiveReceiptTx = null;
+let currentActiveReceiptItems = [];
 
 // State Cetak Label Harga Massal (Terpilih)
 let selectedProductIds = new Set();
@@ -86,29 +118,35 @@ let staffAccounts = JSON.parse(localStorage.getItem('kasir_staff_accounts')) || 
 // --- LOGIKA FIREBASE REALTIME DATABASE ---
 // Konfigurasi Firebase (hardcoded sebagai fallback permanen)
 const DEFAULT_FB_CONFIG = {
-  apiKey: "AIzaSyD0X6NxN3wI9vm009mJrXwf94ZkSOQoFKU",
-  authDomain: "db-toko-sahil.firebaseapp.com",
-  projectId: "db-toko-sahil",
-  storageBucket: "db-toko-sahil.firebasestorage.app",
-  messagingSenderId: "1091161238327",
-  appId: "1:1091161238327:web:91a19ba78332925719c8b2",
-  databaseURL: "https://db-toko-sahil-default-rtdb.asia-southeast1.firebasedatabase.app"
+  apiKey: "AIzaSyBFfdE-KIy6zg2BL0EyNjUKAB6xqkoKMpI",
+  authDomain: "database-aplikasi-toko-sahil.firebaseapp.com",
+  projectId: "database-aplikasi-toko-sahil",
+  storageBucket: "database-aplikasi-toko-sahil.firebasestorage.app",
+  messagingSenderId: "513609035060",
+  appId: "1:513609035060:web:ec2afe8d5b6e4d14224961",
+  measurementId: "G-H53BH3Y6DJ",
+  databaseURL: "https://database-aplikasi-toko-sahil-default-rtdb.asia-southeast1.firebasedatabase.app"
 };
 
-// Pakai config dari localStorage jika ada, fallback ke hardcoded
-let fbConfig = JSON.parse(localStorage.getItem('kasir_firebase_config')) || DEFAULT_FB_CONFIG;
-// Pastikan databaseURL selalu ada
-if (!fbConfig.databaseURL) {
-  fbConfig.databaseURL = DEFAULT_FB_CONFIG.databaseURL;
+// Database URL Realtime Database (hardcoded + override dari config)
+const RTDB_URL = DEFAULT_FB_CONFIG.databaseURL;
+
+// Pakai config dari localStorage jika ada, fallback ke hardcoded.
+// Jika config lama di localStorage masih mengarah ke database lama (db-toko-sahil), migrasikan ke database baru secara otomatis.
+let storedFbConfig = null;
+try {
+  storedFbConfig = JSON.parse(localStorage.getItem('kasir_firebase_config'));
+} catch (e) {}
+
+let fbConfig = storedFbConfig || DEFAULT_FB_CONFIG;
+if (!fbConfig || fbConfig.projectId === 'db-toko-sahil' || !fbConfig.databaseURL) {
+  fbConfig = { ...DEFAULT_FB_CONFIG };
 }
 // Simpan ke localStorage supaya form Settings ikut terisi
 localStorage.setItem('kasir_firebase_config', JSON.stringify(fbConfig));
 
 let firebaseDb = null;
 let fbUnsubscribes = [];
-
-// Database URL Realtime Database (hardcoded + override dari config)
-const RTDB_URL = 'https://db-toko-sahil-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 let currentLicenseKey = localStorage.getItem('kasir_license_key') || '';
 let currentLicenseData = null;
@@ -2421,7 +2459,7 @@ function updateAnalytics() {
       itemEl.className = 'widget-item stock-item';
       
       const iconOrImg = p.gambar 
-        ? `<img src="${p.gambar}" alt="${p.nama}" class="stock-item-img" onerror="this.onerror=null; this.outerHTML='<div class=\\'widget-icon-box bg-white-border\\'><svg viewBox=\\'0 0 24 24\\' class=\\'w-4 h-4 text-muted\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'2\\'><path d=\\'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\\'/><polyline points=\\'3.27 6.96 12 12.01 20.73 6.96\\'/><line x1=\\'12\\' y1=\\'22.08\\' x2=\\'12\\' y2=\\'12\\'/></svg></div>';">`
+        ? `<img src="${p.gambar}" alt="${p.nama}" class="stock-item-img" onclick="event.stopPropagation(); openProductImageLightbox('${p.gambar}', '${escapeJsQuotes(p.nama)}')" onerror="this.onerror=null; this.outerHTML='<div class=\\'widget-icon-box bg-white-border\\'><svg viewBox=\\'0 0 24 24\\' class=\\'w-4 h-4 text-muted\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'2\\'><path d=\\'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\\'/><polyline points=\\'3.27 6.96 12 12.01 20.73 6.96\\'/><line x1=\\'12\\' y1=\\'22.08\\' x2=\\'12\\' y2=\\'12\\'/></svg></div>';">`
         : `<div class="widget-icon-box bg-white-border"><svg viewBox="0 0 24 24" class="w-4 h-4 text-muted" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>`;
 
       itemEl.innerHTML = `
@@ -2518,7 +2556,7 @@ function updateAnalytics() {
       
       // Jika produk ada gambar, tampilkan HANYA elemen <img> (tidak ada div dus). Jika tidak ada gambar, tampilkan div dus.
       const imgThumbnail = (p && p.gambar && p.gambar.trim() !== '')
-        ? `<img src="${p.gambar}" alt="${nama}" class="best-seller-img" onerror="this.outerHTML=\`<div class='best-seller-box-icon'><svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='2'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><polyline points='3.27 6.96 12 12.01 20.73 6.96'/><line x1='12' y1='22.08' x2='12' y2='12'/></svg></div>\`;">`
+        ? `<img src="${p.gambar}" alt="${nama}" class="best-seller-img" onclick="event.stopPropagation(); openProductImageLightbox('${p.gambar}', '${escapeJsQuotes(nama)}')" onerror="this.outerHTML=\`<div class='best-seller-box-icon'><svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='2'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><polyline points='3.27 6.96 12 12.01 20.73 6.96'/><line x1='12' y1='22.08' x2='12' y2='12'/></svg></div>\`;">`
         : boxSvg;
         
       // Badge Ranking (#1 Gold, #2 Silver, #3 Bronze, dst)
@@ -3334,7 +3372,7 @@ function renderPosCatalogGrid() {
 
     card.innerHTML = `
       <div class="pos-grid-img-wrap">
-        <img src="${imgUrl}" alt="${p.nama}" class="pos-grid-img" onerror="handleImageError(this)">
+        <img src="${imgUrl}" alt="${p.nama}" class="pos-grid-img" onclick="event.stopPropagation(); openProductImageLightbox('${imgUrl}', '${escapeJsQuotes(p.nama)}')" onerror="handleImageError(this)">
         ${cartBadgeHtml}
         <span class="pos-grid-stock-badge ${stockBadgeClass}">${stockText}</span>
       </div>
@@ -3461,7 +3499,7 @@ function renderFloatingDropdown() {
     }
     
     div.innerHTML = `
-      <img src="${imgUrl}" alt="${p.nama}" class="floating-item-img" onerror="handleImageError(this)">
+      <img src="${imgUrl}" alt="${p.nama}" class="floating-item-img" onclick="event.stopPropagation(); openProductImageLightbox('${imgUrl}', '${escapeJsQuotes(p.nama)}')" onerror="handleImageError(this)">
       <div class="floating-item-info">
         <span class="floating-item-name">${p.nama} (${p.id})</span>
         <div class="floating-item-meta" style="flex-wrap: wrap; gap: 0.2rem; align-items: center;">
@@ -4143,7 +4181,7 @@ function checkPromoBanner() {
   promos.forEach((p, i) => {
     const imgUrl = p.gambar || '';
     const imgTag = imgUrl
-      ? `<img src="${imgUrl}" class="promo-banner-thumb" alt="${p.nama}" onerror="this.style.display='none'">`
+      ? `<img src="${imgUrl}" class="promo-banner-thumb" alt="${p.nama}" onclick="event.stopPropagation(); openProductImageLightbox('${imgUrl}', '${escapeJsQuotes(p.nama)}')" onerror="this.style.display='none'">`
       : '';
     
     let labelHtml = '';
@@ -4358,7 +4396,7 @@ function calculateTotal() {
         const localProd = products.find(p => p.id === item.id) || {};
         const imgUrl = item.gambar || localProd.gambar || '';
         const imgTag = imgUrl
-          ? `<img src="${imgUrl}" class="cart-promo-thumb" alt="${item.nama}" onerror="this.style.display='none'">`
+          ? `<img src="${imgUrl}" class="cart-promo-thumb" alt="${item.nama}" onclick="event.stopPropagation(); openProductImageLightbox('${imgUrl}', '${escapeJsQuotes(item.nama)}')" onerror="this.style.display='none'">`
           : '';
         
         // Hanya tampilkan jika ada freeQty aktif (bukan eligible/info)
@@ -4629,7 +4667,7 @@ async function processCheckout() {
   isCheckingOut = true;
 
   // Disable tombol submit selama proses
-  const btnSubmit = document.getElementById('btn-checkout-submit');
+  const btnSubmit = document.getElementById('btn-submit-payment') || document.getElementById('btn-checkout-submit');
   if (btnSubmit) btnSubmit.disabled = true;
 
   try {
@@ -4779,7 +4817,7 @@ async function processCheckout() {
   } finally {
     // Reset flag dan aktifkan kembali tombol setelah proses selesai
     isCheckingOut = false;
-    const btnSubmitFinal = document.getElementById('btn-checkout-submit');
+    const btnSubmitFinal = document.getElementById('btn-submit-payment') || document.getElementById('btn-checkout-submit');
     if (btnSubmitFinal) btnSubmitFinal.disabled = false;
   }
 }
@@ -4970,6 +5008,9 @@ function generatePlainTextReceipt(tx, items) {
 
 // Tampilkan Struk Belanja
 function showReceipt(tx, items) {
+  currentActiveReceiptTx = tx;
+  currentActiveReceiptItems = items || tx.items || [];
+
   document.getElementById('rec-id').textContent = tx.id;
   
   const dateObj = new Date(tx.waktu);
@@ -5086,18 +5127,27 @@ function showReceipt(tx, items) {
 
 function updateReceiptButtonsHighlight() {
   const btnPrint = document.getElementById('btn-print-receipt');
+  const btnWa = document.getElementById('btn-share-wa-receipt');
   const btnSkip = document.getElementById('btn-skip-receipt');
   if (!btnPrint || !btnSkip) return;
   
+  // Reset style highlight
+  btnPrint.style.outline = 'none';
+  if (btnWa) btnWa.style.outline = 'none';
+  btnSkip.style.outline = 'none';
+
   if (selectedReceiptButtonIndex === 0) {
-    // Highlight Cetak Nota (Primary)
     btnPrint.className = 'btn btn-primary';
-    btnSkip.className = 'btn btn-secondary';
+    btnPrint.style.outline = '2px solid #2563eb';
     btnPrint.focus({ preventScroll: true });
+  } else if (selectedReceiptButtonIndex === 1) {
+    if (btnWa) {
+      btnWa.style.outline = '2px solid #ffffff';
+      btnWa.focus({ preventScroll: true });
+    }
   } else {
-    // Highlight Tidak (Primary)
-    btnPrint.className = 'btn btn-secondary';
-    btnSkip.className = 'btn btn-primary';
+    btnSkip.className = 'btn btn-secondary';
+    btnSkip.style.outline = '2px solid #64748b';
     btnSkip.focus({ preventScroll: true });
   }
 }
@@ -5105,6 +5155,163 @@ function updateReceiptButtonsHighlight() {
 function closeReceiptModal() {
   document.getElementById('receipt-modal').classList.remove('active');
   focusSearchInput();
+}
+
+// Format dan bagikan nota belanja ke WhatsApp
+function shareReceiptToWhatsApp(tx, items) {
+  if (!tx) {
+    alert('Data nota tidak ditemukan.');
+    return;
+  }
+  const itemList = items || tx.items || [];
+  const storeName = (receiptSettings.name || 'TOKO KASIR').trim();
+  const storeAddress = (receiptSettings.address || '').trim();
+  const storePhone = (receiptSettings.phone || '').trim();
+
+  let msg = `🧾 *NOTA PEMBAYARAN*\n`;
+  msg += `*${storeName.toUpperCase()}*\n`;
+  if (storeAddress) msg += `${storeAddress}\n`;
+  if (storePhone) msg += `Telp: ${storePhone}\n`;
+  msg += `--------------------------------\n`;
+  msg += `No. Nota : *${tx.id}*\n`;
+  
+  const dateObj = new Date(tx.waktu || Date.now());
+  const dateStr = dateObj.toLocaleDateString('id-ID') + ' ' + dateObj.toLocaleTimeString('id-ID', { hour12: false });
+  msg += `Waktu    : ${dateStr}\n`;
+  msg += `Kasir    : ${tx.kasir || 'Kasir Utama'}\n`;
+  if (tx.nama_pelanggan) {
+    msg += `Pelanggan: *${tx.nama_pelanggan}*\n`;
+  }
+  msg += `--------------------------------\n`;
+  msg += `*DAFTAR PESANAN:*\n`;
+
+  let subtotal = 0;
+  itemList.forEach(it => {
+    const itemTotal = it.subtotal !== undefined ? it.subtotal : (it.harga * it.qty);
+    const unitPrice = it.qty > 0 ? Math.round(itemTotal / it.qty) : it.harga;
+    subtotal += itemTotal;
+    msg += `• *${it.nama}*\n`;
+    msg += `   ${it.qty} x Rp ${formatRupiah(unitPrice)} = Rp ${formatRupiah(itemTotal)}\n`;
+  });
+
+  msg += `--------------------------------\n`;
+  if (subtotal !== tx.total) {
+    msg += `Subtotal  : Rp ${formatRupiah(subtotal)}\n`;
+  }
+  if (tx.diskon_poin > 0) {
+    msg += `Tukar Poin: -Rp ${formatRupiah(tx.diskon_poin)}\n`;
+  }
+  msg += `*TOTAL*    : *Rp ${formatRupiah(tx.total)}*\n`;
+  msg += `Bayar     : Rp ${formatRupiah(tx.bayar)}\n`;
+  
+  if (tx.status_pembayaran === 'Bon') {
+    msg += `Sisa Bon  : *Rp ${formatRupiah(tx.sisa_piutang)} (Belum Lunas)*\n`;
+  } else {
+    msg += `Kembalian : Rp ${formatRupiah(tx.kembalian)}\n`;
+  }
+  msg += `Metode    : ${tx.metode_pembayaran || 'Tunai'}\n`;
+
+  if (tx.poin_didapat > 0) {
+    msg += `Poin Baru : +${tx.poin_didapat}\n`;
+  }
+  msg += `--------------------------------\n`;
+  msg += `Terima kasih telah berbelanja di *${storeName}*! 🙏\n`;
+
+  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+  window.open(waUrl, '_blank');
+}
+
+// Helper untuk tombol nota aktif
+function shareCurrentReceiptToWhatsApp() {
+  if (currentActiveReceiptTx) {
+    shareReceiptToWhatsApp(currentActiveReceiptTx, currentActiveReceiptItems);
+  } else {
+    alert('Tidak ada nota transaksi yang sedang terbuka.');
+  }
+}
+
+// Bagikan Rekap Penghasilan / Laporan Keuangan ke WhatsApp
+function shareRevenueToWhatsApp() {
+  const filterType = document.getElementById('analytics-filter-type')?.value || 'hari';
+  const filteredTxs = getAnalyticsFilteredTxs();
+
+  let periodText = 'Hari Ini';
+  if (filterType === 'hari') {
+    const dateVal = document.getElementById('analytics-filter-date')?.value;
+    periodText = dateVal ? `Hari Ini (${dateVal})` : 'Hari Ini';
+  } else if (filterType === 'bulan') {
+    const monthVal = document.getElementById('analytics-filter-month')?.value;
+    periodText = monthVal ? `Bulan (${monthVal})` : 'Bulan Ini';
+  } else if (filterType === 'tahun') {
+    const yearVal = document.getElementById('analytics-filter-year')?.value;
+    periodText = yearVal ? `Tahun ${yearVal}` : 'Tahun Ini';
+  } else {
+    periodText = 'Semua Waktu';
+  }
+
+  let revenue = 0;
+  let netProfit = 0;
+  const methodsBreakdown = { 'Tunai': 0, 'QRIS': 0, 'Debit': 0, 'Transfer': 0 };
+  const nonCashMethods = ['QRIS', 'Transfer', 'Debit'];
+
+  filteredTxs.forEach(tx => {
+    const metode = tx.metode_pembayaran || 'Tunai';
+    const isNonCash = nonCashMethods.includes(metode);
+
+    let txSubtotal = 0;
+    let txNetProfitBeforeDiscount = 0;
+    (tx.items || []).forEach(item => {
+      const buyPrice = item.harga_beli || 0;
+      const sellPrice = item.harga || 0;
+      txNetProfitBeforeDiscount += (sellPrice - buyPrice) * item.qty;
+      txSubtotal += sellPrice * item.qty;
+    });
+
+    const txDiscount = Math.max(0, txSubtotal - tx.total);
+    const txNetProfit = txNetProfitBeforeDiscount - txDiscount;
+    netProfit += txNetProfit;
+
+    if (!isNonCash) {
+      revenue += tx.total;
+    }
+    methodsBreakdown[metode] = (methodsBreakdown[metode] || 0) + tx.total;
+  });
+
+  let totalDebt = 0;
+  transactions.forEach(tx => {
+    totalDebt += (tx.sisa_piutang || 0);
+  });
+
+  const totalPenjualan = revenue - netProfit;
+  const totalOmsetSemuaMetode = Object.values(methodsBreakdown).reduce((a, b) => a + b, 0);
+  const storeName = (receiptSettings.name || 'TOKO KASIR').trim();
+
+  let msg = `📊 *LAPORAN REKAP PENGHASILAN*\n`;
+  msg += `*${storeName.toUpperCase()}*\n`;
+  msg += `Periode : *${periodText}*\n`;
+  msg += `Waktu   : ${new Date().toLocaleString('id-ID', { hour12: false })}\n`;
+  msg += `--------------------------------\n`;
+  msg += `💰 *RINGKASAN KEUANGAN:*\n`;
+  msg += `• Total Transaksi : *${filteredTxs.length} Transaksi*\n`;
+  msg += `• Penghasilan Tunai: *Rp ${formatRupiah(revenue)}*\n`;
+  msg += `• Total Omset (Semua): *Rp ${formatRupiah(totalOmsetSemuaMetode)}*\n`;
+  msg += `• Modal/HPP Penjualan : Rp ${formatRupiah(totalPenjualan)}\n`;
+  msg += `• Laba Bersih : *Rp ${formatRupiah(netProfit)}*\n`;
+  if (totalDebt > 0) {
+    msg += `• Sisa Piutang (Bon) Aktif : Rp ${formatRupiah(totalDebt)}\n`;
+  }
+  msg += `--------------------------------\n`;
+  msg += `💳 *RINCIAN METODE PEMBAYARAN:*\n`;
+  Object.keys(methodsBreakdown).forEach(m => {
+    if (methodsBreakdown[m] > 0) {
+      msg += `• ${m}: Rp ${formatRupiah(methodsBreakdown[m])}\n`;
+    }
+  });
+  msg += `--------------------------------\n`;
+  msg += `_Laporan otomatis dibuat dari Sistem Kasir Toko._`;
+
+  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+  window.open(waUrl, '_blank');
 }
 
 async function syncTransactionToCloud(tx) {
@@ -5231,7 +5438,7 @@ function renderKulakFloatingDropdown() {
     const imgUrl = p.gambar || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=100';
     
     div.innerHTML = `
-      <img src="${imgUrl}" alt="${p.nama}" class="floating-item-img" onerror="handleImageError(this)">
+      <img src="${imgUrl}" alt="${p.nama}" class="floating-item-img" onclick="event.stopPropagation(); openProductImageLightbox('${imgUrl}', '${escapeJsQuotes(p.nama)}')" onerror="handleImageError(this)">
       <div class="floating-item-info">
         <span class="floating-item-name">${p.nama} (${p.id})</span>
         <div class="floating-item-meta">
@@ -5776,7 +5983,7 @@ function renderProductsTable(highlightProductId = null) {
         <input type="checkbox" class="product-select-checkbox" data-id="${p.id}" onclick="toggleProductSelection('${p.id}', this)" ${selectedProductIds.has(p.id) ? 'checked' : ''} style="cursor: pointer; transform: scale(1.15);">
       </td>
       <td>
-        <img src="${imgUrl}" alt="${p.nama}" class="prod-table-img" onerror="handleImageError(this)">
+        <img src="${imgUrl}" alt="${p.nama}" class="prod-table-img" onclick="event.stopPropagation(); openProductImageLightbox('${imgUrl}', '${escapeJsQuotes(p.nama)}')" onerror="handleImageError(this)">
       </td>
       <td><strong>${p.id}</strong></td>
       <td>${p.nama}</td>
@@ -7012,20 +7219,25 @@ function handleGlobalKeydowns(e) {
     if (isReceiptOpen) {
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        selectedReceiptButtonIndex = 0;
+        selectedReceiptButtonIndex = (selectedReceiptButtonIndex - 1 + 3) % 3;
         updateReceiptButtonsHighlight();
         return;
       }
       if (e.key === 'ArrowRight') {
         e.preventDefault();
-        selectedReceiptButtonIndex = 1;
+        selectedReceiptButtonIndex = (selectedReceiptButtonIndex + 1) % 3;
         updateReceiptButtonsHighlight();
         return;
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (selectedReceiptButtonIndex === 0) window.print();
-        else closeReceiptModal();
+        if (selectedReceiptButtonIndex === 0) {
+          window.print();
+        } else if (selectedReceiptButtonIndex === 1) {
+          shareCurrentReceiptToWhatsApp();
+        } else {
+          closeReceiptModal();
+        }
         return;
       }
     } else if (isPaymentOpen) {
@@ -7253,8 +7465,11 @@ function renderTransactionsTable() {
           <button class="action-icon-btn btn-edit" onclick="openEditTransactionModal('${tx.id}')" title="Edit Transaksi">
             <svg viewBox="0 0 24 24" class="icon-sm"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
-          <button class="action-icon-btn btn-edit" onclick="reprintReceipt('${tx.id}')" title="Cetak Uang / Reprint Nota" style="color: var(--color-primary); background-color: rgba(202,138,4,0.1);">
+          <button class="action-icon-btn btn-edit" onclick="reprintReceipt('${tx.id}')" title="Cetak Ulang / Reprint Nota" style="color: var(--color-primary); background-color: rgba(202,138,4,0.1);">
             <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
+          </button>
+          <button class="action-icon-btn btn-edit" onclick="shareReceiptFromList('${tx.id}')" title="Kirim Nota ke WhatsApp" style="color: #25d366; background-color: rgba(37,211,102,0.1);">
+            <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
           </button>
           <button class="action-icon-btn btn-delete" onclick="deleteTransaction('${tx.id}')" title="Hapus Transaksi">
             <svg viewBox="0 0 24 24" class="icon-sm"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
@@ -7325,6 +7540,9 @@ function renderTransactionsTableFromData(data) {
         <div style="display: flex; gap: 0.35rem;">
           <button class="action-icon-btn btn-edit" onclick="reprintReceipt('${tx.id}')" title="Cetak Ulang Nota" style="color: var(--color-primary); background-color: rgba(202,138,4,0.1);">
             <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
+          </button>
+          <button class="action-icon-btn btn-edit" onclick="shareReceiptFromList('${tx.id}')" title="Kirim Nota ke WhatsApp" style="color: #25d366; background-color: rgba(37,211,102,0.1);">
+            <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
           </button>
         </div>
       </td>
@@ -7494,6 +7712,15 @@ function reprintReceipt(txId) {
     return;
   }
   showReceipt(tx, tx.items || []);
+}
+
+function shareReceiptFromList(txId) {
+  const tx = transactions.find(t => t.id === txId);
+  if (!tx) {
+    alert("Transaksi tidak ditemukan!");
+    return;
+  }
+  shareReceiptToWhatsApp(tx, tx.items || []);
 }
 
 function openEditTransactionModal(txId) {
@@ -7743,7 +7970,7 @@ function renderEditTxFloatingDropdown() {
     }
     
     div.innerHTML = `
-      <img src="${imgUrl}" alt="${p.nama}" class="floating-item-img" onerror="handleImageError(this)">
+      <img src="${imgUrl}" alt="${p.nama}" class="floating-item-img" onclick="event.stopPropagation(); openProductImageLightbox('${imgUrl}', '${escapeJsQuotes(p.nama)}')" onerror="handleImageError(this)">
       <div class="floating-item-info">
         <span class="floating-item-name">${p.nama} (${p.id})</span>
         <div class="floating-item-meta" style="flex-wrap: wrap; gap: 0.2rem; align-items: center;">
