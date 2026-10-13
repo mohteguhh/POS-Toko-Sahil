@@ -1701,7 +1701,8 @@ function handleLogoUpload(event) {
 }
 
 function updateReceiptFontSizePreview(val) {
-  document.getElementById('font-size-preview-val').textContent = `${val}px`;
+  const el = document.getElementById('font-size-preview-val');
+  if (el) el.textContent = `${val}px`;
 }
 
 function updateTextTitleFontPreview(val) {
