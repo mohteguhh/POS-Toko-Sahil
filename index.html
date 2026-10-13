@@ -822,6 +822,10 @@
                 <input type="text" id="cust-phone" class="form-control" placeholder="0812...">
               </div>
               <div class="form-group">
+                <label for="cust-address">Domisili / Alamat</label>
+                <input type="text" id="cust-address" class="form-control" placeholder="Contoh: Desa Karanganyar, Gresik">
+              </div>
+              <div class="form-group">
                 <label for="cust-points">Saldo Poin</label>
                 <input type="number" id="cust-points" class="form-control" value="0" min="0">
               </div>
@@ -834,13 +838,21 @@
           
           <!-- Tabel Pelanggan -->
           <div class="card table-card">
-            <div class="table-actions" style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
-              <h2>Daftar Pelanggan</h2>
-              <div style="display: flex; gap: 0.5rem; flex: 1; max-width: 480px; justify-content: flex-end;">
-                <input type="text" id="customer-search" class="form-control" placeholder="Cari pelanggan..." oninput="renderCustomersTable()" style="max-width: 260px;">
-                <button type="button" class="btn btn-accent btn-sm" onclick="syncCustomersToCloud()" title="Unggah seluruh pelanggan lokal ke Firebase">
-                  <svg viewBox="0 0 24 24" class="icon-sm"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                  <span>Sync ke Cloud</span>
+            <div class="table-actions" style="margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <h2 style="margin: 0;">Daftar Pelanggan</h2>
+                <span id="customer-total-badge" style="background: rgba(59, 130, 246, 0.1); color: var(--primary-color); font-weight: 700; font-size: 0.8rem; padding: 0.2rem 0.6rem; border-radius: 999px;">0 Member</span>
+              </div>
+              <div style="display: flex; gap: 0.6rem; flex: 1; max-width: 520px; justify-content: flex-end; align-items: center;">
+                <!-- SEARCH BOX MODERN PELANGGAN -->
+                <div style="position: relative; flex: 1; min-width: 220px; max-width: 320px;">
+                  <svg viewBox="0 0 24 24" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; fill: none; stroke: var(--text-muted); stroke-width: 2.2; pointer-events: none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" id="customer-search" class="form-control" placeholder="Cari nama, no HP, domisili..." oninput="renderCustomersTable()" style="width: 100%; padding: 0.55rem 2.2rem 0.55rem 2.2rem; border-radius: 50px; border: 1.5px solid var(--border-color); font-size: 0.88rem; background: var(--bg-surface-elevated, #fff); transition: all 0.2s ease; outline: none; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                  <button type="button" id="btn-clear-cust-search" onclick="clearCustomerSearch()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1.15rem; color: var(--text-muted); cursor: pointer; display: none; line-height: 1;">&times;</button>
+                </div>
+                <button type="button" class="btn btn-accent btn-sm" onclick="syncCustomersToCloud()" title="Unggah seluruh pelanggan lokal ke Firebase" style="border-radius: 50px; padding: 0.5rem 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap;">
+                  <svg viewBox="0 0 24 24" class="icon-sm" style="width: 16px; height: 16px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  <span>Sync Cloud</span>
                 </button>
               </div>
             </div>
@@ -851,8 +863,9 @@
                   <tr>
                     <th>Nama</th>
                     <th>No. Telepon</th>
+                    <th>Domisili</th>
                     <th>Poin</th>
-                    <th style="width: 100px;">Aksi</th>
+                    <th style="width: 170px;">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="customer-table-body">
@@ -1806,20 +1819,44 @@
             </div>
           </div>
           
-          <!-- Input Nama Pelanggan (CRM) -->
-          <div class="form-group" id="customer-name-group" style="margin-bottom: 0.75rem;">
-            <label for="customer-name-input">Pelanggan (Pilih untuk Poin/Diskon)</label>
-            <input type="text" id="customer-name-input" list="customer-list" placeholder="Ketik nama pelanggan..." autocomplete="off" onchange="onCustomerSelectChange()" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); outline: none;">
-            <datalist id="customer-list">
-              <!-- Rendered by JS -->
-            </datalist>
+          <!-- Input Nama Pelanggan (CRM) dengan Dropdown Pencarian & Bayar Poin Langsung -->
+          <div class="form-group" id="customer-name-group" style="margin-bottom: 0.75rem; position: relative;">
+            <label for="customer-name-input" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <span>Pelanggan / Member:</span>
+              <span id="cust-search-badge" style="font-size: 0.75rem; color: var(--primary-color); font-weight: 600;">Pilih untuk Poin &amp; Bon</span>
+            </label>
+            <div style="position: relative;">
+              <input type="text" id="customer-name-input" placeholder="🔍 Cari nama / telepon / domisili pelanggan..." autocomplete="off" oninput="onCustomerSearchInput(this.value)" onfocus="openCustomerDropdown()" style="width: 100%; padding: 0.6rem 2.2rem 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); outline: none; font-size: 0.9rem;">
+              <button type="button" id="btn-clear-customer" onclick="clearSelectedCustomer()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1.1rem; color: var(--text-muted); cursor: pointer; display: none;">&times;</button>
+            </div>
             
-            <div id="customer-points-info" style="display: none; margin-top: 0.5rem; background: var(--bg-body); padding: 0.5rem; border-radius: var(--border-radius-sm); font-size: 0.85rem;">
-               <span style="color: var(--text-muted)">Saldo Poin:</span> <strong id="customer-points-balance" style="color: var(--primary-color)">0</strong> (<span id="customer-points-rp">Rp 0</span>)
-               <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; align-items: center;">
-                 <input type="number" id="redeem-points-input" class="form-control" style="padding: 0.25rem 0.5rem; width: 100px; font-size: 0.85rem;" placeholder="Tukar..." oninput="calculateChange()">
-                 <span style="font-size: 0.8rem; color: var(--text-muted)">poin = Potongan <strong id="redeem-points-discount">Rp 0</strong></span>
-               </div>
+            <!-- DROPDOWN HASIL PENCARIAN DAFTAR PELANGGAN -->
+            <div id="customer-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; background: var(--bg-surface-elevated, #fff); border: 1px solid var(--border-color); border-radius: 8px; max-height: 220px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.15); margin-top: 4px;">
+              <!-- Item pelanggan di-render oleh JS -->
+            </div>
+            
+            <!-- PANEL BAYAR DENGAN POIN -->
+            <div id="customer-points-info" style="display: none; margin-top: 0.65rem; background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%); border: 1px solid rgba(16, 185, 129, 0.3); padding: 0.75rem; border-radius: 8px; font-size: 0.85rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <div>
+                  <span style="color: var(--text-muted); font-size: 0.8rem;">Saldo Poin:</span>
+                  <strong id="customer-points-balance" style="color: var(--primary-color); font-size: 1rem; margin-left: 0.25rem;">0</strong>
+                  <span style="font-size: 0.8rem; color: var(--text-muted);"> (<span id="customer-points-rp" style="color:#10b981; font-weight:700;">Rp 0</span>)</span>
+                </div>
+                <button type="button" class="btn btn-sm" id="btn-pay-all-points" onclick="useMaxPointsForPayment()" style="background: #10b981; color: white; border: none; padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">
+                  ⚡ Bayar Pakai Poin
+                </button>
+              </div>
+              
+              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <label for="redeem-points-input" style="font-size: 0.8rem; color: var(--text-muted);">Poin ditukar:</label>
+                <input type="number" id="redeem-points-input" class="form-control" style="padding: 0.3rem 0.5rem; width: 90px; font-size: 0.85rem; font-weight: 700;" placeholder="0" min="0" oninput="calculateChange()">
+                <span style="font-size: 0.8rem; color: var(--text-muted);">= Potongan <strong id="redeem-points-discount" style="color: #10b981;">Rp 0</strong></span>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="resetRedeemPoints()" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Reset</button>
+              </div>
+              <div id="points-payment-summary" style="margin-top: 0.4rem; font-size: 0.8rem; color: #1e40af; font-weight: 600; display: none;">
+                <!-- Ringkasan bayar poin vs cash -->
+              </div>
             </div>
           </div>
           
@@ -2452,6 +2489,100 @@
     </div>
   </div>
 
+  <!-- MODAL EDIT PELANGGAN (CRM) -->
+  <div class="modal-overlay" id="edit-customer-modal">
+    <div class="modal-card" style="max-width: 480px; width: 92vw; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.25);">
+      <div class="modal-header" style="background: var(--bg-surface-elevated); padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: none; stroke: var(--primary-color); stroke-width: 2.2;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <h3 id="modal-customer-title" style="margin: 0; font-size: 1.05rem; font-weight: 700;">Edit Data Pelanggan</h3>
+        </div>
+        <button type="button" class="close-modal-btn" onclick="closeEditCustomerModal()" style="font-size: 1.5rem; background: none; border: none; cursor: pointer;">&times;</button>
+      </div>
+      <form id="modal-customer-form" onsubmit="saveCustomerModal(event)">
+        <div class="modal-body" style="padding: 1.25rem;">
+          <input type="hidden" id="modal-cust-id" value="">
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="modal-cust-name" style="font-size: 0.85rem; font-weight: 600;">Nama Pelanggan*</label>
+            <input type="text" id="modal-cust-name" class="form-control" placeholder="Contoh: Budi Santoso" required style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="modal-cust-phone" style="font-size: 0.85rem; font-weight: 600;">Nomor Telepon (WA)</label>
+            <input type="text" id="modal-cust-phone" class="form-control" placeholder="0812..." style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="modal-cust-address" style="font-size: 0.85rem; font-weight: 600;">Domisili / Alamat</label>
+            <input type="text" id="modal-cust-address" class="form-control" placeholder="Contoh: Desa Karanganyar, Gresik" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0.5rem;">
+            <label for="modal-cust-points" style="font-size: 0.85rem; font-weight: 600;">Saldo Poin</label>
+            <input type="number" id="modal-cust-points" class="form-control" value="0" min="0" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 0.85rem 1.25rem; background: var(--bg-surface); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="closeEditCustomerModal()">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL TUKAR POIN PELANGGAN (CRM) -->
+  <div class="modal-overlay" id="redeem-points-modal">
+    <div class="modal-card" style="max-width: 440px; width: 92vw; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.25);">
+      <div class="modal-header" style="background: var(--bg-surface-elevated); padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.2rem;">🎁</span>
+          <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700;">Tukar Poin Pelanggan</h3>
+        </div>
+        <button type="button" class="close-modal-btn" onclick="closeRedeemPointsModal()" style="font-size: 1.5rem; background: none; border: none; cursor: pointer;">&times;</button>
+      </div>
+      <form id="redeem-points-form" onsubmit="submitCustomerPointsRedemption(event)">
+        <div class="modal-body" style="padding: 1.25rem;">
+          <input type="hidden" id="redeem-modal-cust-id" value="">
+          
+          <div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1rem;">
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Nama Member:</div>
+            <div id="redeem-modal-cust-name" style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.35rem;">-</div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 0.85rem; color: var(--text-muted);">Saldo Poin Sekarang:</span>
+              <span id="redeem-modal-current-points" style="font-size: 1.15rem; font-weight: 800; color: var(--primary-color);">0 Poin</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.25rem; font-size: 0.8rem; color: var(--text-muted);">
+              <span>Estimasi Nilai Rupiah:</span>
+              <span id="redeem-modal-current-rp" style="font-weight: 700; color: #10b981;">Rp 0</span>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="redeem-modal-points-input" style="font-size: 0.85rem; font-weight: 600;">Jumlah Poin yang Ingin Ditukar*</label>
+            <input type="number" id="redeem-modal-points-input" class="form-control" min="1" placeholder="Masukkan jumlah poin..." required oninput="calculateRedeemModalValue()" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px; font-weight: 700; font-size: 1rem;">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label for="redeem-modal-notes" style="font-size: 0.85rem; font-weight: 600;">Keterangan / Hadiah Penukaran</label>
+            <input type="text" id="redeem-modal-notes" class="form-control" placeholder="Contoh: Voucher Diskon / Hadiah Piring / Souvenir" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
+          </div>
+
+          <div style="background: var(--bg-body); border-radius: 8px; padding: 0.75rem 1rem; border: 1px dashed var(--border-color); font-size: 0.85rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+              <span style="color: var(--text-muted);">Nilai Diskon / Hadiah:</span>
+              <strong id="redeem-modal-exchange-rp" style="color: #10b981;">Rp 0</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--text-muted);">Sisa Poin Setelah Tukar:</span>
+              <strong id="redeem-modal-remaining-points" style="color: var(--primary-color);">0 Poin</strong>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 0.85rem 1.25rem; background: var(--bg-surface); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="closeRedeemPointsModal()">Batal</button>
+          <button type="submit" class="btn btn-primary" style="background: #10b981; border-color: #10b981;">Tukarkan Poin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- ==========================================================================
        MATERIAL DESIGN 3 BOTTOM NAVIGATION BAR (KHUSUS MODE HP/MOBILE)
        ========================================================================== -->
@@ -2543,7 +2674,7 @@
       </button>
 
       <!-- Item Shift Kasir -->
-      <button type="button" class="m3-sheet-item" onclick="closeMobileMoreSheet(); openShiftModal();">
+      <button type="button" class="m3-sheet-item" id="m3-sheet-shift-item" onclick="closeMobileMoreSheet(); openShiftModal();">
         <div class="m3-sheet-icon" style="background:#f3e8ff; color:#7c3aed;">
           <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
@@ -2551,7 +2682,7 @@
       </button>
 
       <!-- Item Ganti Akun / Login -->
-      <button type="button" class="m3-sheet-item" onclick="closeMobileMoreSheet(); openCashierLoginModal();">
+      <button type="button" class="m3-sheet-item" id="m3-sheet-auth-item" onclick="closeMobileMoreSheet(); openCashierLoginModal();">
         <div class="m3-sheet-icon" style="background:#e0f2fe; color:#0284c7;">
           <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
         </div>

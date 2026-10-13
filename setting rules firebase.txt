@@ -1,0 +1,14 @@
+{
+  "rules": {
+    "licenses": {
+      ".read": true,
+      ".write": false
+    },
+    "stores": {
+      "$storeId": {
+        ".read": true,
+        ".write": "root.child('licenses').child($storeId).child('status').val() === 'active'"
+      }
+    }
+  }
+}

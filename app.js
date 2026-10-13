@@ -1438,6 +1438,10 @@ function saveAppConfig() {
   if (shiftWrapper) {
     shiftWrapper.style.display = appConfig.strictShift ? 'flex' : 'none';
   }
+  const sheetShiftItem = document.getElementById('m3-sheet-shift-item');
+  if (sheetShiftItem) {
+    sheetShiftItem.style.display = appConfig.strictShift ? 'flex' : 'none';
+  }
   
   calculateTotal(); // Update POS discount visibility
   checkPromoBanner(); // Update visibilitas banner carousel promo
@@ -1475,6 +1479,10 @@ function loadAppConfig() {
   const shiftWrapper = document.getElementById('buka-shift-wrapper');
   if (shiftWrapper) {
     shiftWrapper.style.display = appConfig.strictShift ? 'flex' : 'none';
+  }
+  const sheetShiftItem = document.getElementById('m3-sheet-shift-item');
+  if (sheetShiftItem) {
+    sheetShiftItem.style.display = appConfig.strictShift ? 'flex' : 'none';
   }
 
   const chkCloud = document.getElementById('chk-enable-cloud');
@@ -1917,6 +1925,16 @@ function toggleMobileMoreSheet() {
     const storeInfo = document.getElementById('m3-sheet-store-info');
     if (userTitle) userTitle.textContent = `${activeCashier} (${currentUserRole === 'owner' ? 'Owner' : 'Kasir'})`;
     if (storeInfo) storeInfo.textContent = receiptSettings.name || 'Toko Sahil POS';
+
+    // Sesuaikan item Shift Kasir & Ganti Akun sesuai status fitur di pengaturan
+    const sheetShiftItem = document.getElementById('m3-sheet-shift-item');
+    if (sheetShiftItem) {
+      sheetShiftItem.style.display = appConfig.strictShift ? 'flex' : 'none';
+    }
+    const sheetAuthItem = document.getElementById('m3-sheet-auth-item');
+    if (sheetAuthItem) {
+      sheetAuthItem.style.display = isStaffLoginEnabled ? 'flex' : 'none';
+    }
 
     backdrop.classList.add('active');
     sheet.classList.add('active');
@@ -4405,9 +4423,15 @@ function openPaymentModal() {
   const customerNameGroup = document.getElementById('customer-name-group');
   if (appConfig.customerMode) {
     customerNameGroup.style.display = 'block';
-    document.getElementById('customer-name-input').value = '';
-    document.getElementById('customer-points-info').style.display = 'none';
-    document.getElementById('redeem-points-input').value = '';
+    const custInput = document.getElementById('customer-name-input');
+    if (custInput) custInput.value = '';
+    const clearBtn = document.getElementById('btn-clear-customer');
+    if (clearBtn) clearBtn.style.display = 'none';
+    const infoDiv = document.getElementById('customer-points-info');
+    if (infoDiv) infoDiv.style.display = 'none';
+    const redeemInput = document.getElementById('redeem-points-input');
+    if (redeemInput) redeemInput.value = '';
+    closeCustomerDropdown();
   } else {
     customerNameGroup.style.display = 'none';
   }
@@ -4471,6 +4495,7 @@ function onPaymentStatusChange(val) {
 
 function closePaymentModal() {
   document.getElementById('payment-modal').classList.remove('active');
+  closeCustomerDropdown();
   focusSearchInput();
 }
 
@@ -4521,6 +4546,23 @@ function calculateChange() {
   
   const finalTotalToPay = globalTotal - pointDiscount;
   document.getElementById('pay-total-amount').textContent = `Rp ${formatRupiah(finalTotalToPay)}`;
+
+  // Update ringkasan pembayaran poin vs tunai
+  const summaryEl = document.getElementById('points-payment-summary');
+  if (summaryEl) {
+    if (pointDiscount > 0) {
+      summaryEl.style.display = 'block';
+      if (finalTotalToPay === 0) {
+        summaryEl.innerHTML = `✅ <b>LUNAS DENGAN POIN!</b> Tidak perlu uang tunai.`;
+        summaryEl.style.color = '#059669';
+      } else {
+        summaryEl.innerHTML = `💡 Dipotong Poin: <b>Rp ${formatRupiah(pointDiscount)}</b> &bull; Sisa Tunai yang Harus Dibayar: <b style="color:#dc2626;">Rp ${formatRupiah(finalTotalToPay)}</b>`;
+        summaryEl.style.color = '#1e40af';
+      }
+    } else {
+      summaryEl.style.display = 'none';
+    }
+  }
   
   const change = cash - finalTotalToPay;
   
@@ -6378,27 +6420,34 @@ function updateCashierAuthUI() {
   const logoutBtn = document.getElementById('btn-logout-staff');
 
   const authWrapper = document.getElementById('cashier-auth-wrapper');
+  const sheetAuthItem = document.getElementById('m3-sheet-auth-item');
 
   if (chkLogin) chkLogin.checked = !!isStaffLoginEnabled;
   if (ownerPinInput) ownerPinInput.value = ownerPin || '1234';
 
   if (!isStaffLoginEnabled) {
     // JIKA FITUR LOGIN DIMATIKAN:
-    // Sembunyikan total tombol login & logout dari pojok kanan agar bersih dan tidak mengganggu
+    // Sembunyikan tombol login & logout dari desktop navbar serta menu Ganti Akun di mobile sheet
     if (authWrapper) {
       authWrapper.style.display = 'none';
     }
     if (logoutBtn) {
       logoutBtn.style.display = 'none';
     }
+    if (sheetAuthItem) {
+      sheetAuthItem.style.display = 'none';
+    }
   } else {
     // JIKA FITUR LOGIN DIAKTIFKAN:
-    // Tampilkan tombol status login kasir & tombol logout di pojok kanan
+    // Tampilkan tombol status login kasir & tombol logout di desktop navbar serta menu Ganti Akun di mobile sheet
     if (authWrapper) {
       authWrapper.style.display = 'flex';
     }
     if (logoutBtn) {
       logoutBtn.style.display = 'inline-flex';
+    }
+    if (sheetAuthItem) {
+      sheetAuthItem.style.display = 'flex';
     }
 
     if (roleBadge) {
@@ -8711,40 +8760,98 @@ function formatRupiahInput(input) {
 
 // --- MODUL PELANGGAN & CRM ---
 
+function clearCustomerSearch() {
+  const searchInput = document.getElementById('customer-search');
+  if (searchInput) searchInput.value = '';
+  const clearBtn = document.getElementById('btn-clear-cust-search');
+  if (clearBtn) clearBtn.style.display = 'none';
+  renderCustomersTable();
+  if (searchInput) searchInput.focus();
+}
+
 function renderCustomersTable() {
   const tbody = document.getElementById('customer-table-body');
   if (!tbody) return;
-  const search = document.getElementById('customer-search')?.value.toLowerCase() || '';
+  const search = document.getElementById('customer-search')?.value.toLowerCase().trim() || '';
+  
+  const clearBtn = document.getElementById('btn-clear-cust-search');
+  if (clearBtn) clearBtn.style.display = search ? 'block' : 'none';
+
+  // Update total badge member
+  const totalBadge = document.getElementById('customer-total-badge');
+  if (totalBadge) {
+    totalBadge.textContent = `${customers.length} Member`;
+  }
   
   tbody.innerHTML = '';
   
   const filtered = customers.filter(c => 
-    String(c.nama).toLowerCase().includes(search) || 
-    (c.telepon && String(c.telepon).toLowerCase().includes(search))
+    String(c.nama || '').toLowerCase().includes(search) || 
+    (c.telepon && String(c.telepon).toLowerCase().includes(search)) ||
+    (c.domisili && String(c.domisili).toLowerCase().includes(search))
   );
   
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Tidak ada pelanggan.</td></tr>';
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2.5rem 1rem;">
+          <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
+          <div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem;">Pelanggan tidak ditemukan</div>
+          <div style="font-size: 0.8rem; margin-top: 0.25rem;">Coba cari dengan kata kunci nama, nomor HP, atau domisili lain.</div>
+        </td>
+      </tr>
+    `;
     return;
   }
   
-  const customersToRender = search === '' ? filtered.slice(0, 50) : filtered.slice(0, 50);
+  const customersToRender = filtered.slice(0, 50);
   
   if (filtered.length > 50) {
     const infoTr = document.createElement('tr');
-    infoTr.innerHTML = `<td colspan="4" style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem;">Ditemukan ${filtered.length} pelanggan. Menampilkan 50 teratas.</td>`;
+    infoTr.innerHTML = `<td colspan="5" style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem; background: var(--bg-body);">Ditemukan ${filtered.length} pelanggan. Menampilkan 50 teratas.</td>`;
     tbody.appendChild(infoTr);
   }
   
   customersToRender.forEach(c => {
     const tr = document.createElement('tr');
+    const points = c.poin || 0;
+    const rpValue = points * (loyaltySettings.rpPerPoint || 100);
+
     tr.innerHTML = `
-      <td><strong>${c.nama}</strong></td>
-      <td>${c.telepon || '-'}</td>
-      <td><span style="background: var(--bg-body); padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600; color: var(--primary-color);">${c.poin || 0}</span></td>
       <td>
-        <button class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem;" onclick="editCustomer('${c.id}')">Edit</button>
-        <button class="btn btn-danger btn-sm" style="padding: 0.25rem 0.5rem;" onclick="deleteCustomer('${c.id}')">Hapus</button>
+        <div style="font-weight: 700; color: var(--text-main);">${c.nama}</div>
+      </td>
+      <td>
+        <span style="font-size: 0.88rem; color: var(--text-muted); font-family: monospace;">${c.telepon ? '📞 ' + c.telepon : '-'}</span>
+      </td>
+      <td>
+        <span style="font-size: 0.85rem; color: var(--text-muted);">${c.domisili ? '📍 ' + c.domisili : '<span style="color:var(--text-muted); opacity:0.6;">-</span>'}</span>
+      </td>
+      <td>
+        <div style="display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(59, 130, 246, 0.08); padding: 0.25rem 0.6rem; border-radius: 999px; border: 1px solid rgba(59, 130, 246, 0.2);">
+          <span style="font-weight: 800; color: var(--primary-color); font-size: 0.9rem;">${points}</span>
+          <span style="font-size: 0.72rem; color: var(--text-muted);">pts (Rp ${formatRupiah(rpValue)})</span>
+        </div>
+      </td>
+      <td style="white-space: nowrap;">
+        <div style="display: inline-flex; gap: 0.4rem; align-items: center;">
+          <!-- TOMBOL EDIT MODERN -->
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openEditCustomerModal('${c.id}')" title="Edit Data Pelanggan" style="border-radius: 8px; padding: 0.35rem 0.65rem; font-weight: 600; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem; box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: all 0.15s ease;">
+            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <span>Edit</span>
+          </button>
+          
+          <!-- TOMBOL TUKAR POIN MODERN -->
+          <button type="button" class="btn btn-sm" onclick="openRedeemPointsModal('${c.id}')" title="Tukar Poin Pelanggan" style="border-radius: 8px; padding: 0.35rem 0.7rem; font-weight: 700; font-size: 0.8rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; border: none; display: inline-flex; align-items: center; gap: 0.35rem; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.25); cursor: pointer; transition: all 0.15s ease;">
+            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2;"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+            <span>Tukar Poin</span>
+          </button>
+          
+          <!-- TOMBOL HAPUS -->
+          <button type="button" class="btn btn-danger btn-sm" onclick="deleteCustomer('${c.id}')" title="Hapus Pelanggan" style="border-radius: 8px; padding: 0.35rem 0.5rem; font-size: 0.8rem; display: inline-flex; align-items: center;">
+            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
@@ -8757,6 +8864,7 @@ function saveCustomer(event) {
   const id = document.getElementById('edit-customer-id').value;
   const nama = document.getElementById('cust-name').value.trim();
   const telepon = document.getElementById('cust-phone').value.trim();
+  const domisili = (document.getElementById('cust-address')?.value || '').trim();
   const poin = parseInt(document.getElementById('cust-points').value) || 0;
   
   if (!nama) {
@@ -8767,13 +8875,14 @@ function saveCustomer(event) {
   if (id) {
     const index = customers.findIndex(c => c.id === id);
     if (index !== -1) {
-      customers[index] = { ...customers[index], nama, telepon, poin };
+      customers[index] = { ...customers[index], nama, telepon, domisili, poin };
     }
   } else {
     customers.push({
       id: 'CUST-' + Date.now(),
       nama,
       telepon,
+      domisili,
       poin
     });
   }
@@ -8791,15 +8900,145 @@ function saveCustomer(event) {
 }
 
 function editCustomer(id) {
+  openEditCustomerModal(id);
+}
+
+// Dialog / Modal Edit Pelanggan
+function openEditCustomerModal(id) {
   const c = customers.find(x => x.id === id);
   if (!c) return;
-  
-  document.getElementById('edit-customer-id').value = c.id;
-  document.getElementById('cust-name').value = c.nama;
-  document.getElementById('cust-phone').value = c.telepon || '';
-  document.getElementById('cust-points').value = c.poin || 0;
-  
-  document.getElementById('customer-form-title').textContent = 'Edit Pelanggan';
+
+  document.getElementById('modal-cust-id').value = c.id;
+  document.getElementById('modal-cust-name').value = c.nama || '';
+  document.getElementById('modal-cust-phone').value = c.telepon || '';
+  document.getElementById('modal-cust-address').value = c.domisili || '';
+  document.getElementById('modal-cust-points').value = c.poin || 0;
+
+  const modal = document.getElementById('edit-customer-modal');
+  if (modal) {
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+  }
+}
+
+function closeEditCustomerModal() {
+  const modal = document.getElementById('edit-customer-modal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+  }
+}
+
+function saveCustomerModal(event) {
+  event.preventDefault();
+
+  const id = document.getElementById('modal-cust-id').value;
+  const nama = document.getElementById('modal-cust-name').value.trim();
+  const telepon = document.getElementById('modal-cust-phone').value.trim();
+  const domisili = document.getElementById('modal-cust-address').value.trim();
+  const poin = parseInt(document.getElementById('modal-cust-points').value) || 0;
+
+  if (!nama) {
+    alert("Nama pelanggan wajib diisi!");
+    return;
+  }
+
+  const index = customers.findIndex(c => c.id === id);
+  if (index !== -1) {
+    customers[index] = { ...customers[index], nama, telepon, domisili, poin };
+    saveCustomersLocally();
+    renderCustomersTable();
+    saveCustomerCloud(customers[index]);
+    alert("✅ Data pelanggan berhasil diperbarui!");
+  }
+
+  closeEditCustomerModal();
+}
+
+// Modal Tukar Poin Pelanggan (CRM)
+function openRedeemPointsModal(id) {
+  const c = customers.find(x => x.id === id);
+  if (!c) return;
+
+  const currentPoints = c.poin || 0;
+  const rpPerPt = (loyaltySettings && loyaltySettings.rpPerPoint) ? loyaltySettings.rpPerPoint : 100;
+  const totalValueRp = currentPoints * rpPerPt;
+
+  document.getElementById('redeem-modal-cust-id').value = c.id;
+  document.getElementById('redeem-modal-cust-name').textContent = c.nama;
+  document.getElementById('redeem-modal-current-points').textContent = `${currentPoints} Poin`;
+  document.getElementById('redeem-modal-current-rp').textContent = `Rp ${formatRupiah(totalValueRp)}`;
+
+  const pointsInput = document.getElementById('redeem-modal-points-input');
+  pointsInput.value = '';
+  pointsInput.max = currentPoints;
+  document.getElementById('redeem-modal-notes').value = '';
+
+  calculateRedeemModalValue();
+
+  const modal = document.getElementById('redeem-points-modal');
+  if (modal) {
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+  }
+}
+
+function closeRedeemPointsModal() {
+  const modal = document.getElementById('redeem-points-modal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+  }
+}
+
+function calculateRedeemModalValue() {
+  const id = document.getElementById('redeem-modal-cust-id').value;
+  const c = customers.find(x => x.id === id);
+  const currentPoints = c ? (c.poin || 0) : 0;
+  const rpPerPt = (loyaltySettings && loyaltySettings.rpPerPoint) ? loyaltySettings.rpPerPoint : 100;
+
+  const inputVal = parseInt(document.getElementById('redeem-modal-points-input').value) || 0;
+  const clampedPoints = Math.max(0, Math.min(inputVal, currentPoints));
+
+  const exchangeRp = clampedPoints * rpPerPt;
+  const remainingPoints = currentPoints - clampedPoints;
+
+  document.getElementById('redeem-modal-exchange-rp').textContent = `Rp ${formatRupiah(exchangeRp)}`;
+  document.getElementById('redeem-modal-remaining-points').textContent = `${remainingPoints} Poin`;
+}
+
+function submitCustomerPointsRedemption(event) {
+  event.preventDefault();
+
+  const id = document.getElementById('redeem-modal-cust-id').value;
+  const c = customers.find(x => x.id === id);
+  if (!c) return;
+
+  const pointsToRedeem = parseInt(document.getElementById('redeem-modal-points-input').value) || 0;
+  const notes = document.getElementById('redeem-modal-notes').value.trim() || 'Hadiah / Souvenir CRM';
+
+  if (pointsToRedeem <= 0) {
+    alert("Jumlah poin yang ditukar harus lebih dari 0!");
+    return;
+  }
+
+  if (pointsToRedeem > (c.poin || 0)) {
+    alert(`Poin tidak cukup! Saldo poin saat ini hanya ${c.poin || 0} poin.`);
+    return;
+  }
+
+  const rpPerPt = (loyaltySettings && loyaltySettings.rpPerPoint) ? loyaltySettings.rpPerPoint : 100;
+  const nilaiRupiah = pointsToRedeem * rpPerPt;
+
+  if (confirm(`Konfirmasi penukaran ${pointsToRedeem} poin (Senilai Rp ${formatRupiah(nilaiRupiah)})\nUntuk Pelanggan: ${c.nama}\nKeterangan: ${notes}`)) {
+    c.poin = (c.poin || 0) - pointsToRedeem;
+    saveCustomersLocally();
+    renderCustomersTable();
+    saveCustomerCloud(c);
+
+    alert(`🎉 Berhasil menukarkan ${pointsToRedeem} poin untuk ${c.nama}!\nSisa saldo poin sekarang: ${c.poin} poin.`);
+    closeRedeemPointsModal();
+  }
 }
 
 function deleteCustomer(id) {
@@ -8814,6 +9053,8 @@ function deleteCustomer(id) {
 function resetCustomerForm() {
   document.getElementById('customer-form').reset();
   document.getElementById('edit-customer-id').value = '';
+  const addr = document.getElementById('cust-address');
+  if (addr) addr.value = '';
   document.getElementById('customer-form-title').textContent = 'Tambah Pelanggan Baru';
 }
 
@@ -8821,20 +9062,185 @@ function saveCustomersLocally() {
   localStorage.setItem('kasir_customers', JSON.stringify(customers));
 }
 
-function onCustomerSelectChange() {
-  const name = document.getElementById('customer-name-input').value.trim();
-  const customer = customers.find(c => c.nama === name);
+function openCustomerDropdown() {
+  renderCustomerDropdown(document.getElementById('customer-name-input')?.value || '');
+}
+
+function closeCustomerDropdown() {
+  const dropdown = document.getElementById('customer-dropdown-list');
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+function onCustomerSearchInput(val) {
+  const clearBtn = document.getElementById('btn-clear-customer');
+  if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+
+  renderCustomerDropdown(val);
+
+  // Jika input pas dengan nama pelanggan
+  const exactMatch = customers.find(c => c.nama.toLowerCase() === val.trim().toLowerCase());
+  if (exactMatch) {
+    applySelectedCustomer(exactMatch);
+  } else {
+    // Sembunyikan panel poin jika bukan pelanggan terdaftar
+    const infoDiv = document.getElementById('customer-points-info');
+    if (infoDiv) infoDiv.style.display = 'none';
+    const redeemInput = document.getElementById('redeem-points-input');
+    if (redeemInput) redeemInput.value = '';
+    calculateChange();
+  }
+}
+
+function renderCustomerDropdown(keyword) {
+  const dropdown = document.getElementById('customer-dropdown-list');
+  if (!dropdown) return;
+
+  const search = (keyword || '').toLowerCase().trim();
+  const filtered = customers.filter(c =>
+    String(c.nama || '').toLowerCase().includes(search) ||
+    (c.telepon && String(c.telepon).toLowerCase().includes(search)) ||
+    (c.domisili && String(c.domisili).toLowerCase().includes(search))
+  );
+
+  if (filtered.length === 0) {
+    dropdown.innerHTML = `
+      <div style="padding: 0.75rem 1rem; color: var(--text-muted); font-size: 0.85rem; text-align: center;">
+        Pelanggan tidak ditemukan. Ketik nama untuk transaksi non-member.
+      </div>
+    `;
+    dropdown.style.display = 'block';
+    return;
+  }
+
+  let html = '';
+  filtered.slice(0, 10).forEach(c => {
+    const rpValue = (c.poin || 0) * (loyaltySettings.rpPerPoint || 100);
+    html += `
+      <div onclick="selectCustomerFromDropdown('${c.id}')" style="padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--border-color); cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.15s;" onmouseover="this.style.background='var(--bg-body)'" onmouseout="this.style.background='transparent'">
+        <div>
+          <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-main);">${c.nama}</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 0.5rem;">
+            <span>📞 ${c.telepon || '-'}</span>
+            <span>📍 ${c.domisili || '-'}</span>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <span style="background: rgba(16, 185, 129, 0.12); color: #059669; font-weight: 700; font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 999px;">
+            ${c.poin || 0} Poin
+          </span>
+          <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">
+            (Rp ${formatRupiah(rpValue)})
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  dropdown.innerHTML = html;
+  dropdown.style.display = 'block';
+}
+
+function selectCustomerFromDropdown(customerId) {
+  const c = customers.find(x => x.id === customerId);
+  if (!c) return;
+
+  const input = document.getElementById('customer-name-input');
+  if (input) input.value = c.nama;
+
+  const clearBtn = document.getElementById('btn-clear-customer');
+  if (clearBtn) clearBtn.style.display = 'block';
+
+  closeCustomerDropdown();
+  applySelectedCustomer(c);
+}
+
+function applySelectedCustomer(customer) {
   const infoDiv = document.getElementById('customer-points-info');
-  
+  if (!infoDiv) return;
+
   if (customer) {
     infoDiv.style.display = 'block';
-    document.getElementById('customer-points-balance').textContent = customer.poin || 0;
-    document.getElementById('customer-points-rp').textContent = `Rp ${formatRupiah((customer.poin || 0) * loyaltySettings.rpPerPoint)}`;
+    const currentPoints = customer.poin || 0;
+    const rpPerPt = (loyaltySettings && loyaltySettings.rpPerPoint) ? loyaltySettings.rpPerPoint : 100;
+    const totalValueRp = currentPoints * rpPerPt;
+
+    document.getElementById('customer-points-balance').textContent = currentPoints;
+    document.getElementById('customer-points-rp').textContent = `Rp ${formatRupiah(totalValueRp)}`;
   } else {
     infoDiv.style.display = 'none';
     document.getElementById('redeem-points-input').value = '';
   }
+
   calculateChange();
+}
+
+function clearSelectedCustomer() {
+  const input = document.getElementById('customer-name-input');
+  if (input) input.value = '';
+
+  const clearBtn = document.getElementById('btn-clear-customer');
+  if (clearBtn) clearBtn.style.display = 'none';
+
+  const infoDiv = document.getElementById('customer-points-info');
+  if (infoDiv) infoDiv.style.display = 'none';
+
+  const redeemInput = document.getElementById('redeem-points-input');
+  if (redeemInput) redeemInput.value = '';
+
+  closeCustomerDropdown();
+  calculateChange();
+}
+
+// Fitur Bayar Pakai Poin Seketika
+function useMaxPointsForPayment() {
+  const customerName = document.getElementById('customer-name-input')?.value.trim();
+  const customer = customers.find(c => c.nama === customerName);
+  if (!customer || !customer.poin || customer.poin <= 0) {
+    alert("Pelanggan ini belum memiliki saldo poin.");
+    return;
+  }
+
+  const rpPerPt = (loyaltySettings && loyaltySettings.rpPerPoint) ? loyaltySettings.rpPerPoint : 100;
+  // Hitung poin maksimal yang dibutuhkan untuk tagihan saat ini
+  const pointsNeeded = Math.ceil(globalTotal / rpPerPt);
+  const pointsToUse = Math.min(customer.poin, pointsNeeded);
+
+  const redeemInput = document.getElementById('redeem-points-input');
+  if (redeemInput) {
+    redeemInput.value = pointsToUse;
+  }
+
+  calculateChange();
+
+  const totalPotongan = pointsToUse * rpPerPt;
+  const sisaBayar = Math.max(0, globalTotal - totalPotongan);
+
+  if (sisaBayar === 0) {
+    // Lunas sepenuhnya dengan poin! Otomatis isi uang pas Rp 0 dan fokus tombol bayar
+    const cashInput = document.getElementById('cash-received');
+    if (cashInput) cashInput.value = '0';
+    calculateChange();
+  } else {
+    // Sisa pembayaran dengan cash
+    const cashInput = document.getElementById('cash-received');
+    if (cashInput) {
+      cashInput.value = new Intl.NumberFormat('id-ID').format(sisaBayar);
+      cashInput.focus();
+    }
+    calculateChange();
+  }
+}
+
+function resetRedeemPoints() {
+  const redeemInput = document.getElementById('redeem-points-input');
+  if (redeemInput) redeemInput.value = '';
+  calculateChange();
+}
+
+function onCustomerSelectChange() {
+  const name = document.getElementById('customer-name-input').value.trim();
+  const customer = customers.find(c => c.nama === name);
+  applySelectedCustomer(customer);
 }
 
 function saveLoyaltySettings() {
