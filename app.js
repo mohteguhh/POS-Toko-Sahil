@@ -179,7 +179,9 @@ async function initFirebase() {
       const panel = document.getElementById('firebase-settings-panel');
       if (panel) panel.style.display = 'block';
 
-      updateSyncStatus('offline', 'Langganan Cloud Expired — Silakan Perpanjang');
+      updateSyncStatus('offline', 'Langganan Expired');
+      const syncEl = document.getElementById('sync-status');
+      if (syncEl) syncEl.title = 'Langganan Cloud Expired — Klik untuk Buka Tagihan & Pengaturan';
       openSubscriptionInvoiceModal();
       return false;
     }

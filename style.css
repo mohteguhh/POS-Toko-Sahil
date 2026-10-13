@@ -239,6 +239,16 @@ svg.icon-empty {
   font-weight: 700;
   background: var(--bg-app);
   border: 1px solid var(--border-color);
+  max-width: 220px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sync-status .indicator-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sync-status.online {
   border-color: rgba(16, 185, 129, 0.4);
