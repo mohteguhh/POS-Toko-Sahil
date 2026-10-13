@@ -164,21 +164,22 @@ async function initFirebase() {
     // CEK VALIDITAS LISENSI LANGGANAN BULANAN (Rp 50.000 / Bulan)
     const isLicenseValid = await checkSubscriptionLicense();
     if (!isLicenseValid) {
-      // Lisensi telah kedaluwarsa: Matikan mode cloud dan alihkan ke offline
-      console.warn('⛔ Masa langganan cloud telah habis.');
+      // Lisensi kedaluwarsa: Blokir operasi cloud, TETAPI tetap tampilkan panel
+      // agar pengguna bisa melihat status lisensi, input nama toko / kode lisensi,
+      // dan melihat tagihan pembayaran.
+      console.warn('⛔ Masa langganan cloud telah habis. Panel tetap terbuka untuk input lisensi & tagihan.');
       if (fbUnsubscribes && fbUnsubscribes.length > 0) {
         fbUnsubscribes.forEach(unsub => unsub());
         fbUnsubscribes = [];
       }
       firebaseDb = null;
-      appConfig.enableCloudSync = false;
-      localStorage.setItem('kasir_app_config', JSON.stringify(appConfig));
-      const chk = document.getElementById('chk-enable-cloud');
-      if (chk) chk.checked = false;
-      const panel = document.getElementById('firebase-settings-panel');
-      if (panel) panel.style.display = 'none';
 
-      updateSyncStatus('offline', 'Langganan Cloud Expired (Mode Offline Aktif)');
+      // TETAP biarkan checkbox dan panel terbuka (jangan disable/sembunyikan)
+      // supaya pengguna bisa input nama toko & melihat info tagihan
+      const panel = document.getElementById('firebase-settings-panel');
+      if (panel) panel.style.display = 'block';
+
+      updateSyncStatus('offline', 'Langganan Cloud Expired — Silakan Perpanjang');
       openSubscriptionInvoiceModal();
       return false;
     }
@@ -313,12 +314,14 @@ function saveLicenseKey() {
   currentLicenseKey = val;
   localStorage.setItem('kasir_license_key', currentLicenseKey);
   alert(`Kode lisensi "${val}" disimpan! Menguji status lisensi...`);
-  if (firebaseDb) {
-    checkSubscriptionLicense().then(isValid => {
-      if (isValid) alert('✅ Lisensi Aktif! Sinkronisasi cloud berjalan lancar.');
-      else openSubscriptionInvoiceModal();
-    });
-  }
+  
+  // Selalu coba hubungkan & cek lisensi, bahkan jika firebaseDb null (misal: sebelumnya expired)
+  initFirebase().then(connected => {
+    if (connected) {
+      alert('✅ Lisensi Aktif! Sinkronisasi cloud berjalan lancar.');
+    }
+    // Jika tidak connected, initFirebase sudah menampilkan modal tagihan
+  });
 }
 
 function openSubscriptionInvoiceModal() {
@@ -1092,14 +1095,18 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSyncStatus('syncing', 'Menghubungkan ke Database...');
     initFirebase().then(connected => {
       if (!connected) {
-        if (navigator.onLine) {
-          initAnalyticsFilter();
-          updateAnalytics();
-          updateSyncStatus('offline', 'Firebase belum dikonfigurasi');
-        } else {
-          updateSyncStatus('offline', 'Tidak ada koneksi internet');
-          initAnalyticsFilter();
-          updateAnalytics();
+        initAnalyticsFilter();
+        updateAnalytics();
+        // Jangan timpa status sync jika sudah diatur oleh initFirebase (misal: expired)
+        // Hanya update jika belum ada pesan spesifik
+        const syncTextEl = document.getElementById('sync-text');
+        const currentSyncText = syncTextEl ? syncTextEl.textContent : '';
+        if (!currentSyncText.includes('Expired') && !currentSyncText.includes('Tidak Terdaftar')) {
+          if (navigator.onLine) {
+            updateSyncStatus('offline', 'Firebase belum dikonfigurasi');
+          } else {
+            updateSyncStatus('offline', 'Tidak ada koneksi internet');
+          }
         }
       }
     });
@@ -2831,28 +2838,29 @@ function copyShoppingListToWhatsApp() {
     return;
   }
   
-  lowStockProducts.sort((a, b) => a.stok - b.stok);
-  
-  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO';
-  const nowStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-  
-  let text = `*📋 DAFTAR BELANJA / KULAKAN*\n`;
-  text += `*${storeName}* - ${nowStr}\n`;
-  text += `------------------------------------\n\n`;
-  
-  lowStockProducts.forEach((p, index) => {
-    const status = p.stok === 0 ? '🔴 HABIS' : `🟡 Sisa ${p.stok}`;
-    text += `${index + 1}. *${p.nama}*\n`;
-    text += `   • Status: ${status}\n`;
-    if (p.harga_beli) text += `   • Modal: Rp ${formatRupiah(p.harga_beli)}\n`;
-    if (p.barcode) text += `   • Barcode: ${p.barcode}\n`;
-    text += `\n`;
+  // Kelompokkan produk berdasarkan kategori
+  const groupedByCategory = {};
+  lowStockProducts.forEach(p => {
+    const cat = (p.kategori && p.kategori.trim()) ? p.kategori.trim() : 'Lainnya';
+    if (!groupedByCategory[cat]) {
+      groupedByCategory[cat] = [];
+    }
+    groupedByCategory[cat].push(p);
+  });
+
+  const categoryNames = Object.keys(groupedByCategory);
+  let text = '';
+  categoryNames.forEach((cat, index) => {
+    text += `${cat}\n`;
+    groupedByCategory[cat].forEach(p => {
+      text += `- ${p.nama} (${p.stok})\n`;
+    });
+    if (index < categoryNames.length - 1) {
+      text += `\n`;
+    }
   });
   
-  text += `------------------------------------\n`;
-  text += `Total: *${lowStockProducts.length} Item*\n`;
-  
-  const encodedText = encodeURIComponent(text);
+  const encodedText = encodeURIComponent(text.trim());
   const waUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
   
   // Buka WhatsApp langsung di tab baru / aplikasi WhatsApp
