@@ -14654,8 +14654,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 1000);
 
-  // Registrasi PWA Service Worker
-  if ('serviceWorker' in navigator) {
+  // Registrasi PWA Service Worker (Hanya untuk Web Browser, jangan di Desktop Electron)
+  if ('serviceWorker' in navigator && (!window.desktopAPI || !window.desktopAPI.isDesktop)) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js')
         .then((reg) => {

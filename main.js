@@ -90,6 +90,14 @@ function createWindow() {
 
   mainWindow.maximize();
 
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error('Gagal memuat halaman:', errorCode, errorDescription, validatedURL);
+  });
+
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('Render process crash/gone:', details);
+  });
+
   const entryFile = getAppEntryPath();
   mainWindow.loadFile(entryFile);
 }
