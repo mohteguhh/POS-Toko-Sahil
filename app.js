@@ -1329,9 +1329,16 @@ function exportFullDatabaseJSON(silent = false) {
 
   const dateStr = now.toISOString().slice(0, 10);
 
-  // 1. Coba simpan langsung ke folder "backup database" jika File System Directory Handle sudah pernah diizinkan pengguna
+  // 1. Coba simpan langsung ke folder fisik komputer jika di Desktop (.exe)
   let directSaved = false;
-  if (window.backupDirHandle) {
+  if (typeof window !== 'undefined' && window.desktopAPI && window.desktopAPI.saveBackupFile) {
+    window.desktopAPI.saveBackupFile(fileName, jsonStr).then(res => {
+      if (res && res.success) {
+        console.log(`[Backup Desktop] Sukses tersimpan ke: ${res.path}`);
+      }
+    });
+    directSaved = true;
+  } else if (window.backupDirHandle) {
     try {
       window.backupDirHandle.getFileHandle(fileName, { create: true })
         .then(async (fileHandle) => {
@@ -1494,6 +1501,15 @@ function dismissBackupWarningBanner() {
 // Inisialisasi otomatis folder backup saat aplikasi dibuka
 async function initAutoBackupDirHandle() {
   try {
+    if (typeof window !== 'undefined' && window.desktopAPI && window.desktopAPI.isDesktop) {
+      const desktopFolder = localStorage.getItem('kasir_desktop_backup_folder_name');
+      if (desktopFolder) {
+        updateBackupFolderIndicators('connected', desktopFolder);
+        console.log(`[Backup Desktop] Folder "${desktopFolder}" aktif dari sesi sebelumnya.`);
+        return;
+      }
+    }
+
     const storedHandle = await getStoredBackupDirHandle();
     if (storedHandle) {
       // Cek apakah permission masih ada
@@ -1514,8 +1530,26 @@ async function initAutoBackupDirHandle() {
   }
 }
 
-// Fitur: Pilih Folder "backup database" via File System Access API & simpan permanen
+// Fitur: Pilih Folder "backup database" via Native Windows Explorer (Desktop) atau File System Access API (Browser)
 async function selectBackupDatabaseFolder() {
+  if (typeof window !== 'undefined' && window.desktopAPI && window.desktopAPI.selectBackupFolder) {
+    try {
+      const res = await window.desktopAPI.selectBackupFolder();
+      if (res && res.success && res.folderPath) {
+        localStorage.setItem('kasir_desktop_backup_folder', res.folderPath);
+        localStorage.setItem('kasir_desktop_backup_folder_name', res.folderName);
+        updateBackupFolderIndicators('connected', res.folderName);
+        exportFullDatabaseJSON(true);
+        if (typeof showToastNotification === 'function') {
+          showToastNotification(`📁 Folder "${res.folderName}" berhasil terhubung permanen!`);
+        }
+      }
+    } catch(err) {
+      console.warn('Gagal memilih folder desktop:', err);
+    }
+    return;
+  }
+
   if ('showDirectoryPicker' in window) {
     try {
       // Jika sebelumnya ada handle tersimpan, coba minta izin dulu

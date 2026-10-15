@@ -166,3 +166,45 @@ ipcMain.handle('restart-app', () => {
   app.relaunch();
   app.exit(0);
 });
+
+// 7. Pilih Folder Backup Database Native (Windows Explorer)
+ipcMain.handle('select-backup-folder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Pilih Folder untuk Menyimpan Cadangan Database Kasir',
+    properties: ['openDirectory', 'createDirectory']
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { canceled: true };
+  }
+
+  const folderPath = result.filePaths[0];
+  return { success: true, folderPath: folderPath, folderName: path.basename(folderPath) };
+});
+
+// 8. Tulis File Backup Langsung ke Folder Fisik Komputer
+ipcMain.handle('save-backup-file', async (event, fileName, content) => {
+  try {
+    let targetFolder = '';
+    const metaPath = path.join(userDataPath, 'backup_folder_path.txt');
+    if (fs.existsSync(metaPath)) {
+      targetFolder = fs.readFileSync(metaPath, 'utf8').trim();
+    }
+
+    if (!targetFolder || !fs.existsSync(targetFolder)) {
+      // Fallback ke folder 'backup database' di userData jika belum disetel
+      targetFolder = path.join(userDataPath, 'backup database');
+      if (!fs.existsSync(targetFolder)) {
+        fs.mkdirSync(targetFolder, { recursive: true });
+      }
+    }
+
+    const fullFilePath = path.join(targetFolder, fileName);
+    fs.writeFileSync(fullFilePath, content, 'utf8');
+    return { success: true, path: fullFilePath };
+  } catch (err) {
+    console.error('Gagal menulis file backup:', err);
+    return { success: false, error: err.message };
+  }
+});
+
