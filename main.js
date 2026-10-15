@@ -28,10 +28,15 @@ function getHardwareId() {
   }
 }
 
-// 2. Folder Database Lokal & File Path
+// 2. Folder Database Lokal & Direktori Live Patching
 const userDataPath = app.getPath('userData');
 const dbFilePath = path.join(userDataPath, 'kasir_local_database.json');
-const updateMetaPath = path.join(userDataPath, 'app_version_info.json');
+const liveAppDir = path.join(userDataPath, 'app_updates'); // Folder patch dinamis yang selalu bisa ditimpa
+
+// Pastikan folder update ada
+if (!fs.existsSync(liveAppDir)) {
+  fs.mkdirSync(liveAppDir, { recursive: true });
+}
 
 // Helper Baca & Simpan Database Lokal
 function readLocalDb() {
@@ -55,6 +60,14 @@ function writeLocalDb(data) {
   }
 }
 
+function getAppEntryFile() {
+  const patchedIndex = path.join(liveAppDir, 'index.html');
+  if (fs.existsSync(patchedIndex)) {
+    return patchedIndex;
+  }
+  return path.join(__dirname, 'index.html');
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -71,7 +84,9 @@ function createWindow() {
   });
 
   mainWindow.maximize();
-  mainWindow.loadFile('index.html');
+  
+  const entryFile = getAppEntryFile();
+  mainWindow.loadFile(entryFile);
 }
 
 app.whenReady().then(() => {
@@ -108,7 +123,8 @@ ipcMain.handle('select-update-patch', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Pilih File Pembaruan Aplikasi (.patch / .zip)',
     filters: [
-      { name: 'File Pembaruan Kasir', extensions: ['patch', 'zip'] }
+      { name: 'File Pembaruan Kasir (*.patch, *.zip)', extensions: ['patch', 'zip'] },
+      { name: 'Semua File (*.*)', extensions: ['*'] }
     ],
     properties: ['openFile']
   });
@@ -120,9 +136,19 @@ ipcMain.handle('select-update-patch', async () => {
   const selectedPath = result.filePaths[0];
   try {
     const zip = new AdmZip(selectedPath);
-    // Ekstrak patch ke direktori aplikasi
-    zip.extractAllTo(__dirname, true);
-    return { success: true, message: 'Pembaruan offline berhasil dipasang! Silakan restart aplikasi.' };
+    // 1. Ekstrak ke folder live updates di UserData (dijamin bebas izin akses Windows & anti-lock)
+    zip.extractAllTo(liveAppDir, true);
+    
+    // 2. Jika dalam mode development (bukan asar terpaket), timpa juga direktori kerja
+    if (!app.isPackaged) {
+      try {
+        zip.extractAllTo(__dirname, true);
+      } catch (e) {
+        console.warn('Lewati ekstrak ke __dirname dev:', e.message);
+      }
+    }
+
+    return { success: true, message: 'Pembaruan offline berhasil dipasang! Aplikasi akan memuat versi terbaru setelah restart.' };
   } catch (err) {
     return { success: false, error: 'Gagal mengekstrak file pembaruan: ' + err.message };
   }
@@ -133,8 +159,17 @@ ipcMain.handle('apply-online-update', async (event, arrayBuffer) => {
   try {
     const buffer = Buffer.from(arrayBuffer);
     const zip = new AdmZip(buffer);
-    zip.extractAllTo(__dirname, true);
-    return { success: true, message: 'Pembaruan online berhasil dipasang! Silakan restart aplikasi.' };
+    zip.extractAllTo(liveAppDir, true);
+
+    if (!app.isPackaged) {
+      try {
+        zip.extractAllTo(__dirname, true);
+      } catch (e) {
+        console.warn('Lewati ekstrak ke __dirname dev:', e.message);
+      }
+    }
+
+    return { success: true, message: 'Pembaruan online berhasil dipasang! Aplikasi akan memuat versi terbaru setelah restart.' };
   } catch (err) {
     return { success: false, error: 'Gagal menerapkan pembaruan online: ' + err.message };
   }
