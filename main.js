@@ -28,10 +28,15 @@ function getHardwareId() {
   }
 }
 
-// 2. Folder Database Lokal & Direktori Live Patching
+// 2. Folder Database Lokal & Folder Patch Pembaruan di UserData (AppData)
 const userDataPath = app.getPath('userData');
 const dbFilePath = path.join(userDataPath, 'kasir_local_database.json');
-const liveAppDir = path.join(userDataPath, 'app_updates');
+const updatesDir = path.join(userDataPath, 'app_updates');
+
+// Pastikan folder updates tersedia
+if (!fs.existsSync(updatesDir)) {
+  fs.mkdirSync(updatesDir, { recursive: true });
+}
 
 // Helper Baca & Simpan Database Lokal
 function readLocalDb() {
@@ -55,21 +60,17 @@ function writeLocalDb(data) {
   }
 }
 
-// Tentukan file HTML mana yang dimuat (fallback aman jika file patch corrupt)
-function getAppEntryFile() {
-  const patchedIndex = path.join(liveAppDir, 'index.html');
-  const defaultIndex = path.join(__dirname, 'index.html');
-
-  // Hanya muat patchedIndex jika file ada dan ukurannya valid (> 1000 byte)
-  if (fs.existsSync(patchedIndex)) {
-    try {
-      const stat = fs.statSync(patchedIndex);
-      if (stat.size > 1000) {
-        return patchedIndex;
-      }
-    } catch (e) {}
+// Fungsi untuk menentukan entry file index.html (Utamakan dari patch updates jika ada)
+function getAppEntryPath() {
+  const patchedIndexPath = path.join(updatesDir, 'index.html');
+  if (fs.existsSync(patchedIndexPath)) {
+    console.log('🚀 Memuat aplikasi dari folder patch update:', patchedIndexPath);
+    return patchedIndexPath;
   }
-  return defaultIndex;
+  // Default bawaan installer .exe
+  const defaultIndexPath = path.join(__dirname, 'index.html');
+  console.log('🚀 Memuat aplikasi dari paket bawaan:', defaultIndexPath);
+  return defaultIndexPath;
 }
 
 function createWindow() {
@@ -83,23 +84,14 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true,
-      webSecurity: false
+      contextIsolation: true
     }
   });
 
   mainWindow.maximize();
 
-  // Load index.html langsung dari direktori aplikasi terpasang
-  const indexPath = path.join(__dirname, 'index.html');
-  mainWindow.loadFile(indexPath).catch(err => {
-    console.error('Gagal load file index.html:', err);
-  });
-
-  // Tangkap error jika ada kegagalan load
-  mainWindow.webContents.on('did-fail-load', (e, errorCode, errorDescription) => {
-    console.error('did-fail-load:', errorCode, errorDescription);
-  });
+  const entryFile = getAppEntryPath();
+  mainWindow.loadFile(entryFile);
 }
 
 app.whenReady().then(() => {
@@ -136,8 +128,7 @@ ipcMain.handle('select-update-patch', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Pilih File Pembaruan Aplikasi (.patch / .zip)',
     filters: [
-      { name: 'File Pembaruan Kasir (*.patch, *.zip)', extensions: ['patch', 'zip'] },
-      { name: 'Semua File (*.*)', extensions: ['*'] }
+      { name: 'File Pembaruan Kasir', extensions: ['patch', 'zip'] }
     ],
     properties: ['openFile']
   });
@@ -148,14 +139,10 @@ ipcMain.handle('select-update-patch', async () => {
 
   const selectedPath = result.filePaths[0];
   try {
-    if (!fs.existsSync(liveAppDir)) {
-      fs.mkdirSync(liveAppDir, { recursive: true });
-    }
-
     const zip = new AdmZip(selectedPath);
-    zip.extractAllTo(liveAppDir, true);
-
-    return { success: true, message: 'Pembaruan offline berhasil dipasang! Aplikasi akan memuat versi terbaru setelah restart.' };
+    // Ekstrak patch ke folder app_updates di AppData yang bebas izin tulis
+    zip.extractAllTo(updatesDir, true);
+    return { success: true, message: 'Pembaruan offline berhasil dipasang! Silakan restart aplikasi.' };
   } catch (err) {
     return { success: false, error: 'Gagal mengekstrak file pembaruan: ' + err.message };
   }
@@ -164,15 +151,11 @@ ipcMain.handle('select-update-patch', async () => {
 // 5. Terapkan Pembaruan Online dari Buffer / File
 ipcMain.handle('apply-online-update', async (event, arrayBuffer) => {
   try {
-    if (!fs.existsSync(liveAppDir)) {
-      fs.mkdirSync(liveAppDir, { recursive: true });
-    }
-
     const buffer = Buffer.from(arrayBuffer);
     const zip = new AdmZip(buffer);
-    zip.extractAllTo(liveAppDir, true);
-
-    return { success: true, message: 'Pembaruan online berhasil dipasang! Aplikasi akan memuat versi terbaru setelah restart.' };
+    // Ekstrak patch ke folder app_updates di AppData yang bebas izin tulis
+    zip.extractAllTo(updatesDir, true);
+    return { success: true, message: 'Pembaruan online berhasil dipasang! Silakan restart aplikasi.' };
   } catch (err) {
     return { success: false, error: 'Gagal menerapkan pembaruan online: ' + err.message };
   }

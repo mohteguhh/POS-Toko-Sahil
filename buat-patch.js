@@ -10,12 +10,14 @@ console.log(`📦 Membuat file patch pembaruan: ${outputName}...`);
 
 const zip = new AdmZip();
 
-// File-file inti yang sering diperbarui
+// File-file inti yang dibutuhkan aplikasi lengkap
 const filesToInclude = [
   'index.html',
   'style.css',
   'app.js',
-  'manifest.json'
+  'manifest.json',
+  'icon-192.svg',
+  'icon-512.svg'
 ];
 
 filesToInclude.forEach(file => {
@@ -26,9 +28,10 @@ filesToInclude.forEach(file => {
   }
 });
 
-// Tambahkan folder lib jika ada perubahan pustaka
-if (fs.existsSync(path.join(__dirname, 'lib'))) {
-  zip.addLocalFolder(path.join(__dirname, 'lib'), 'lib');
+// Tambahkan folder lib/ lengkap beserta seluruh pustaka
+const libPath = path.join(__dirname, 'lib');
+if (fs.existsSync(libPath)) {
+  zip.addLocalFolder(libPath, 'lib');
   console.log('  + Menambahkan folder lib/');
 }
 
