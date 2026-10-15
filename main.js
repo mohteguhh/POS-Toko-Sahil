@@ -84,21 +84,21 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false // Izinkan load asset lokal mulus
+      webSecurity: false
     }
   });
 
   mainWindow.maximize();
 
-  const entryFile = getAppEntryFile();
-  mainWindow.loadFile(entryFile).catch(err => {
-    console.warn('Gagal memuat entryFile, fallback ke index.html default:', err);
-    mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  // Load index.html langsung dari direktori aplikasi terpasang
+  const indexPath = path.join(__dirname, 'index.html');
+  mainWindow.loadFile(indexPath).catch(err => {
+    console.error('Gagal load file index.html:', err);
   });
 
-  // Fail-safe jika terjadi error render / blank
-  mainWindow.webContents.on('did-fail-load', () => {
-    mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  // Tangkap error jika ada kegagalan load
+  mainWindow.webContents.on('did-fail-load', (e, errorCode, errorDescription) => {
+    console.error('did-fail-load:', errorCode, errorDescription);
   });
 }
 
