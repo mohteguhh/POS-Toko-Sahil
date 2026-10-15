@@ -1,12 +1,18 @@
-const CACHE_NAME = 'kasirkilat-cache-v12';
+const CACHE_NAME = 'kasirkilat-cache-v44';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './style.css?v=4.1',
-  './app.js?v=3.2',
+  './style.css?v=6.3',
+  './app.js?v=6.3',
   './manifest.json',
   './icon-192.svg',
-  './icon-512.svg'
+  './icon-512.svg',
+  './lib/lucide.js',
+  './lib/html5-qrcode.min.js',
+  './lib/JsBarcode.all.min.js',
+  './lib/xlsx.full.min.js',
+  './lib/firebase-app-compat.js',
+  './lib/firebase-database-compat.js'
 ];
 
 // Install Event
