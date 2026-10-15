@@ -31,12 +31,7 @@ function getHardwareId() {
 // 2. Folder Database Lokal & Direktori Live Patching
 const userDataPath = app.getPath('userData');
 const dbFilePath = path.join(userDataPath, 'kasir_local_database.json');
-const liveAppDir = path.join(userDataPath, 'app_updates'); // Folder patch dinamis yang selalu bisa ditimpa
-
-// Pastikan folder update ada
-if (!fs.existsSync(liveAppDir)) {
-  fs.mkdirSync(liveAppDir, { recursive: true });
-}
+const liveAppDir = path.join(userDataPath, 'app_updates');
 
 // Helper Baca & Simpan Database Lokal
 function readLocalDb() {
@@ -60,12 +55,21 @@ function writeLocalDb(data) {
   }
 }
 
+// Tentukan file HTML mana yang dimuat (fallback aman jika file patch corrupt)
 function getAppEntryFile() {
   const patchedIndex = path.join(liveAppDir, 'index.html');
+  const defaultIndex = path.join(__dirname, 'index.html');
+
+  // Hanya muat patchedIndex jika file ada dan ukurannya valid (> 1000 byte)
   if (fs.existsSync(patchedIndex)) {
-    return patchedIndex;
+    try {
+      const stat = fs.statSync(patchedIndex);
+      if (stat.size > 1000) {
+        return patchedIndex;
+      }
+    } catch (e) {}
   }
-  return path.join(__dirname, 'index.html');
+  return defaultIndex;
 }
 
 function createWindow() {
@@ -79,14 +83,23 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      webSecurity: false // Izinkan load asset lokal mulus
     }
   });
 
   mainWindow.maximize();
-  
+
   const entryFile = getAppEntryFile();
-  mainWindow.loadFile(entryFile);
+  mainWindow.loadFile(entryFile).catch(err => {
+    console.warn('Gagal memuat entryFile, fallback ke index.html default:', err);
+    mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  });
+
+  // Fail-safe jika terjadi error render / blank
+  mainWindow.webContents.on('did-fail-load', () => {
+    mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  });
 }
 
 app.whenReady().then(() => {
@@ -135,18 +148,12 @@ ipcMain.handle('select-update-patch', async () => {
 
   const selectedPath = result.filePaths[0];
   try {
-    const zip = new AdmZip(selectedPath);
-    // 1. Ekstrak ke folder live updates di UserData (dijamin bebas izin akses Windows & anti-lock)
-    zip.extractAllTo(liveAppDir, true);
-    
-    // 2. Jika dalam mode development (bukan asar terpaket), timpa juga direktori kerja
-    if (!app.isPackaged) {
-      try {
-        zip.extractAllTo(__dirname, true);
-      } catch (e) {
-        console.warn('Lewati ekstrak ke __dirname dev:', e.message);
-      }
+    if (!fs.existsSync(liveAppDir)) {
+      fs.mkdirSync(liveAppDir, { recursive: true });
     }
+
+    const zip = new AdmZip(selectedPath);
+    zip.extractAllTo(liveAppDir, true);
 
     return { success: true, message: 'Pembaruan offline berhasil dipasang! Aplikasi akan memuat versi terbaru setelah restart.' };
   } catch (err) {
@@ -157,17 +164,13 @@ ipcMain.handle('select-update-patch', async () => {
 // 5. Terapkan Pembaruan Online dari Buffer / File
 ipcMain.handle('apply-online-update', async (event, arrayBuffer) => {
   try {
+    if (!fs.existsSync(liveAppDir)) {
+      fs.mkdirSync(liveAppDir, { recursive: true });
+    }
+
     const buffer = Buffer.from(arrayBuffer);
     const zip = new AdmZip(buffer);
     zip.extractAllTo(liveAppDir, true);
-
-    if (!app.isPackaged) {
-      try {
-        zip.extractAllTo(__dirname, true);
-      } catch (e) {
-        console.warn('Lewati ekstrak ke __dirname dev:', e.message);
-      }
-    }
 
     return { success: true, message: 'Pembaruan online berhasil dipasang! Aplikasi akan memuat versi terbaru setelah restart.' };
   } catch (err) {
