@@ -54,7 +54,7 @@
         <!-- Moved Sync and Clock to header next to store name -->
         <div class="sync-status offline" id="sync-status" onclick="syncAllFromCloud()" title="Klik untuk Sinkronisasi / Tarik Data Terbaru dari Cloud" style="margin-left: 1rem; cursor: pointer;">
           <span class="indicator-dot"></span>
-          <span class="indicator-text" id="sync-text">Belum Terhubung</span>
+          <span class="indicator-text" id="sync-text">Mode Offline</span>
         </div>
         <div class="time-display" id="time-display" style="margin-left: 0.5rem; font-weight: bold; color: var(--text-main); font-size: 1.1rem; border-left: 1px solid var(--border-color); padding-left: 0.5rem;">--:--:--</div>
       </div>
@@ -3068,6 +3068,64 @@
                   </label>
                   <input type="text" id="cloud-license-key" placeholder="Contoh: Demo" style="font-family: monospace; font-size: 0.92rem; font-weight: 800; padding: 0.45rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; width: 220px; text-transform: uppercase;">
                   <button class="btn btn-secondary btn-sm" onclick="saveLicenseKey()" style="padding: 0.45rem 1rem; font-weight: 700; border-radius: 8px;">Simpan Lisensi</button>
+                </div>
+                
+                <!-- Panel Khusus Desktop: Hardware ID & Pembaruan Sistem Dua Arah -->
+                <div id="desktop-system-panel" style="margin-top: 1rem; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 1.1rem;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.8rem;">
+                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                      <div style="background: #0284c7; color: white; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800;">
+                        💻
+                      </div>
+                      <div>
+                        <h4 style="margin: 0; font-size: 1rem; font-weight: 800; color: #0f172a;">Perangkat Desktop &amp; Pembaruan Sistem</h4>
+                        <span style="font-size: 0.78rem; color: #64748b;">Kunci Hardware ID Mesin &amp; Manajemen Pembaruan Dua Arah</span>
+                      </div>
+                    </div>
+                    <span id="desktop-mode-badge" style="font-size: 0.75rem; font-weight: 700; background: #e0f2fe; color: #0369a1; padding: 0.25rem 0.65rem; border-radius: 999px;">
+                      Versi Desktop 1.0.0
+                    </span>
+                  </div>
+
+                  <!-- Baris Info Hardware ID -->
+                  <div style="display: flex; align-items: center; justify-content: space-between; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.85rem; margin-bottom: 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <div>
+                      <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Hardware ID Komputer Ini:</div>
+                      <div id="display-hardware-id" style="font-family: monospace; font-size: 1.05rem; font-weight: 800; color: #0f172a; letter-spacing: 0.05em;">Memuat HWID...</div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="copyHardwareId()" style="font-weight: 700;">
+                      📋 Salin Hardware ID
+                    </button>
+                  </div>
+
+                  <!-- Aksi Pembaruan Dua Arah (Online & Offline) -->
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem;">
+                    <!-- Jalur 1: Online -->
+                    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
+                      <div style="font-size: 0.85rem; font-weight: 800; color: #0369a1; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.35rem;">
+                        🌐 Pembaruan Online
+                      </div>
+                      <p style="font-size: 0.78rem; color: #64748b; margin: 0 0 0.65rem 0; line-height: 1.4;">
+                        Cek versi terbaru langsung dari internet (jika laptop sedang terkoneksi WiFi/kuota).
+                      </p>
+                      <button type="button" class="btn btn-primary btn-sm" onclick="checkOnlineUpdate()" style="width: 100%; font-weight: 700;">
+                        🔄 Cek Pembaruan Online
+                      </button>
+                    </div>
+
+                    <!-- Jalur 2: Offline -->
+                    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
+                      <div style="font-size: 0.85rem; font-weight: 800; color: #b45309; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.35rem;">
+                        💾 Pembaruan Offline (Patch)
+                      </div>
+                      <p style="font-size: 0.78rem; color: #64748b; margin: 0 0 0.65rem 0; line-height: 1.4;">
+                        Untuk laptop 100% tanpa internet. Pasang file update dari flashdisk / kiriman pengembang.
+                      </p>
+                      <button type="button" class="btn btn-warning btn-sm" onclick="applyOfflinePatch()" style="width: 100%; font-weight: 700; background: #f59e0b; border-color: #f59e0b; color: #fff;">
+                        📁 Pilih File Update (.patch/.zip)
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               <!-- Tombol & Area Rahasia Konfigurasi Database (Hanya Developer / Secret Key 998877) -->

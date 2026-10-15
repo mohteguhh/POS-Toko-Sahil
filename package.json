@@ -1,0 +1,45 @@
+{
+  "name": "toko-sahil-pos",
+  "version": "1.0.0",
+  "description": "Aplikasi Kasir POS & Inventaris Toko Sahil Desktop",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mohteguhh/POS-Toko-Sahil.git"
+  },
+  "author": "Toko Sahil",
+  "license": "ISC",
+  "dependencies": {
+    "adm-zip": "^0.6.1"
+  },
+  "devDependencies": {
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.tokosahil.pos",
+    "productName": "Kasir Toko Sahil",
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "icon-512.svg"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Kasir Toko Sahil"
+    },
+    "files": [
+      "**/*",
+      "!backup database/*",
+      "!*.bat"
+    ]
+  }
+}

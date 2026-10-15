@@ -311,9 +311,9 @@ async function initFirebase() {
       const panel = document.getElementById('firebase-settings-panel');
       if (panel) panel.style.display = 'block';
 
-      updateSyncStatus('offline', 'Langganan Expired');
+      updateSyncStatus('offline', 'Mode Offline');
       const syncEl = document.getElementById('sync-status');
-      if (syncEl) syncEl.title = 'Langganan Cloud Expired — Klik untuk Buka Tagihan & Pengaturan';
+      if (syncEl) syncEl.title = 'Aplikasi Berjalan dalam Mode Offline (Data Tersimpan Lokal)';
       // Jangan paksa popup modal tagihan secara otomatis saat refresh/buka aplikasi
       // agar tidak mengganggu transaksi kasir offline & input pengguna
       return false;
@@ -324,7 +324,7 @@ async function initFirebase() {
     return true;
   } catch (err) {
     console.error('Error inisialisasi Firebase:', err);
-    updateSyncStatus('offline', 'Firebase Error: ' + err.message);
+    updateSyncStatus('offline', 'Mode Offline');
     return false;
   }
 }
@@ -334,7 +334,7 @@ async function checkSubscriptionLicense() {
   if (!firebaseDb) return false;
   
   if (!currentLicenseKey || currentLicenseKey.trim() === '' || currentLicenseKey === 'DEFAULT') {
-    updateSyncStatus('offline', 'Kode Lisensi Belum Diatur');
+    updateSyncStatus('offline', 'Mode Offline');
     updateLicenseUI({ status: 'not_set', expired_at: null });
     return false;
   }
@@ -348,7 +348,7 @@ async function checkSubscriptionLicense() {
     // Lisensi harus sudah dibuat / disetujui oleh Developer di Firebase Console
     if (!lic) {
       console.warn('⛔ Kode lisensi toko tidak terdaftar di sistem.');
-      updateSyncStatus('offline', 'Lisensi Tidak Terdaftar');
+      updateSyncStatus('offline', 'Mode Offline');
       currentLicenseData = { status: 'unregistered', expired_at: null };
       updateLicenseUI(currentLicenseData);
       return false;
@@ -408,11 +408,11 @@ function updateLicenseUI(lic) {
 
   if (diffDays <= 0) {
     if (badge) {
-      badge.textContent = 'Kedaluwarsa';
-      badge.style.background = '#ef4444';
+      badge.textContent = 'Mode Offline';
+      badge.style.background = '#64748b';
     }
     if (info) {
-      info.innerHTML = `Masa aktif telah <b style="color: #ef4444;">HABIS</b> pada ${expStr}. Tagihan Rp 100.000 belum dibayar.`;
+      info.innerHTML = `Masa aktif cloud berakhir pada ${expStr}. Aplikasi beralih ke <b>Mode Offline</b> (Data tetap aman di komputer).`;
     }
   } else if (diffDays <= 3) {
     if (badge) {
@@ -20458,3 +20458,144 @@ function addBundleToCart(bundle) {
   renderCart();
   focusSearchInput();
 }
+
+/* ==========================================================================
+   DESKTOP ELECTRON NATIVE INTEGRATION & DUAL-MODE UPDATER
+   ========================================================================== */
+let currentHardwareId = 'LOCAL-BROWSER';
+
+async function initDesktopIntegration() {
+  if (typeof window !== 'undefined' && window.desktopAPI && window.desktopAPI.isDesktop) {
+    try {
+      // 1. Ambil Hardware ID
+      currentHardwareId = await window.desktopAPI.getHardwareId();
+      const hwElem = document.getElementById('display-hardware-id');
+      if (hwElem) hwElem.textContent = currentHardwareId;
+      console.log('💻 Mode Desktop Aktif. Hardware ID:', currentHardwareId);
+
+      // 2. Load Local Database dari Electron File System (Jika ada data tersimpan)
+      const localDiskData = await window.desktopAPI.readLocalDb();
+      if (localDiskData && Object.keys(localDiskData).length > 0) {
+        console.log('📂 Memuat database lokal dari disk Electron...');
+        for (const key in localDiskData) {
+          if (!localStorage.getItem(key)) {
+            localStorage.setItem(key, typeof localDiskData[key] === 'string' ? localDiskData[key] : JSON.stringify(localDiskData[key]));
+          }
+        }
+      }
+
+      // 3. Pasang Auto-Save berkala ke File Disk Electron (Setiap 5 detik jika ada perubahan)
+      setInterval(async () => {
+        try {
+          const snapshot = {};
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('kasir_')) {
+              snapshot[k] = localStorage.getItem(k);
+            }
+          }
+          await window.desktopAPI.saveLocalDb(snapshot);
+        } catch (e) {
+          // ignore error background save
+        }
+      }, 5000);
+
+    } catch (e) {
+      console.warn('Gagal inisialisasi Desktop API:', e);
+    }
+  } else {
+    const hwElem = document.getElementById('display-hardware-id');
+    if (hwElem) hwElem.textContent = 'MODE WEB BROWSER';
+    const badge = document.getElementById('desktop-mode-badge');
+    if (badge) {
+      badge.textContent = 'Web Browser (Non-Desktop)';
+      badge.style.background = '#f1f5f9';
+      badge.style.color = '#64748b';
+    }
+  }
+}
+
+function copyHardwareId() {
+  if (!navigator.clipboard) {
+    alert('Hardware ID: ' + currentHardwareId);
+    return;
+  }
+  navigator.clipboard.writeText(currentHardwareId).then(() => {
+    alert('Hardware ID berhasil disalin ke clipboard:\n' + currentHardwareId);
+  }).catch(() => {
+    alert('Hardware ID: ' + currentHardwareId);
+  });
+}
+
+// 1. Jalur Pembaruan Offline (Pilih File .patch/.zip)
+async function applyOfflinePatch() {
+  if (!window.desktopAPI || !window.desktopAPI.selectUpdatePatch) {
+    alert('Fitur pembaruan file patch hanya tersedia di aplikasi versi desktop (.exe)!');
+    return;
+  }
+
+  const res = await window.desktopAPI.selectUpdatePatch();
+  if (res.canceled) return;
+
+  if (res.success) {
+    alert(res.message);
+    if (confirm('Restart aplikasi sekarang untuk menikmati fitur baru?')) {
+      await window.desktopAPI.restartApp();
+    }
+  } else {
+    alert('Gagal memasang pembaruan offline: ' + res.error);
+  }
+}
+
+// 2. Jalur Pembaruan Online (Cek ke Remote GitHub / Hosting)
+async function checkOnlineUpdate() {
+  if (!window.desktopAPI) {
+    alert('Pembaruan otomatis hanya didukung pada aplikasi desktop (.exe)!');
+    return;
+  }
+
+  const btn = event?.currentTarget;
+  if (btn) btn.disabled = true;
+
+  try {
+    // Cek versi release terbaru via API GitHub repo
+    const res = await fetch('https://api.github.com/repos/mohteguhh/POS-Toko-Sahil/releases/latest');
+    if (!res.ok) {
+      throw new Error('Tidak dapat menghubungi server pembaruan (Kode: ' + res.status + ')');
+    }
+    const releaseData = await res.json();
+    const latestVersion = releaseData.tag_name || '1.0.0';
+
+    // Cari file asset berakhiran .patch atau .zip
+    const patchAsset = releaseData.assets && releaseData.assets.find(a => a.name.endsWith('.patch') || a.name.endsWith('.zip'));
+
+    if (!patchAsset) {
+      alert(`Versi saat ini sudah yang paling baru (${latestVersion}). Tidak ada file patch pembaruan.`);
+      return;
+    }
+
+    if (confirm(`Pembaruan versi ${latestVersion} tersedia!\nUnduh dan terapkan sekarang?`)) {
+      const downloadRes = await fetch(patchAsset.browser_download_url);
+      const arrayBuffer = await downloadRes.arrayBuffer();
+      const applyRes = await window.desktopAPI.applyOnlineUpdate(arrayBuffer);
+      if (applyRes.success) {
+        alert(applyRes.message);
+        await window.desktopAPI.restartApp();
+      } else {
+        alert('Gagal menerapkan update: ' + applyRes.error);
+      }
+    }
+  } catch (err) {
+    alert('Info Pembaruan: ' + err.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Jalankan integrasi desktop saat dokumen selesai dimuat
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initDesktopIntegration);
+} else {
+  initDesktopIntegration();
+}
+
