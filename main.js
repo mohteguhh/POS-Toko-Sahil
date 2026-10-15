@@ -179,6 +179,10 @@ ipcMain.handle('select-backup-folder', async () => {
   }
 
   const folderPath = result.filePaths[0];
+  try {
+    const metaPath = path.join(userDataPath, 'backup_folder_path.txt');
+    fs.writeFileSync(metaPath, folderPath, 'utf8');
+  } catch(e) {}
   return { success: true, folderPath: folderPath, folderName: path.basename(folderPath) };
 });
 
