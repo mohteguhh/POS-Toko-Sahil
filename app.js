@@ -8718,16 +8718,52 @@ function saveProduct(event) {
   // 2. Validasi & Peringatan Jual Rugi (Harga Modal / Beli > Harga Jual)
   if (priceBuyInput > priceSellInput && priceSellInput > 0) {
     const selisihRugi = priceBuyInput - priceSellInput;
-    const confirmRugi = confirm(
-      `⚠️ PERINGATAN POTENSI RUGI:\n\n` +
+    alert(
+      `⛔ GAGAL MENYIMPAN PRODUK (HARGA ECER RUGI DITOLAK):\n\n` +
       `Harga Modal (Beli): Rp ${formatRupiah(priceBuyInput)}\n` +
       `Harga Jual: Rp ${formatRupiah(priceSellInput)}\n\n` +
-      `Harga modal LEBIH BESAR daripada harga jual (Potensi Rugi Rp ${formatRupiah(selisihRugi)} per pcs)!\n\n` +
-      `Apakah Anda yakin ingin tetap menyimpan produk ini?`
+      `Harga jual eceran TIDAK BOLEH lebih rendah daripada harga modal toko (Potensi Rugi Rp ${formatRupiah(selisihRugi)} per pcs)!`
     );
-    if (!confirmRugi) {
-      const sellPriceEl = document.getElementById('prod-price-sell');
-      if (sellPriceEl) sellPriceEl.focus();
+    const sellPriceEl = document.getElementById('prod-price-sell');
+    if (sellPriceEl) sellPriceEl.focus();
+    return;
+  }
+
+  // 3. Validasi Anti-Rugi Aturan Grosir (Contoh: Beli 12 pcs dapat harga khusus Rp ...)
+  if (isGrosirActive && grosirQtyInput > 1 && grosirPriceInput > 0) {
+    const modalGrosir = grosirQtyInput * priceBuyInput;
+    if (grosirPriceInput < modalGrosir) {
+      const rugiGrosir = modalGrosir - grosirPriceInput;
+      alert(
+        `⛔ GAGAL MENYIMPAN PRODUK (ATURAN GROSIR RUGI DITOLAK):\n\n` +
+        `Harga grosir untuk ${grosirQtyInput} pcs diatur Rp ${formatRupiah(grosirPriceInput)}.\n` +
+        `Modal beli toko: ${grosirQtyInput} × Rp ${formatRupiah(priceBuyInput)} = Rp ${formatRupiah(modalGrosir)}.\n\n` +
+        `⛔ POTENSI RUGI Rp ${formatRupiah(rugiGrosir)} setiap pelanggan membeli ${grosirQtyInput} pcs!\n\n` +
+        `Silakan naikkan harga grosir di atas Rp ${formatRupiah(modalGrosir)} agar toko tidak merugi.`
+      );
+      const grosirPriceEl = document.getElementById('prod-grosir-price');
+      if (grosirPriceEl) grosirPriceEl.focus();
+      return;
+    }
+  }
+
+  // 4. Validasi Anti-Rugi Promo "Beli X Gratis Y"
+  if (isBuyGetActive && promoBuyXInput > 0 && promoGetYInput > 0) {
+    // Total barang keluar = X + Y
+    // Pemasukan toko = X * Harga Jual
+    // Modal keluar toko = (X + Y) * Harga Beli
+    const totalBarangKeluar = promoBuyXInput + promoGetYInput;
+    const totalModalKeluar = totalBarangKeluar * priceBuyInput;
+    const totalPemasukan = promoBuyXInput * priceSellInput;
+    if (totalPemasukan < totalModalKeluar) {
+      const rugiPromo = totalModalKeluar - totalPemasukan;
+      alert(
+        `⛔ GAGAL MENYIMPAN PRODUK (PROMO BELI ${promoBuyXInput} GRATIS ${promoGetYInput} RUGI DITOLAK):\n\n` +
+        `Pelanggan membayar ${promoBuyXInput} pcs: Rp ${formatRupiah(totalPemasukan)}\n` +
+        `Modal toko untuk ${totalBarangKeluar} pcs (termasuk gratisan): Rp ${formatRupiah(totalModalKeluar)}\n\n` +
+        `⛔ POTENSI RUGI Rp ${formatRupiah(rugiPromo)} setiap promo ini dipakai!\n\n` +
+        `Silakan kurangi bonus gratis atau naikkan harga jual eceran agar promo tidak tekor modal.`
+      );
       return;
     }
   }
@@ -16082,6 +16118,20 @@ function saveSalesDelivery(e) {
       if (item.expired) {
         prod.tanggal_kadaluarsa = item.expired;
       }
+
+      // Proteksi Otomatis: Jika harga beli naik, pastikan harga jual kemasan (renteng/dus) tidak berada di bawah modal baru
+      if (Array.isArray(prod.units) && prod.units.length > 0) {
+        prod.units.forEach(u => {
+          const modalDusBaru = u.ratio * item.hargaBeli;
+          if (u.price < modalDusBaru) {
+            console.warn(`[Auto-Protect] Harga modal naik dari sales untuk "${prod.nama}". Kemasan ${u.name} disesuaikan agar tidak rugi modal.`);
+            // Otomatis naikkan harga kemasan ke modal baru + margin proporsional eceran
+            const ecerJualTotal = u.ratio * item.hargaJual;
+            u.price = Math.max(modalDusBaru, Math.round(ecerJualTotal * 0.95)); // Beri diskon grosir 5% dari ecer
+          }
+        });
+      }
+
       updatedAnyProduct = true;
       if (firebaseDb && typeof saveProductCloud === 'function') {
         saveProductCloud(prod);
