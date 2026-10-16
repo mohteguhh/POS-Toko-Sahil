@@ -4699,6 +4699,12 @@ function onScanSuccess(decodedText, decodedResult) {
     closeCameraScanner();
     return;
   }
+
+  if (scannerMode === 'delivery') {
+    closeCameraScanner();
+    addScannedProductToDelivery(searchVal);
+    return;
+  }
   
   // Cek Bundle terlebih dahulu di scanner
   if (scannerMode === 'pos') {
@@ -15604,6 +15610,97 @@ function populateDeliveryProductSelect(selectEl, filterProductIds = null, select
       if (p.id === selectedId) opt.selected = true;
       selectEl.appendChild(opt);
     });
+  }
+}
+
+// Helper: Scan Barcode Cepat untuk Nota Barang Datang dari Sales
+function findProductByBarcodeOrCode(code) {
+  if (!code) return null;
+  const searchVal = String(code).trim().toLowerCase();
+  let matched = products.find(p => p.barcode && String(p.barcode).trim().toLowerCase() === searchVal);
+  if (!matched) {
+    matched = products.find(p => Array.isArray(p.units) && p.units.some(u => u.barcode && String(u.barcode).trim().toLowerCase() === searchVal));
+  }
+  if (!matched) {
+    matched = products.find(p => p.has_unit_box && p.barcode_box && String(p.barcode_box).trim().toLowerCase() === searchVal);
+  }
+  if (!matched) {
+    matched = products.find(p => String(p.id).trim().toLowerCase() === searchVal);
+  }
+  return matched;
+}
+
+function addScannedProductToDelivery(barcodeOrCode) {
+  const prod = findProductByBarcodeOrCode(barcodeOrCode);
+  if (!prod) {
+    alert(`Produk dengan barcode/kode "${barcodeOrCode}" tidak ditemukan di database produk toko!`);
+    return false;
+  }
+
+  // Cek apakah produk ini sudah ada di baris tabel barang datang
+  const tbody = document.getElementById('delivery-items-tbody');
+  if (!tbody) return false;
+
+  const rows = tbody.querySelectorAll('tr');
+  let existingRow = null;
+
+  for (let r of rows) {
+    const sel = r.querySelector('.delivery-item-prod-select');
+    if (sel && sel.value === String(prod.id)) {
+      existingRow = r;
+      break;
+    }
+  }
+
+  if (existingRow) {
+    // Jika sudah ada di tabel, tambahkan qty +1
+    const qtyInput = existingRow.querySelector('.delivery-item-qty');
+    if (qtyInput) {
+      qtyInput.value = (parseInt(qtyInput.value) || 0) + 1;
+      calculateDeliveryRowSubtotal(qtyInput);
+    }
+    existingRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Flash efek highlight
+    existingRow.style.transition = 'background 0.3s ease';
+    existingRow.style.background = 'rgba(2, 132, 199, 0.15)';
+    setTimeout(() => { existingRow.style.background = ''; }, 600);
+  } else {
+    // Tambah baris baru dengan data produk ini
+    addDeliveryItemRow({
+      productId: String(prod.id),
+      qty: 1,
+      hargaBeli: prod.harga_beli || 0,
+      hargaJual: prod.harga_jual || prod.harga || 0,
+      expired: prod.tanggal_kadaluarsa || ''
+    });
+  }
+
+  playBeep();
+  if (typeof showToastNotification === 'function') {
+    showToastNotification(`📦 Berhasil menambahkan "${prod.nama}" ke nota barang datang!`);
+  }
+  return true;
+}
+
+function handleDeliveryBarcodeKeyDown(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    processDeliveryBarcodeManual();
+  }
+}
+
+function processDeliveryBarcodeManual() {
+  const input = document.getElementById('delivery-barcode-input');
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) return;
+
+  const success = addScannedProductToDelivery(val);
+  if (success) {
+    input.value = '';
+    input.focus();
+  } else {
+    input.select();
   }
 }
 
