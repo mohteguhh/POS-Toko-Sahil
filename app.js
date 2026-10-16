@@ -8760,6 +8760,39 @@ function saveProduct(event) {
   
   // Fitur Kemasan Multi-Unit (Didukung Array Multi-Satuan Bertingkat: Pcs / Renteng / Pack / Dus)
   const productUnits = getProductMultiUnitsFromForm();
+
+  // Validasi & Peringatan Otomatis: Jika harga ecer naik atau harga renteng/dus tertinggal terlalu murah
+  if (productUnits.length > 0) {
+    const unitWarnings = [];
+    productUnits.forEach(u => {
+      const ecerEquivalent = u.ratio * priceSellInput;
+      const modalEquivalent = u.ratio * priceBuyInput;
+
+      // Peringatan 1: Jika harga jual dus/renteng lebih murah daripada modal beli
+      if (u.price < modalEquivalent) {
+        unitWarnings.push(`• Kemasan "${u.name}" (isi ${u.ratio} pcs):\nHarga jual kemasan Rp ${formatRupiah(u.price)} LEBIH RENDAH dari modal beli Rp ${formatRupiah(modalEquivalent)}! Potensi Rugi Rp ${formatRupiah(modalEquivalent - u.price)} per ${u.name}.`);
+      }
+      // Peringatan 2: Jika harga ecer per biji naik, dan selisih diskon renteng/dus jadi terlalu ekstrem (>35% lebih murah dari ecer)
+      else if (isPriceIncreased && u.price > 0 && ecerEquivalent > 0) {
+        const diskonPersen = Math.round(((ecerEquivalent - u.price) / ecerEquivalent) * 100);
+        if (diskonPersen >= 25) {
+          unitWarnings.push(`• Kemasan "${u.name}" (isi ${u.ratio} pcs):\nHarga eceran naik menjadi @Rp ${formatRupiah(priceSellInput)} (Total ecer: Rp ${formatRupiah(ecerEquivalent)}).\nHarga kemasan saat ini masih Rp ${formatRupiah(u.price)} (Diskon ${diskonPersen}% lebih murah dari ecer).`);
+        }
+      }
+    });
+
+    if (unitWarnings.length > 0) {
+      const confirmUpdateUnits = confirm(
+        `⚠️ PERIKSA HARGA KEMASAN (RENTENG / DUS):\n\n` +
+        `Harga eceran per pcs diatur ke Rp ${formatRupiah(priceSellInput)}.\n\n` +
+        unitWarnings.join('\n\n') +
+        `\n\nApakah Anda ingin tetap menyimpan tanpa mengubah harga kemasan? (Klik Batal jika ingin menyesuaikan harga kemasan terlebih dahulu)`);
+      if (!confirmUpdateUnits) {
+        return;
+      }
+    }
+  }
+
   const hasBox = productUnits.length > 0;
   const firstUnit = productUnits[0] || {};
   const barcodeBox = firstUnit.barcode || '';
@@ -8848,6 +8881,34 @@ function toggleBoxPackagingFields() {
   toggleMultiUnitFields();
 }
 
+function updateMultiUnitRowHint(row) {
+  if (!row) return;
+  const ratioInput = row.querySelector('.unit-ratio-input');
+  const hintEl = row.querySelector('.unit-price-calc-hint');
+  const sellPriceEl = document.getElementById('prod-price-sell');
+  const buyPriceEl = document.getElementById('prod-price-buy');
+
+  const ratio = parseFloat(ratioInput?.value) || 0;
+  const ecerSell = parseFloat(sellPriceEl?.value) || 0;
+  const ecerBuy = parseFloat(buyPriceEl?.value) || 0;
+
+  if (hintEl) {
+    if (ratio > 1 && (ecerSell > 0 || ecerBuy > 0)) {
+      const totalJualEcer = ratio * ecerSell;
+      const totalBeliEcer = ratio * ecerBuy;
+      hintEl.innerHTML = `💡 Modal: <b>Rp ${formatRupiah(totalBeliEcer)}</b> | Nilai Ecer: <b>Rp ${formatRupiah(totalJualEcer)}</b> (@Rp ${formatRupiah(ecerSell)} &times; ${ratio})`;
+      hintEl.style.display = 'block';
+    } else {
+      hintEl.style.display = 'none';
+    }
+  }
+}
+
+function updateAllMultiUnitHints() {
+  const rows = document.querySelectorAll('#multi-units-container .multi-unit-row');
+  rows.forEach(r => updateMultiUnitRowHint(r));
+}
+
 function addMultiUnitRow(name = '', ratio = '', price = '', barcode = '') {
   const container = document.getElementById('multi-units-container');
   if (!container) return;
@@ -8858,34 +8919,37 @@ function addMultiUnitRow(name = '', ratio = '', price = '', barcode = '') {
   row.style.padding = '0.65rem 0.75rem';
   row.style.borderRadius = '8px';
   row.style.border = '1px solid var(--border-color)';
-  row.style.display = 'grid';
-  row.style.gridTemplateColumns = '1.2fr 1fr 1fr 1.2fr auto';
-  row.style.gap = '0.45rem';
-  row.style.alignItems = 'center';
+  row.style.marginBottom = '0.4rem';
 
   row.innerHTML = `
-    <div>
-      <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Nama Satuan</label>
-      <input type="text" class="unit-name-input" placeholder="Renteng / Dus" value="${name}" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
+    <!-- Keterangan Otomatis Hasil Kali Harga Ecer x Isi Kemasan -->
+    <div class="unit-price-calc-hint" style="display:none; font-size:0.75rem; color:#0369a1; background:#f0f9ff; border:1px dashed #7dd3fc; border-radius:6px; padding:0.25rem 0.5rem; margin-bottom:0.45rem;">
     </div>
-    <div>
-      <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Isi (Pcs)</label>
-      <input type="number" class="unit-ratio-input" placeholder="10" min="2" value="${ratio}" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
-    </div>
-    <div>
-      <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Harga (Rp)</label>
-      <input type="number" class="unit-price-input" placeholder="18000" min="0" value="${price}" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
-    </div>
-    <div>
-      <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Barcode Satuan</label>
-      <input type="text" class="unit-barcode-input" placeholder="Scan Barcode" value="${barcode}" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
-    </div>
-    <div style="padding-top:14px;">
-      <button type="button" onclick="this.closest('.multi-unit-row').remove()" title="Hapus Satuan" style="background:#fee2e2; border:1px solid #fca5a5; color:#dc2626; border-radius:6px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; cursor:pointer;">&times;</button>
+    <div style="display:grid; grid-template-columns: 1.2fr 1fr 1fr 1.2fr auto; gap:0.45rem; align-items:center;">
+      <div>
+        <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Nama Satuan</label>
+        <input type="text" class="unit-name-input" placeholder="Renteng / Dus" value="${name}" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
+      </div>
+      <div>
+        <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Isi (Pcs)</label>
+        <input type="number" class="unit-ratio-input" placeholder="10" min="2" value="${ratio}" oninput="updateMultiUnitRowHint(this.closest('.multi-unit-row'))" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
+      </div>
+      <div>
+        <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Harga Jual (Rp)</label>
+        <input type="number" class="unit-price-input" placeholder="18000" min="0" value="${price}" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
+      </div>
+      <div>
+        <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Barcode Satuan</label>
+        <input type="text" class="unit-barcode-input" placeholder="Scan Barcode" value="${barcode}" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
+      </div>
+      <div style="padding-top:14px;">
+        <button type="button" onclick="this.closest('.multi-unit-row').remove()" title="Hapus Satuan" style="background:#fee2e2; border:1px solid #fca5a5; color:#dc2626; border-radius:6px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; cursor:pointer;">&times;</button>
+      </div>
     </div>
   `;
 
   container.appendChild(row);
+  updateMultiUnitRowHint(row);
 }
 
 function getProductMultiUnitsFromForm() {

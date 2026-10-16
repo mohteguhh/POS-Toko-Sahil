@@ -27,7 +27,7 @@
       "target": [
         "nsis"
       ],
-      "icon": "icon-512.svg"
+      "icon": "app-icon.ico"
     },
     "nsis": {
       "oneClick": false,
