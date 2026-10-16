@@ -1454,6 +1454,13 @@ async function getStoredBackupDirHandle() {
 function updateBackupFolderIndicators(state, folderName = '') {
   const banner = document.getElementById('backup-folder-warning-banner');
   const statusEl = document.getElementById('backup-folder-status');
+  const isFeatureEnabled = localStorage.getItem('kasir_enable_folder_backup') === 'true';
+
+  if (!isFeatureEnabled) {
+    if (banner) banner.style.display = 'none';
+    if (statusEl) statusEl.style.display = 'none';
+    return;
+  }
 
   if (state === 'connected') {
     if (banner) banner.style.display = 'none';
@@ -1492,6 +1499,20 @@ function updateBackupFolderIndicators(state, folderName = '') {
   }
 }
 
+function toggleFolderBackupFeature(enabled) {
+  localStorage.setItem('kasir_enable_folder_backup', enabled ? 'true' : 'false');
+  const controls = document.getElementById('folder-backup-controls');
+  if (controls) {
+    controls.style.display = enabled ? 'block' : 'none';
+  }
+  const banner = document.getElementById('backup-folder-warning-banner');
+  if (!enabled && banner) {
+    banner.style.display = 'none';
+  } else if (enabled) {
+    initAutoBackupDirHandle();
+  }
+}
+
 function dismissBackupWarningBanner() {
   const banner = document.getElementById('backup-folder-warning-banner');
   if (banner) banner.style.display = 'none';
@@ -1501,6 +1522,16 @@ function dismissBackupWarningBanner() {
 // Inisialisasi otomatis folder backup saat aplikasi dibuka
 async function initAutoBackupDirHandle() {
   try {
+    const isFeatureEnabled = localStorage.getItem('kasir_enable_folder_backup') === 'true';
+    const chk = document.getElementById('chk-enable-folder-backup');
+    const controls = document.getElementById('folder-backup-controls');
+    if (chk) chk.checked = isFeatureEnabled;
+    if (controls) controls.style.display = isFeatureEnabled ? 'block' : 'none';
+
+    if (!isFeatureEnabled) {
+      updateBackupFolderIndicators('not_connected');
+      return;
+    }
     if (typeof window !== 'undefined' && window.desktopAPI && window.desktopAPI.isDesktop) {
       const desktopFolder = localStorage.getItem('kasir_desktop_backup_folder_name');
       if (desktopFolder) {

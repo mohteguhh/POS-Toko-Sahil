@@ -2985,12 +2985,17 @@
             </div>
             <p class="settings-desc">Cocok untuk toko yang ingin 100% aman dan offline. Seluruh data kasir (produk, transaksi, piutang, nota kulak sales, pengeluaran, opname, paket bundling, pengaturan) dicadangkan secara lengkap ke file JSON.</p>
             
-            <div style="margin-bottom: 0.85rem; padding: 0.6rem 0.85rem; background: rgba(16,185,129,0.08); border-radius: 8px; border: 1px solid rgba(16,185,129,0.2); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.88rem; cursor: pointer; user-select: none; margin: 0; color: #065f46;">
-                <input type="checkbox" id="chk-auto-daily-backup" onchange="toggleAutoDailyBackup(this.checked)" checked style="width: 17px; height: 17px; cursor: pointer; accent-color: var(--color-success);">
-                <span><b>Auto-Download Salinan Harian:</b> Unduh file cadangan database otomatis 1x setiap hari ke folder komputer Anda saat aplikasi dibuka.</span>
+            <!-- TOGGLE CENTANG AKTIFKAN CADANGAN FOLDER FISIK (DEFAULT NONAKTIF) -->
+            <div style="margin-bottom: 0.85rem; padding: 0.75rem 1rem; background: #f8fafc; border-radius: 10px; border: 1.5px solid #cbd5e1; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem;">
+              <label style="display: flex; align-items: center; gap: 0.6rem; font-weight: 700; font-size: 0.9rem; cursor: pointer; user-select: none; margin: 0; color: #0f172a;">
+                <input type="checkbox" id="chk-enable-folder-backup" onchange="toggleFolderBackupFeature(this.checked)" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--color-success);">
+                <span>Aktifkan Cadangan Folder Tambahan (Flashdisk / Drive Luar)</span>
               </label>
+              <small style="color: #64748b; font-size: 0.78rem;">💡 Data utama kasir sudah otomatis tersimpan aman di sistem komputer Anda.</small>
             </div>
+
+            <!-- Kontrol Folder Backup (Hanya tampil jika dicentang) -->
+            <div id="folder-backup-controls" style="display: none;">
 
             <div class="settings-actions" style="flex-wrap: wrap; gap: 0.75rem;">
               <button class="btn btn-primary" onclick="exportFullDatabaseJSON()" style="background-color: var(--color-success); border-color: var(--color-success); display: inline-flex; align-items: center; gap: 0.4rem;">
@@ -3013,6 +3018,7 @@
             <small style="color: var(--text-muted); font-size: 0.78rem; display: block; margin-top: 0.6rem;">
               📁 File backup diberi nama <b>database-(nama toko)-DD-MM-YYYY.json</b> dan tersimpan di folder <i>backup database</i>.
             </small>
+            </div>
           </div>
 
           <!-- KARTU FIREBASE DENGAN TOGGLE CENTANG -->
