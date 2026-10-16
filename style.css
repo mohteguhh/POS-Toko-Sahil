@@ -3821,6 +3821,15 @@ body.print-format-html #receipt-text-content {
   body * {
     visibility: hidden;
   }
+
+  /* Sembunyikan shell aplikasi utama saat print agar tidak memakan ruang halaman pertama */
+  .app-container,
+  .modal-overlay:not(#receipt-modal),
+  .camera-scanner-wrapper,
+  .toast,
+  #device-activation-modal {
+    display: none !important;
+  }
   
   /* 1. Jika mencetak struk thermal kasir */
   body.printing-receipt #receipt-modal, 
@@ -3828,10 +3837,10 @@ body.print-format-html #receipt-text-content {
     visibility: visible;
   }
   body.printing-receipt #receipt-modal {
-    position: absolute;
+    position: static !important;
     left: 0;
     top: 0;
-    width: 100%;
+    width: 100% !important;
     background-color: #ffffff;
     display: block !important;
     padding: 0;
@@ -3911,10 +3920,11 @@ body.print-format-html #receipt-text-content {
   }
   body.printing-daily-report #daily-report-print-area {
     position: static !important;
+    margin: 0 !important;
     width: 100% !important;
     background-color: #ffffff !important;
     display: block !important;
-    padding: 10mm !important;
+    padding: 5mm !important;
     font-family: monospace;
     page-break-after: auto;
   }
@@ -3940,10 +3950,11 @@ body.print-format-html #receipt-text-content {
   }
   body.printing-rack-report #rack-report-print-area {
     position: static !important;
+    margin: 0 !important;
     width: 100% !important;
     background-color: #ffffff !important;
     display: block !important;
-    padding: 10mm !important;
+    padding: 5mm !important;
     font-family: monospace;
     page-break-after: auto;
   }

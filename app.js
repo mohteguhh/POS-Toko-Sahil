@@ -12595,13 +12595,15 @@ function updateShiftStatusUI() {
   const currentStaffShift = getStaffActiveShift(activeCashier);
   
   if (currentStaffShift) {
-    btnText.textContent = `Shift: Aktif (${activeCashier})`;
+    btnText.textContent = `Shift Aktif`;
+    btnStatus.title = `Shift Aktif: ${activeCashier}`;
     btnStatus.style.borderColor = '#16a34a';
     btnStatus.style.color = '#16a34a';
     btnStatus.style.background = 'rgba(22, 163, 74, 0.08)';
     btnStatus.style.boxShadow = '0 0 10px rgba(22, 163, 74, 0.2)';
   } else {
-    btnText.textContent = `Buka Shift (${activeCashier || 'Kasir'})`;
+    btnText.textContent = `Buka Shift`;
+    btnStatus.title = `Buka Shift (${activeCashier || 'Kasir'})`;
     btnStatus.style.borderColor = 'var(--border-color)';
     btnStatus.style.color = 'var(--text-main)';
     btnStatus.style.background = 'var(--bg-surface-elevated)';
