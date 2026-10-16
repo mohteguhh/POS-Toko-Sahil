@@ -5144,9 +5144,17 @@ function renderFloatingDropdown() {
     
     let priceText = `<span class="badge-buy-price">Beli: Rp ${formatRupiah(p.harga_beli || 0)}</span><span class="badge-sell-price">Jual: Rp ${formatRupiah(p.harga_jual)}</span>`;
     let boxBtnHtml = '';
-    if ((parseInt(p.isi_box) || 0) > 1 && (parseFloat(p.harga_box) || 0) > 0) {
+    const prodIndex = products.findIndex(pr => pr.id === p.id);
+
+    if (Array.isArray(p.units) && p.units.length > 0) {
+      p.units.forEach((u, uIdx) => {
+        if (u.ratio > 1 && u.price > 0) {
+          priceText += ` <span class="badge-box-price" style="background:#e0f2fe; color:#0369a1; border-color:#bae6fd;">📦 1 ${u.name} (${u.ratio} pcs): Rp ${formatRupiah(u.price)}</span>`;
+          boxBtnHtml += `<button type="button" class="btn btn-sm btn-box-add" onclick="event.stopPropagation(); addBoxToCartByProductIndex(${prodIndex}, ${uIdx}); document.getElementById('search-input').value=''; closeFloatingResults(); focusSearchInput();" title="Tambah 1 ${u.name} (isi ${u.ratio} pcs)">+ 1 ${u.name}</button> `;
+        }
+      });
+    } else if ((parseInt(p.isi_box) || 0) > 1 && (parseFloat(p.harga_box) || 0) > 0) {
       priceText += ` <span class="badge-box-price">📦 1 ${p.nama_box || 'Kotak'} (${p.isi_box} pcs): Rp ${formatRupiah(p.harga_box)}</span>`;
-      const prodIndex = products.findIndex(pr => pr.id === p.id);
       boxBtnHtml = `<button type="button" class="btn btn-sm btn-box-add" onclick="event.stopPropagation(); addBoxToCartByProductIndex(${prodIndex}); document.getElementById('search-input').value=''; closeFloatingResults(); focusSearchInput();" title="Tambah 1 ${p.nama_box || 'Kotak'}">+ 1 ${p.nama_box || 'Kotak'}</button>`;
     }
     if (p.grosir_qty > 0 && p.grosir_harga > 0) {
@@ -5442,89 +5450,87 @@ function calculateCartItemPricing(localProd, totalQty) {
     }
   }
   
-  // 2. Harga Bertingkat Dus/Kotak & Aturan Grosir
-  let isBoxPackaging = false;
-  let boxUnitName = "";
-  let boxMinQty = 0;
-  let boxPrice = 0;
-  
-  const isiBox = parseInt(localProd.isi_box) || 0;
-  const hargaBox = parseFloat(localProd.harga_box) || 0;
-  const grosirQty = parseInt(localProd.grosir_qty) || 0;
-  const grosirHarga = parseFloat(localProd.grosir_harga) || 0;
-  
-  if (isiBox > 1 && hargaBox > 0) {
-    // Produk memang memiliki fitur kemasan kotak/dus
-    isBoxPackaging = true;
-    boxUnitName = localProd.nama_box || "Dus";
-    boxMinQty = isiBox;
-    boxPrice = hargaBox;
-  } else if (grosirQty > 1 && grosirHarga > 0) {
-    // Murni aturan harga khusus / grosir per quantity (bukan kemasan dus)
-    isBoxPackaging = false;
-    boxUnitName = "Grosir";
-    boxMinQty = grosirQty;
-    boxPrice = grosirHarga;
+  // 2. Harga Bertingkat Multi-Satuan (Didukung Renteng, Pack, Dus bertingkat secara otomatis)
+  let availableTiers = [];
+
+  if (Array.isArray(localProd.units) && localProd.units.length > 0) {
+    localProd.units.forEach(u => {
+      if (u.ratio > 1 && u.price > 0) {
+        availableTiers.push({
+          name: u.name || 'Kemasan',
+          ratio: parseInt(u.ratio),
+          price: parseFloat(u.price),
+          isUnit: true
+        });
+      }
+    });
+  } else if ((parseInt(localProd.isi_box) || 0) > 1 && (parseFloat(localProd.harga_box) || 0) > 0) {
+    availableTiers.push({
+      name: localProd.nama_box || 'Dus',
+      ratio: parseInt(localProd.isi_box),
+      price: parseFloat(localProd.harga_box),
+      isUnit: true
+    });
+  } else if ((parseInt(localProd.grosir_qty) || 0) > 1 && (parseFloat(localProd.grosir_harga) || 0) > 0) {
+    availableTiers.push({
+      name: 'Grosir',
+      ratio: parseInt(localProd.grosir_qty),
+      price: parseFloat(localProd.grosir_harga),
+      isUnit: false
+    });
   }
-  
-  result.isBoxPackaging = isBoxPackaging;
-  result.boxUnitName = boxUnitName;
-  result.boxMinQty = boxMinQty;
-  
-  const hasBoxTier = boxMinQty > 1 && boxPrice > 0;
+
+  // Urutkan tier dari isi terbesar ke terkecil (Contoh: Dus isi 24 dulu, baru Renteng isi 4)
+  availableTiers.sort((a, b) => b.ratio - a.ratio);
+
   let subtotal = 0;
-  
-  if (hasBoxTier && paidQty >= boxMinQty) {
-    const packages = Math.floor(paidQty / boxMinQty);
-    const remaining = paidQty % boxMinQty;
-    const boxTotal = packages * boxPrice;
-    
-    result.grosirPackages = packages;
-    result.grosirRemaining = remaining;
-    result.grosirTotal = boxTotal;
-    
-    // Remaining items unit pricing (cek promo diskon satuan jika ada)
+  let remainingQty = paidQty;
+  let appliedTierDescriptions = [];
+
+  if (availableTiers.length > 0) {
+    availableTiers.forEach(tier => {
+      if (remainingQty >= tier.ratio) {
+        const count = Math.floor(remainingQty / tier.ratio);
+        remainingQty = remainingQty % tier.ratio;
+        const tierCost = count * tier.price;
+        subtotal += tierCost;
+        appliedTierDescriptions.push(`${count} ${tier.name} (${count * tier.ratio} pcs = Rp ${formatRupiah(tierCost)})`);
+      }
+    });
+
+    if (appliedTierDescriptions.length > 0) {
+      result.isBoxPackaging = true;
+      const remText = remainingQty > 0 ? ` + ${remainingQty} pcs eceran` : '';
+      result.badges.push({
+        type: 'grosir',
+        text: `📦 Harga Bertingkat: ${appliedTierDescriptions.join(' + ')}${remText}`
+      });
+      result.promoInfo = appliedTierDescriptions.join(' + ') + remText;
+    }
+  }
+
+  // Hitung sisa item yang belum masuk ke satuan bertingkat (eceran)
+  if (remainingQty > 0) {
     const hargaDiskon = parseFloat(localProd.harga_diskon) || 0;
     const kuotaDiskon = (parseInt(localProd.kuota_diskon) || 0) > 0 ? parseInt(localProd.kuota_diskon) : Infinity;
-    let remTotal = 0;
-    if (appConfig.enablePromo && hargaDiskon > 0 && remaining > 0) {
-      const pQty = Math.min(remaining, kuotaDiskon);
-      const rQty = remaining - pQty;
-      remTotal = (pQty * hargaDiskon) + (rQty * basePrice);
+    if (appConfig.enablePromo && hargaDiskon > 0) {
+      const pQty = Math.min(remainingQty, kuotaDiskon);
+      const rQty = remainingQty - pQty;
+      subtotal += (pQty * hargaDiskon) + (rQty * basePrice);
     } else {
-      remTotal = remaining * basePrice;
+      subtotal += remainingQty * basePrice;
     }
-    
-    subtotal = boxTotal + remTotal;
-    
-    let pkgText = "";
-    if (isBoxPackaging) {
-      pkgText = packages > 1 ? `${packages} ${boxUnitName}` : `1 ${boxUnitName}`;
-    } else {
-      pkgText = `Grosir (${packages * boxMinQty} pcs)`;
-    }
-    const remText = remaining > 0 ? ` + ${remaining} pcs eceran` : '';
-    
-    result.badges.push({
-      type: 'grosir',
-      text: isBoxPackaging 
-        ? `📦 Harga ${pkgText} (${packages * boxMinQty} pcs = Rp ${formatRupiah(boxTotal)})${remText}`
-        : `🏷️ Harga Grosir (${packages * boxMinQty} pcs = Rp ${formatRupiah(boxTotal)})${remText}`
-    });
-    if (!result.promoInfo) {
-      result.promoInfo = isBoxPackaging ? `${pkgText}${remText}` : `Grosir ${packages * boxMinQty} pcs${remText}`;
-    }
-  } else {
-    // Belum mencapai kuota dus / grosir
-    if (hasBoxTier && paidQty < boxMinQty) {
-      const needMore = boxMinQty - paidQty;
+
+    // Jika belum mencapai tier terendah sama sekali, berikan info kurang berapa pcs lagi
+    if (appliedTierDescriptions.length === 0 && availableTiers.length > 0) {
+      const lowestTier = availableTiers[availableTiers.length - 1];
+      const needMore = lowestTier.ratio - paidQty;
       result.badges.push({
         type: 'info',
-        text: isBoxPackaging
-          ? `📦 1 ${boxUnitName} isi ${boxMinQty} = Rp ${formatRupiah(boxPrice)} (Kurang ${needMore} pcs lagi)`
-          : `🏷️ Grosir min. ${boxMinQty} pcs = Rp ${formatRupiah(boxPrice)} (Kurang ${needMore} pcs lagi)`
+        text: `💡 Beli min. ${lowestTier.ratio} pcs (${lowestTier.name}) = Rp ${formatRupiah(lowestTier.price)} (Kurang ${needMore} pcs lagi)`
       });
     }
+  }
     
     // Unit pricing dengan diskon langsung (jika ada)
     const hargaDiskon = parseFloat(localProd.harga_diskon) || 0;
