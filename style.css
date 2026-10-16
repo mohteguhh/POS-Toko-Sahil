@@ -3802,15 +3802,27 @@ body.print-format-html #receipt-text-content {
 /* --- PRINTING CSS (FITUR BARU) --- */
 @media print {
   @page {
-    margin: 0;
-    size: 58mm auto;
+    margin: 5mm;
+    size: auto;
+  }
+
+  body.printing-receipt {
+    /* Struk kasir tetap format gulungan struk kecil */
+  }
+
+  /* Reset layout agar browser bisa mencetak halaman berikutnya (multi-page) */
+  html, body {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 100% !important;
+    background: #ffffff !important;
   }
   
   body * {
     visibility: hidden;
   }
   
-  /* Jika mencetak struk */
+  /* 1. Jika mencetak struk thermal kasir */
   body.printing-receipt #receipt-modal, 
   body.printing-receipt #receipt-modal * {
     visibility: visible;
@@ -3832,7 +3844,7 @@ body.print-format-html #receipt-text-content {
     width: 100% !important; /* Stretches to full page width automatically */
     max-width: 100% !important;
     max-height: none;
-    overflow: hidden;
+    overflow: visible !important;
     box-sizing: border-box;
     color: #000;
     background: #fff;
@@ -3892,23 +3904,28 @@ body.print-format-html #receipt-text-content {
     word-break: normal !important;
   }
   
-  /* Jika mencetak laporan harian */
+  /* 2. Jika mencetak laporan harian kasir */
   body.printing-daily-report #daily-report-print-area,
   body.printing-daily-report #daily-report-print-area * {
     visibility: visible;
   }
   body.printing-daily-report #daily-report-print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    background-color: #ffffff;
+    position: static !important;
+    width: 100% !important;
+    background-color: #ffffff !important;
     display: block !important;
-    padding: 1.5rem;
+    padding: 10mm !important;
     font-family: monospace;
+    page-break-after: auto;
   }
   body.printing-daily-report .daily-report-print-area table {
     border-collapse: collapse;
+    width: 100%;
+    page-break-inside: auto;
+  }
+  body.printing-daily-report .daily-report-print-area tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
   }
   body.printing-daily-report .daily-report-print-area th,
   body.printing-daily-report .daily-report-print-area td {
@@ -3916,28 +3933,36 @@ body.print-format-html #receipt-text-content {
     padding: 0.35rem 0;
   }
 
-  /* Jika mencetak laporan isi rak */
+  /* 3. Jika mencetak laporan daftar barang di rak (Bisa Ratusan Produk Multi-Page) */
   body.printing-rack-report #rack-report-print-area,
   body.printing-rack-report #rack-report-print-area * {
     visibility: visible;
   }
   body.printing-rack-report #rack-report-print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    background-color: #ffffff;
+    position: static !important;
+    width: 100% !important;
+    background-color: #ffffff !important;
     display: block !important;
-    padding: 1.5rem;
+    padding: 10mm !important;
     font-family: monospace;
+    page-break-after: auto;
   }
   body.printing-rack-report .rack-report-print-area table {
     border-collapse: collapse;
+    width: 100% !important;
+    page-break-inside: auto;
+  }
+  body.printing-rack-report .rack-report-print-area thead {
+    display: table-header-group !important; /* Header tabel otomatis berulang di setiap lembar kertas */
+  }
+  body.printing-rack-report .rack-report-print-area tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
   }
   body.printing-rack-report .rack-report-print-area th,
   body.printing-rack-report .rack-report-print-area td {
     border: none;
-    padding: 0.35rem 0;
+    padding: 0.35rem 0.25rem;
   }
   
   .no-print {
@@ -4411,13 +4436,13 @@ body.print-format-html #receipt-text-content {
     visibility: visible;
   }
   body.printing-labels #labels-print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    background-color: #ffffff;
+    position: static !important;
+    width: 100% !important;
+    background-color: #ffffff !important;
     display: block !important;
     padding: 0;
+    overflow: visible !important;
+    page-break-after: auto;
   }
 }
 
