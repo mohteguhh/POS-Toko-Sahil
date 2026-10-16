@@ -15408,6 +15408,13 @@ function openAddSalesDeliveryModal() {
     modal.classList.add('active');
     modal.style.display = 'flex';
   }
+
+  // Bersihkan dan beri fokus otomatis ke input scan barcode
+  const barcodeInput = document.getElementById('delivery-barcode-input');
+  if (barcodeInput) {
+    barcodeInput.value = '';
+    setTimeout(() => { barcodeInput.focus(); }, 150);
+  }
 }
 
 function editSalesDelivery(deliveryId) {
@@ -15665,14 +15672,32 @@ function addScannedProductToDelivery(barcodeOrCode) {
     existingRow.style.background = 'rgba(2, 132, 199, 0.15)';
     setTimeout(() => { existingRow.style.background = ''; }, 600);
   } else {
-    // Tambah baris baru dengan data produk ini
-    addDeliveryItemRow({
-      productId: String(prod.id),
-      qty: 1,
-      hargaBeli: prod.harga_beli || 0,
-      hargaJual: prod.harga_jual || prod.harga || 0,
-      expired: prod.tanggal_kadaluarsa || ''
-    });
+    // Cek apakah ada baris kosong pertama yang belum dipilih produknya (-- Pilih Produk --)
+    let emptyRow = null;
+    for (let r of rows) {
+      const sel = r.querySelector('.delivery-item-prod-select');
+      if (sel && !sel.value) {
+        emptyRow = r;
+        break;
+      }
+    }
+
+    if (emptyRow) {
+      const sel = emptyRow.querySelector('.delivery-item-prod-select');
+      if (sel) {
+        sel.value = String(prod.id);
+        onDeliveryItemSelectChanged(sel);
+      }
+    } else {
+      // Tambah baris baru dengan data produk ini
+      addDeliveryItemRow({
+        productId: String(prod.id),
+        qty: 1,
+        hargaBeli: prod.harga_beli || 0,
+        hargaJual: prod.harga_jual || prod.harga || 0,
+        expired: prod.tanggal_kadaluarsa || ''
+      });
+    }
   }
 
   playBeep();
