@@ -8761,18 +8761,21 @@ function saveProduct(event) {
   // Fitur Kemasan Multi-Unit (Didukung Array Multi-Satuan Bertingkat: Pcs / Renteng / Pack / Dus)
   const productUnits = getProductMultiUnitsFromForm();
 
-  // Validasi & Peringatan Otomatis: Jika harga ecer naik atau harga renteng/dus tertinggal terlalu murah
+  // Validasi Ketat: TOLAK MENYIMPAN jika harga jual dus/renteng di bawah modal beli (PASTI RUGI)
   if (productUnits.length > 0) {
+    const rugiErrors = [];
     const unitWarnings = [];
-    productUnits.forEach(u => {
-      const ecerEquivalent = u.ratio * priceSellInput;
-      const modalEquivalent = u.ratio * priceBuyInput;
 
-      // Peringatan 1: Jika harga jual dus/renteng lebih murah daripada modal beli
+    productUnits.forEach(u => {
+      const modalEquivalent = u.ratio * priceBuyInput;
+      const ecerEquivalent = u.ratio * priceSellInput;
+
+      // 1. TOLAK MUTLAK: Harga jual kemasan < modal beli
       if (u.price < modalEquivalent) {
-        unitWarnings.push(`• Kemasan "${u.name}" (isi ${u.ratio} pcs):\nHarga jual kemasan Rp ${formatRupiah(u.price)} LEBIH RENDAH dari modal beli Rp ${formatRupiah(modalEquivalent)}! Potensi Rugi Rp ${formatRupiah(modalEquivalent - u.price)} per ${u.name}.`);
+        const rugiPerUnit = modalEquivalent - u.price;
+        rugiErrors.push(`• Kemasan "${u.name}" (isi ${u.ratio} pcs):\nHarga Jual Kemasan: Rp ${formatRupiah(u.price)}\nModal Beli: Rp ${formatRupiah(priceBuyInput)} × ${u.ratio} = Rp ${formatRupiah(modalEquivalent)}\n⛔ POTENSI RUGI Rp ${formatRupiah(rugiPerUnit)} per ${u.name}!`);
       }
-      // Peringatan 2: Jika harga ecer per biji naik, dan selisih diskon renteng/dus jadi terlalu ekstrem (>35% lebih murah dari ecer)
+      // 2. PERINGATAN: Kenaikan harga eceran tertinggal jauh dengan harga kemasan
       else if (isPriceIncreased && u.price > 0 && ecerEquivalent > 0) {
         const diskonPersen = Math.round(((ecerEquivalent - u.price) / ecerEquivalent) * 100);
         if (diskonPersen >= 25) {
@@ -8780,6 +8783,16 @@ function saveProduct(event) {
         }
       }
     });
+
+    if (rugiErrors.length > 0) {
+      alert(
+        `⛔ GAGAL MENYIMPAN PRODUK (HARGA RUGI DITOLAK):\n\n` +
+        `Harga jual satuan kemasan (renteng/dus) TIDAK BOLEH lebih rendah daripada modal beli toko!\n\n` +
+        rugiErrors.join('\n\n') +
+        `\n\nSilakan naikkan harga kemasan tersebut terlebih dahulu agar toko tidak merugi!`
+      );
+      return;
+    }
 
     if (unitWarnings.length > 0) {
       const confirmUpdateUnits = confirm(
@@ -8884,19 +8897,40 @@ function toggleBoxPackagingFields() {
 function updateMultiUnitRowHint(row) {
   if (!row) return;
   const ratioInput = row.querySelector('.unit-ratio-input');
+  const priceInput = row.querySelector('.unit-price-input');
+  const nameInput = row.querySelector('.unit-name-input');
   const hintEl = row.querySelector('.unit-price-calc-hint');
-  const sellPriceEl = document.getElementById('prod-price-sell');
   const buyPriceEl = document.getElementById('prod-price-buy');
+  const sellPriceEl = document.getElementById('prod-price-sell');
 
   const ratio = parseFloat(ratioInput?.value) || 0;
-  const ecerSell = parseFloat(sellPriceEl?.value) || 0;
+  const unitPrice = parseFloat(priceInput?.value) || 0;
+  const unitName = nameInput?.value.trim() || 'kemasan';
   const ecerBuy = parseFloat(buyPriceEl?.value) || 0;
+  const ecerSell = parseFloat(sellPriceEl?.value) || 0;
 
   if (hintEl) {
-    if (ratio > 1 && (ecerSell > 0 || ecerBuy > 0)) {
-      const totalJualEcer = ratio * ecerSell;
+    if (ratio > 1 && (ecerBuy > 0 || unitPrice > 0)) {
       const totalBeliEcer = ratio * ecerBuy;
-      hintEl.innerHTML = `💡 Modal: <b>Rp ${formatRupiah(totalBeliEcer)}</b> | Nilai Ecer: <b>Rp ${formatRupiah(totalJualEcer)}</b> (@Rp ${formatRupiah(ecerSell)} &times; ${ratio})`;
+      let text = `💡 Modal: Rp ${formatRupiah(ecerBuy)} &times; ${ratio} = <b>Rp ${formatRupiah(totalBeliEcer)}</b>`;
+
+      if (unitPrice > 0) {
+        const ketemuPerPcs = Math.round(unitPrice / ratio);
+        const marginPerUnit = unitPrice - totalBeliEcer;
+        const color = marginPerUnit >= 0 ? '#0284c7' : '#dc2626';
+        
+        text += ` &nbsp;|&nbsp; Jual 1 ${unitName}: Rp ${formatRupiah(unitPrice)} : ${ratio} pcs = <b style="color:${color};">Rp ${formatRupiah(ketemuPerPcs)}/pcs</b>`;
+        if (marginPerUnit < 0) {
+          text += ` <span style="color:#dc2626; font-weight:800;">(⛔ RUGI Rp ${formatRupiah(Math.abs(marginPerUnit))})</span>`;
+        } else {
+          text += ` <span style="color:#059669; font-weight:700;">(Laba: Rp ${formatRupiah(marginPerUnit)})</span>`;
+        }
+      } else {
+        const ecerEquivalent = ratio * ecerSell;
+        text += ` &nbsp;|&nbsp; Nilai Ecer: <b>Rp ${formatRupiah(ecerEquivalent)}</b> (@Rp ${formatRupiah(ecerSell)} &times; ${ratio})`;
+      }
+
+      hintEl.innerHTML = text;
       hintEl.style.display = 'block';
     } else {
       hintEl.style.display = 'none';
@@ -8928,7 +8962,7 @@ function addMultiUnitRow(name = '', ratio = '', price = '', barcode = '') {
     <div style="display:grid; grid-template-columns: 1.2fr 1fr 1fr 1.2fr auto; gap:0.45rem; align-items:center;">
       <div>
         <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Nama Satuan</label>
-        <input type="text" class="unit-name-input" placeholder="Renteng / Dus" value="${name}" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
+        <input type="text" class="unit-name-input" placeholder="Renteng / Dus" value="${name}" oninput="updateMultiUnitRowHint(this.closest('.multi-unit-row'))" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
       </div>
       <div>
         <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Isi (Pcs)</label>
@@ -8936,7 +8970,7 @@ function addMultiUnitRow(name = '', ratio = '', price = '', barcode = '') {
       </div>
       <div>
         <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Harga Jual (Rp)</label>
-        <input type="number" class="unit-price-input" placeholder="18000" min="0" value="${price}" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
+        <input type="number" class="unit-price-input" placeholder="18000" min="0" value="${price}" oninput="updateMultiUnitRowHint(this.closest('.multi-unit-row'))" style="width:100%; padding:0.4rem; font-size:0.85rem; border:1px solid var(--border-color); border-radius:6px;">
       </div>
       <div>
         <label style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:2px;">Barcode Satuan</label>
