@@ -8903,15 +8903,10 @@ function toggleMultiUnitFields() {
   const chk = document.getElementById('chk-prod-enable-box');
   const fields = document.getElementById('prod-box-fields');
   const addBtn = document.getElementById('btn-add-unit-tier');
-  const container = document.getElementById('multi-units-container');
   const isEnabled = chk ? chk.checked : false;
 
   if (fields) fields.style.display = isEnabled ? 'flex' : 'none';
   if (addBtn) addBtn.style.display = isEnabled ? 'inline-block' : 'none';
-
-  if (isEnabled && container && container.children.length === 0) {
-    addMultiUnitRow('Dus', 12, 0, '');
-  }
 }
 
 function toggleBoxPackagingFields() {
