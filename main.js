@@ -28,10 +28,61 @@ function getHardwareId() {
   }
 }
 
+// Rahasia Master Salt (Hanya diketahui oleh Pemilik Aplikasi / Developer)
+const MASTER_SALT = 'SAHIL_POS_SECURE_AUTH_2026_ANTI_PIRACY_KEY';
+
+// Generator Activation Key Resmi berdasarkan Hardware ID
+function generateActivationKey(hwid) {
+  if (!hwid) return '';
+  const cleanHwid = String(hwid).trim().toUpperCase();
+  const hash = crypto.createHmac('sha256', MASTER_SALT).update(cleanHwid).digest('hex').toUpperCase();
+  // Format cantik: AKT-XXXX-XXXX-XXXX
+  return `AKT-${hash.substring(0, 4)}-${hash.substring(4, 8)}-${hash.substring(8, 12)}`;
+}
+
 // 2. Folder Database Lokal & Folder Patch Pembaruan di UserData (AppData)
 const userDataPath = app.getPath('userData');
 const dbFilePath = path.join(userDataPath, 'kasir_local_database.json');
 const updatesDir = path.join(userDataPath, 'app_updates');
+const activationFilePath = path.join(userDataPath, 'device_activation.json');
+
+function checkDeviceActivation() {
+  try {
+    const hwid = getHardwareId();
+    const validKey = generateActivationKey(hwid);
+    
+    if (fs.existsSync(activationFilePath)) {
+      const data = JSON.parse(fs.readFileSync(activationFilePath, 'utf8'));
+      if (data && data.activationKey && data.activationKey.trim().toUpperCase() === validKey) {
+        return { isActivated: true, hwid: hwid };
+      }
+    }
+    return { isActivated: false, hwid: hwid };
+  } catch (e) {
+    return { isActivated: false, hwid: getHardwareId() };
+  }
+}
+
+function saveDeviceActivation(inputKey) {
+  try {
+    const hwid = getHardwareId();
+    const validKey = generateActivationKey(hwid);
+    const cleanKey = String(inputKey).trim().toUpperCase();
+
+    if (cleanKey === validKey) {
+      fs.writeFileSync(activationFilePath, JSON.stringify({
+        hwid: hwid,
+        activationKey: cleanKey,
+        activatedAt: new Date().toISOString()
+      }, null, 2), 'utf8');
+      return { success: true, message: 'Aktivasi perangkat berhasil!' };
+    } else {
+      return { success: false, message: 'Kunci aktivasi salah atau tidak sesuai untuk perangkat ini!' };
+    }
+  } catch (err) {
+    return { success: false, message: err.message };
+  }
+}
 
 // Pastikan folder updates tersedia
 if (!fs.existsSync(updatesDir)) {
@@ -56,56 +107,6 @@ function writeLocalDb(data) {
     return { success: true };
   } catch (err) {
     console.error('Gagal menulis db lokal:', err);
-    return { success: false, error: err.message };
-  }
-}
-
-// 3. Sistem Lisensi Hardware Komputer Tunggal (Single-PC Hardware Lock)
-const licenseLockFilePath = path.join(userDataPath, 'kasir_device_lock.json');
-
-function getMachineLockStatus() {
-  const currentHwid = getHardwareId();
-  try {
-    if (fs.existsSync(licenseLockFilePath)) {
-      const lockData = JSON.parse(fs.readFileSync(licenseLockFilePath, 'utf8'));
-      if (lockData && lockData.registeredHwid) {
-        if (lockData.registeredHwid === currentHwid) {
-          return { locked: true, authorized: true, hwid: currentHwid, registeredHwid: lockData.registeredHwid, lockedAt: lockData.lockedAt };
-        } else {
-          return { locked: true, authorized: false, hwid: currentHwid, registeredHwid: lockData.registeredHwid, lockedAt: lockData.lockedAt };
-        }
-      }
-    }
-  } catch (e) {
-    console.error('Gagal membaca device lock:', e);
-  }
-  // Belum pernah dikunci (Komputer pertama akan mengunci otomatis)
-  return { locked: false, authorized: true, hwid: currentHwid, registeredHwid: null };
-}
-
-function lockCurrentMachine() {
-  const currentHwid = getHardwareId();
-  try {
-    const lockData = {
-      registeredHwid: currentHwid,
-      lockedAt: new Date().toISOString(),
-      machineName: os.hostname(),
-      platform: os.platform()
-    };
-    fs.writeFileSync(licenseLockFilePath, JSON.stringify(lockData, null, 2), 'utf8');
-    return { success: true, hwid: currentHwid, message: 'Komputer ini berhasil didaftarkan sebagai komputer resmi utama.' };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-}
-
-function resetMachineLock() {
-  try {
-    if (fs.existsSync(licenseLockFilePath)) {
-      fs.unlinkSync(licenseLockFilePath);
-    }
-    return { success: true, message: 'Kunci komputer berhasil di-reset.' };
-  } catch (err) {
     return { success: false, error: err.message };
   }
 }
@@ -270,17 +271,14 @@ ipcMain.handle('save-backup-file', async (event, fileName, content) => {
   }
 });
 
-// 9. Status & Aksi Kunci Komputer Tunggal (Single-PC Lock)
-ipcMain.handle('get-machine-lock-status', () => {
-  return getMachineLockStatus();
+// 9. Cek Status Aktivasi Perangkat
+ipcMain.handle('check-device-activation', () => {
+  return checkDeviceActivation();
 });
 
-ipcMain.handle('lock-current-machine', () => {
-  return lockCurrentMachine();
-});
-
-ipcMain.handle('reset-machine-lock', () => {
-  return resetMachineLock();
+// 10. Verifikasi & Simpan Kunci Aktivasi Perangkat
+ipcMain.handle('activate-device', (event, activationKey) => {
+  return saveDeviceActivation(activationKey);
 });
 
 

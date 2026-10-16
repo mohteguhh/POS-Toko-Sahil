@@ -20804,6 +20804,9 @@ async function initDesktopIntegration() {
       if (hwElem) hwElem.textContent = currentHardwareId;
       console.log('💻 Mode Desktop Aktif. Hardware ID:', currentHardwareId);
 
+      // Cek Status Aktivasi Mesin (Anti-Bajak / Anti-Jual Kembali)
+      await checkDeviceActivationStatus();
+
       // 2. Load Local Database dari Electron File System (Jika ada data tersimpan)
       const localDiskData = await window.desktopAPI.readLocalDb();
       if (localDiskData && Object.keys(localDiskData).length > 0) {
@@ -20815,10 +20818,7 @@ async function initDesktopIntegration() {
         }
       }
 
-      // 3. Verifikasi Penguncian 1 Komputer Resmi (Single-PC Machine Lock)
-      await verifySingleMachineLock();
-
-      // 4. Pasang Auto-Save berkala ke File Disk Electron (Setiap 5 detik jika ada perubahan)
+      // 3. Pasang Auto-Save berkala ke File Disk Electron (Setiap 5 detik jika ada perubahan)
       setInterval(async () => {
         try {
           const snapshot = {};
@@ -20849,73 +20849,84 @@ async function initDesktopIntegration() {
   }
 }
 
-// ─── VERIFIKASI PENGUNCIAN 1 KOMPUTER TUNGGAL ───────────────────────────────
-async function verifySingleMachineLock() {
-  if (!window.desktopAPI || !window.desktopAPI.getMachineLockStatus) return;
-
+// ─── LOGIKA KUNCI AKTIVASI PERANGKAT (ANTI-PIRACY) ──────────────────────────
+async function checkDeviceActivationStatus() {
+  if (!window.desktopAPI || !window.desktopAPI.checkDeviceActivation) return true;
   try {
-    const lockStatus = await window.desktopAPI.getMachineLockStatus();
-    console.log('🔒 Status Lisensi Komputer:', lockStatus);
-
-    if (!lockStatus.locked) {
-      // Komputer PERTAMA yang membuka aplikasi: Otomatis kunci ke komputer ini!
-      console.log('🔐 Mengunci lisensi secara otomatis ke komputer pertama ini:', currentHardwareId);
-      const lockRes = await window.desktopAPI.lockCurrentMachine();
-      if (lockRes && lockRes.success) {
-        console.log('✅ Komputer ini berhasil dikunci sebagai komputer tunggal resmi.');
-      }
-      return;
-    }
-
-    // Jika sudah pernah dikunci sebelumnya: Cek apakah komputer ini adalah komputer yang berhak
-    if (!lockStatus.authorized) {
-      console.error(`⛔ AKSES DITOLAK: Komputer ini (${lockStatus.hwid}) berbeda dengan komputer resmi (${lockStatus.registeredHwid})`);
-      showDeviceLockScreen(lockStatus.hwid, lockStatus.registeredHwid);
+    const res = await window.desktopAPI.checkDeviceActivation();
+    const modal = document.getElementById('device-activation-modal');
+    const hwidDisplay = document.getElementById('activation-modal-hwid');
+    
+    if (res && res.isActivated) {
+      if (modal) modal.style.display = 'none';
+      return true;
+    } else {
+      if (hwidDisplay) hwidDisplay.textContent = res.hwid || currentHardwareId;
+      if (modal) modal.style.display = 'flex';
+      return false;
     }
   } catch (err) {
-    console.error('Error saat verifikasi kunci komputer:', err);
+    console.error('Gagal memeriksa status aktivasi:', err);
+    return true;
   }
 }
 
-function showDeviceLockScreen(currentHwid, registeredHwid) {
-  const overlay = document.getElementById('device-lock-screen');
-  const thisHwEl = document.getElementById('lock-screen-this-hwid');
-  const regHwEl = document.getElementById('lock-screen-registered-hwid');
-
-  if (thisHwEl) thisHwEl.textContent = currentHwid || '-';
-  if (regHwEl) regHwEl.textContent = registeredHwid || '-';
-  if (overlay) overlay.style.display = 'flex';
-
-  // Blokir scroll dan keyboard
-  document.body.style.overflow = 'hidden';
+function copyActivationModalHwid() {
+  const hwid = document.getElementById('activation-modal-hwid')?.textContent.trim() || currentHardwareId;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(hwid).then(() => {
+      alert('Hardware ID berhasil disalin ke clipboard:\n' + hwid);
+    }).catch(() => {
+      alert('Hardware ID: ' + hwid);
+    });
+  } else {
+    alert('Hardware ID: ' + hwid);
+  }
 }
 
-function contactAdminWhatsAppForDeviceReset() {
-  const storeName = receiptSettings.name || 'Toko Sahil';
-  const thisHwid = currentHardwareId;
-  const text = `Halo Developer, saya pemilik ${encodeURIComponent(storeName)}. Saya ingin meminta reset / pemindahan lisensi aplikasi kasir ke komputer baru:%0A%0A• Nama Toko: ${encodeURIComponent(storeName)}%0A• Hardware ID Komputer Baru: ${encodeURIComponent(thisHwid)}%0A%0AMohon bantuan otorisasi komputer ini. Terima kasih.`;
-  window.open(`https://wa.me/${ADMIN_WA_NUMBER}?text=${text}`, '_blank');
-}
+async function submitDeviceActivation() {
+  const input = document.getElementById('input-device-activation-key');
+  const errorMsg = document.getElementById('activation-error-msg');
+  const btn = document.getElementById('btn-submit-device-activation');
+  const key = input ? input.value.trim().toUpperCase() : '';
 
-async function promptDeveloperResetHardwareLock() {
-  const pin = prompt('🔐 Masukkan PIN Otorisasi Developer untuk membuka kunci komputer ini:');
-  if (!pin) return;
+  if (!key) {
+    alert('Silakan masukkan Kunci Aktivasi terlebih dahulu!');
+    if (input) input.focus();
+    return;
+  }
 
-  const pinHash = await hashSecretStr(pin.trim());
-  if (pinHash === DEV_MASTER_HASH) {
-    if (confirm('Otorisasi diterima! Daftarkan komputer ini sebagai komputer resmi yang baru?')) {
-      if (window.desktopAPI && window.desktopAPI.lockCurrentMachine) {
-        await window.desktopAPI.lockCurrentMachine();
-        alert('✅ Komputer ini berhasil didaftarkan sebagai komputer resmi utama!');
-        const overlay = document.getElementById('device-lock-screen');
-        if (overlay) overlay.style.display = 'none';
-        document.body.style.overflow = '';
-        window.location.reload();
+  if (errorMsg) errorMsg.style.display = 'none';
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await window.desktopAPI.activateDevice(key);
+    if (res && res.success) {
+      alert('🎉 SELAMAT!\nPerangkat Anda telah berhasil diaktivasi secara resmi.\nAplikasi akan memuat ulang untuk membuka seluruh fitur kasir.');
+      const modal = document.getElementById('device-activation-modal');
+      if (modal) modal.style.display = 'none';
+      window.location.reload();
+    } else {
+      if (errorMsg) {
+        errorMsg.textContent = res ? res.message : 'Kunci aktivasi tidak valid!';
+        errorMsg.style.display = 'block';
+      } else {
+        alert(res ? res.message : 'Kunci aktivasi salah!');
       }
     }
-  } else {
-    alert('⛔ PIN Developer salah! Otorisasi ditolak.');
+  } catch (err) {
+    alert('Terjadi kesalahan saat aktivasi: ' + err.message);
+  } finally {
+    if (btn) btn.disabled = false;
   }
+}
+
+function contactDevForActivation() {
+  const hwid = document.getElementById('activation-modal-hwid')?.textContent.trim() || currentHardwareId;
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'Toko Saya';
+  const text = `Halo Admin Toko Sahil POS, saya ingin meminta Kunci Aktivasi Perangkat untuk komputer kasir baru saya:%0A%0A• Nama Toko: ${encodeURIComponent(storeName)}%0A• Hardware ID: ${encodeURIComponent(hwid)}%0A%0AMohon dibuatkan Kunci Aktivasinya. Terima kasih!`;
+  const url = `https://wa.me/${ADMIN_WA_NUMBER}?text=${text}`;
+  window.open(url, '_blank');
 }
 
 function copyHardwareId() {

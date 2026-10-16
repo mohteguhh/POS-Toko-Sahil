@@ -10,7 +10,6 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   restartApp: () => ipcRenderer.invoke('restart-app'),
   selectBackupFolder: () => ipcRenderer.invoke('select-backup-folder'),
   saveBackupFile: (fileName, content) => ipcRenderer.invoke('save-backup-file', fileName, content),
-  getMachineLockStatus: () => ipcRenderer.invoke('get-machine-lock-status'),
-  lockCurrentMachine: () => ipcRenderer.invoke('lock-current-machine'),
-  resetMachineLock: () => ipcRenderer.invoke('reset-machine-lock')
+  checkDeviceActivation: () => ipcRenderer.invoke('check-device-activation'),
+  activateDevice: (key) => ipcRenderer.invoke('activate-device', key)
 });
