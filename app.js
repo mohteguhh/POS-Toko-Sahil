@@ -5649,7 +5649,7 @@ function addBoxToCart(product, specificUnit = null) {
   
   let totalPcsInCart = cart.reduce((sum, item) => {
     if (item.id === product.id) {
-      return sum + (item.isBox ? item.qty * (item.isiBox || 12) : item.qty);
+      return sum + (item.isBox ? item.qty * (item.isiBox || item.ratio || 1) : item.qty);
     }
     return sum;
   }, 0);
@@ -5739,7 +5739,7 @@ function updateCartQty(cartId, delta) {
       const totalPcsInCart = cart.reduce((sum, it) => {
         if (it.id === item.id) {
           const q = it.cartId === cartId ? newQty : it.qty;
-          return sum + (it.isBox ? q * (it.isiBox || 12) : it.qty);
+          return sum + (it.isBox ? q * (it.isiBox || it.ratio || 1) : it.qty);
         }
         return sum;
       }, 0);
@@ -5783,7 +5783,7 @@ function updateCartQty(cartId, delta) {
   }
   
   if (localProd && !appConfig.allowZeroStock) {
-    const boxPcs = cart.filter(it => it.id === item.id && it.isBox).reduce((sum, it) => sum + (it.qty * (it.isiBox || 12)), 0);
+    const boxPcs = cart.filter(it => it.id === item.id && it.isBox).reduce((sum, it) => sum + (it.qty * (it.isiBox || it.ratio || 1)), 0);
     if (newQty + boxPcs > localProd.stok) {
       alert(`Stok tidak mencukupi! Hanya tersisa ${localProd.stok - boxPcs} pcs.`);
       focusSearchInput();
@@ -5852,7 +5852,7 @@ function setCartQtyDirect(cartId, value) {
       const totalPcsInCart = cart.reduce((sum, it) => {
         if (it.id === item.id) {
           const q = it.cartId === cartId ? inputPaidQty : it.qty;
-          return sum + (it.isBox ? q * (it.isiBox || 12) : it.qty);
+          return sum + (it.isBox ? q * (it.isiBox || it.ratio || 1) : it.qty);
         }
         return sum;
       }, 0);
@@ -5888,7 +5888,7 @@ function setCartQtyDirect(cartId, value) {
   }
   
   if (localProd && !appConfig.allowZeroStock) {
-    const boxPcs = cart.filter(it => it.id === item.id && it.isBox).reduce((sum, it) => sum + (it.qty * (it.isiBox || 12)), 0);
+    const boxPcs = cart.filter(it => it.id === item.id && it.isBox).reduce((sum, it) => sum + (it.qty * (it.isiBox || it.ratio || 1)), 0);
     if (newQty + boxPcs > localProd.stok) {
       alert(`Stok tidak mencukupi! Hanya tersisa ${localProd.stok - boxPcs} pcs.`);
       const safePaid = Math.max(1, localProd.stok - boxPcs);
@@ -10983,7 +10983,8 @@ async function deleteTransaction(txId) {
       } else {
         const product = products.find(p => p.id === item.id);
         if (product) {
-          product.stok += (item.isBox ? (item.qty * (item.isiBox || 1)) : (item.isGrosir ? (item.qty * (item.grosirQty || 1)) : item.qty));
+          const itemRatio = item.isiBox || item.ratio || 1;
+          product.stok += (item.isBox ? (item.qty * itemRatio) : (item.isGrosir ? (item.qty * (item.grosirQty || 1)) : item.qty));
           if (item.isPromo && !item.isBonus) {
             product.kuota_diskon = (parseInt(product.kuota_diskon) || 0) + item.qty;
           }
@@ -11094,7 +11095,8 @@ async function deleteSelectedTransactions() {
           } else {
             const product = products.find(p => p.id === item.id);
             if (product) {
-              const addedStock = (item.isBox ? (item.qty * (item.isiBox || 1)) : (item.isGrosir ? (item.qty * (item.grosirQty || 1)) : item.qty));
+              const itemRatio = item.isiBox || item.ratio || 1;
+              const addedStock = (item.isBox ? (item.qty * itemRatio) : (item.isGrosir ? (item.qty * (item.grosirQty || 1)) : item.qty));
               product.stok += addedStock;
               if (item.isPromo && !item.isBonus) {
                 product.kuota_diskon = (parseInt(product.kuota_diskon) || 0) + item.qty;
@@ -11317,7 +11319,7 @@ function updateEditTxQty(cartId, value) {
   const localProd = products.find(p => p.id === item.id);
   if (localProd && !appConfig.allowZeroStock) {
     const origItem = editTxOriginalItems.find(it => it.id === item.id);
-    const origQty = origItem ? (origItem.isBox ? origItem.qty * (origItem.isiBox || 12) : origItem.qty) : 0;
+    const origQty = origItem ? (origItem.isBox ? origItem.qty * (origItem.isiBox || origItem.ratio || 1) : origItem.qty) : 0;
     const maxAvailable = localProd.stok + origQty;
     
     if (qty > maxAvailable) {
@@ -11465,7 +11467,7 @@ function addEditTxItem(product) {
   if (existingItem) {
     let newQty = existingItem.qty + 1;
     const origItem = editTxOriginalItems.find(it => it.id === product.id);
-    const origQty = origItem ? (origItem.isBox ? origItem.qty * (origItem.isiBox || 12) : origItem.qty) : 0;
+    const origQty = origItem ? (origItem.isBox ? origItem.qty * (origItem.isiBox || origItem.ratio || 1) : origItem.qty) : 0;
     const maxAvailable = product.stok + origQty;
     
     if (newQty > maxAvailable && !appConfig.allowZeroStock) {
@@ -11630,8 +11632,8 @@ function saveEditedTransaction() {
   ]);
   
   allProductIds.forEach(id => {
-    const origQty = editTxOriginalItems.filter(it => it.id === id).reduce((sum, it) => sum + (it.isGrosir ? it.qty * (it.grosirQty || 1) : (it.isBox ? it.qty * (it.isiBox || 12) : it.qty)), 0);
-    const newQty = editTxItems.filter(it => it.id === id).reduce((sum, it) => sum + (it.isGrosir ? it.qty * (it.grosirQty || 1) : (it.isBox ? it.qty * (it.isiBox || 12) : it.qty)), 0);
+    const origQty = editTxOriginalItems.filter(it => it.id === id).reduce((sum, it) => sum + (it.isGrosir ? it.qty * (it.grosirQty || 1) : (it.isBox ? it.qty * (it.isiBox || it.ratio || 1) : it.qty)), 0);
+    const newQty = editTxItems.filter(it => it.id === id).reduce((sum, it) => sum + (it.isGrosir ? it.qty * (it.grosirQty || 1) : (it.isBox ? it.qty * (it.isiBox || it.ratio || 1) : it.qty)), 0);
     const delta = newQty - origQty;
     
     if (delta !== 0) {
