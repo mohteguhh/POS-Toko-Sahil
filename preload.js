@@ -9,5 +9,8 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   applyOnlineUpdate: (arrayBuffer) => ipcRenderer.invoke('apply-online-update', arrayBuffer),
   restartApp: () => ipcRenderer.invoke('restart-app'),
   selectBackupFolder: () => ipcRenderer.invoke('select-backup-folder'),
-  saveBackupFile: (fileName, content) => ipcRenderer.invoke('save-backup-file', fileName, content)
+  saveBackupFile: (fileName, content) => ipcRenderer.invoke('save-backup-file', fileName, content),
+  getMachineLockStatus: () => ipcRenderer.invoke('get-machine-lock-status'),
+  lockCurrentMachine: () => ipcRenderer.invoke('lock-current-machine'),
+  resetMachineLock: () => ipcRenderer.invoke('reset-machine-lock')
 });

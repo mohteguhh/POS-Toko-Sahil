@@ -60,6 +60,56 @@ function writeLocalDb(data) {
   }
 }
 
+// 3. Sistem Lisensi Hardware Komputer Tunggal (Single-PC Hardware Lock)
+const licenseLockFilePath = path.join(userDataPath, 'kasir_device_lock.json');
+
+function getMachineLockStatus() {
+  const currentHwid = getHardwareId();
+  try {
+    if (fs.existsSync(licenseLockFilePath)) {
+      const lockData = JSON.parse(fs.readFileSync(licenseLockFilePath, 'utf8'));
+      if (lockData && lockData.registeredHwid) {
+        if (lockData.registeredHwid === currentHwid) {
+          return { locked: true, authorized: true, hwid: currentHwid, registeredHwid: lockData.registeredHwid, lockedAt: lockData.lockedAt };
+        } else {
+          return { locked: true, authorized: false, hwid: currentHwid, registeredHwid: lockData.registeredHwid, lockedAt: lockData.lockedAt };
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Gagal membaca device lock:', e);
+  }
+  // Belum pernah dikunci (Komputer pertama akan mengunci otomatis)
+  return { locked: false, authorized: true, hwid: currentHwid, registeredHwid: null };
+}
+
+function lockCurrentMachine() {
+  const currentHwid = getHardwareId();
+  try {
+    const lockData = {
+      registeredHwid: currentHwid,
+      lockedAt: new Date().toISOString(),
+      machineName: os.hostname(),
+      platform: os.platform()
+    };
+    fs.writeFileSync(licenseLockFilePath, JSON.stringify(lockData, null, 2), 'utf8');
+    return { success: true, hwid: currentHwid, message: 'Komputer ini berhasil didaftarkan sebagai komputer resmi utama.' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+function resetMachineLock() {
+  try {
+    if (fs.existsSync(licenseLockFilePath)) {
+      fs.unlinkSync(licenseLockFilePath);
+    }
+    return { success: true, message: 'Kunci komputer berhasil di-reset.' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
 // Fungsi untuk menentukan entry file index.html (Utamakan dari patch updates jika ada)
 function getAppEntryPath() {
   const patchedIndexPath = path.join(updatesDir, 'index.html');
@@ -219,4 +269,18 @@ ipcMain.handle('save-backup-file', async (event, fileName, content) => {
     return { success: false, error: err.message };
   }
 });
+
+// 9. Status & Aksi Kunci Komputer Tunggal (Single-PC Lock)
+ipcMain.handle('get-machine-lock-status', () => {
+  return getMachineLockStatus();
+});
+
+ipcMain.handle('lock-current-machine', () => {
+  return lockCurrentMachine();
+});
+
+ipcMain.handle('reset-machine-lock', () => {
+  return resetMachineLock();
+});
+
 
