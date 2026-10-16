@@ -5486,6 +5486,7 @@ function calculateCartItemPricing(localProd, totalQty) {
   let subtotal = 0;
   let remainingQty = paidQty;
   let appliedTierDescriptions = [];
+  let appliedTiersSummary = [];
 
   if (availableTiers.length > 0) {
     availableTiers.forEach(tier => {
@@ -5495,17 +5496,19 @@ function calculateCartItemPricing(localProd, totalQty) {
         const tierCost = count * tier.price;
         subtotal += tierCost;
         appliedTierDescriptions.push(`${count} ${tier.name} (${count * tier.ratio} pcs = Rp ${formatRupiah(tierCost)})`);
+        appliedTiersSummary.push(`${count} ${tier.name}`);
       }
     });
 
     if (appliedTierDescriptions.length > 0) {
       result.isBoxPackaging = true;
-      const remText = remainingQty > 0 ? ` + ${remainingQty} pcs eceran` : '';
+      const remText = remainingQty > 0 ? ` + ${remainingQty} pcs` : '';
+      result.tierSummary = `📦 ${appliedTiersSummary.join(' + ')}${remText}`;
       result.badges.push({
         type: 'grosir',
-        text: `📦 Harga Bertingkat: ${appliedTierDescriptions.join(' + ')}${remText}`
+        text: `📦 Harga Bertingkat: ${appliedTierDescriptions.join(' + ')}${remainingQty > 0 ? ` + ${remainingQty} pcs eceran` : ''}`
       });
-      result.promoInfo = appliedTierDescriptions.join(' + ') + remText;
+      result.promoInfo = appliedTierDescriptions.join(' + ') + (remainingQty > 0 ? ` + ${remainingQty} pcs eceran` : '');
     }
   }
 
@@ -5559,6 +5562,7 @@ function applyPricingToCartItem(item) {
   item.grosirPackages = pricing.grosirPackages;
   item.isBoxPackaging = pricing.isBoxPackaging;
   item.boxUnitName = pricing.boxUnitName;
+  item.tierSummary = pricing.tierSummary || '';
   item.savings = pricing.savings;
   item.badges = pricing.badges;
   item.promoInfo = pricing.promoInfo;
@@ -6049,29 +6053,33 @@ function renderCart() {
       ? `<span class="qty-free-label">Bayar ${paidQty}, Gratis ${freeQty}</span>`
       : '';
     
-    // Label dus/kotak atau grosir jika harga bertingkat aktif
+    // Label dus/kotak/renteng atau grosir jika harga bertingkat aktif
     let boxLabel = '';
     if (!item.isBox) {
-      const localProd = products.find(p => p.id === item.id) || {};
-      const isiBox = parseInt(localProd.isi_box) || 0;
-      const hargaBox = parseFloat(localProd.harga_box) || 0;
-      const grosirQty = parseInt(localProd.grosir_qty) || 0;
-      const grosirHarga = parseFloat(localProd.grosir_harga) || 0;
-      
-      const isBoxPackaging = (isiBox > 1 && hargaBox > 0);
-      const boxMinQty = isBoxPackaging ? isiBox : (grosirQty > 1 && grosirHarga > 0 ? grosirQty : 0);
-      const unitName = isBoxPackaging ? (localProd.nama_box || 'Dus') : '';
-      
-      if (boxMinQty > 0 && paidQty >= boxMinQty) {
-        const packages = Math.floor(paidQty / boxMinQty);
-        const remaining = paidQty % boxMinQty;
-        if (isBoxPackaging) {
-          const pkgText = packages > 1 ? `${packages} ${unitName}` : `1 ${unitName}`;
-          const remText = remaining > 0 ? ` + ${remaining} pcs` : '';
-          boxLabel = `<span class="qty-box-label">📦 ${pkgText}${remText}</span>`;
-        } else {
-          const remText = remaining > 0 ? ` + ${remaining} pcs` : '';
-          boxLabel = `<span class="qty-box-label" style="background: rgba(37, 99, 235, 0.1); color: #2563eb; border-color: rgba(37, 99, 235, 0.2);">🏷️ Grosir (${packages * boxMinQty} pcs)${remText}</span>`;
+      if (item.tierSummary) {
+        boxLabel = `<span class="qty-box-label">${item.tierSummary}</span>`;
+      } else {
+        const localProd = products.find(p => p.id === item.id) || {};
+        const isiBox = parseInt(localProd.isi_box) || 0;
+        const hargaBox = parseFloat(localProd.harga_box) || 0;
+        const grosirQty = parseInt(localProd.grosir_qty) || 0;
+        const grosirHarga = parseFloat(localProd.grosir_harga) || 0;
+        
+        const isBoxPackaging = (isiBox > 1 && hargaBox > 0);
+        const boxMinQty = isBoxPackaging ? isiBox : (grosirQty > 1 && grosirHarga > 0 ? grosirQty : 0);
+        const unitName = isBoxPackaging ? (localProd.nama_box || 'Dus') : '';
+        
+        if (boxMinQty > 0 && paidQty >= boxMinQty) {
+          const packages = Math.floor(paidQty / boxMinQty);
+          const remaining = paidQty % boxMinQty;
+          if (isBoxPackaging) {
+            const pkgText = packages > 1 ? `${packages} ${unitName}` : `1 ${unitName}`;
+            const remText = remaining > 0 ? ` + ${remaining} pcs` : '';
+            boxLabel = `<span class="qty-box-label">📦 ${pkgText}${remText}</span>`;
+          } else {
+            const remText = remaining > 0 ? ` + ${remaining} pcs` : '';
+            boxLabel = `<span class="qty-box-label" style="background: rgba(37, 99, 235, 0.1); color: #2563eb; border-color: rgba(37, 99, 235, 0.2);">🏷️ Grosir (${packages * boxMinQty} pcs)${remText}</span>`;
+          }
         }
       }
     }
@@ -6143,6 +6151,8 @@ function renderCart() {
 
     const div = document.createElement('div');
     div.className = 'cart-item';
+    const tierBadgeHtml = item.tierSummary ? `<div style="margin-top:0.25rem;"><span class="qty-box-label" style="font-size:0.75rem; padding:0.15rem 0.45rem;">${item.tierSummary}</span></div>` : '';
+
     div.innerHTML = `
       <div class="cart-item-info">
         <div class="cart-item-name">${item.nama}</div>
@@ -6150,6 +6160,7 @@ function renderCart() {
           <span class="cart-item-price">Rp ${formatRupiah(unitPrice)}</span>
           ${priceSubDetailHtml}
         </div>
+        ${tierBadgeHtml}
         ${bundleCartDetailHtml}
       </div>
       <div class="cart-item-controls">
