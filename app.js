@@ -9541,28 +9541,27 @@ function updateCashierAuthUI() {
   } else {
     // JIKA FITUR LOGIN DIAKTIFKAN:
     // Tampilkan tombol status login kasir & tombol logout di desktop navbar serta menu Ganti Akun di mobile sheet
-    if (authWrapper) {
-      authWrapper.style.display = 'flex';
+    const isLoggedIn = !!currentUserRole;
+    const authBtn = document.getElementById('btn-cashier-auth');
+
+    if (isLoggedIn) {
+      // Jika sudah login: tampilkan icon logout merah dengan tooltip nama akun, sembunyikan tombol teks login
+      if (authBtn) authBtn.style.display = 'none';
+      if (logoutBtn) {
+        logoutBtn.style.display = 'inline-flex';
+        logoutBtn.title = `Keluar / Kunci Akun (${currentUserRole === 'owner' ? 'Owner Toko' : activeCashier})`;
+      }
+    } else {
+      // Jika belum login: tampilkan tombol Login ringkas, sembunyikan tombol logout
+      if (authBtn) {
+        authBtn.style.display = 'inline-flex';
+        authBtn.title = 'Klik untuk Masuk Akun Kasir / Owner';
+      }
+      if (logoutBtn) logoutBtn.style.display = 'none';
     }
-    if (logoutBtn) {
-      logoutBtn.style.display = 'inline-flex';
-    }
+
     if (sheetAuthItem) {
       sheetAuthItem.style.display = 'flex';
-    }
-
-    if (roleBadge) {
-      if (currentUserRole === 'owner') {
-        roleBadge.textContent = 'Owner';
-        roleBadge.style.background = '#3b82f6';
-      } else {
-        roleBadge.textContent = 'Kasir';
-        roleBadge.style.background = '#10b981';
-      }
-    }
-
-    if (nameSpan) {
-      nameSpan.textContent = currentUserRole === 'owner' ? 'Owner Toko' : activeCashier;
     }
   }
 
