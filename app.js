@@ -5531,24 +5531,6 @@ function calculateCartItemPricing(localProd, totalQty) {
       });
     }
   }
-    
-    // Unit pricing dengan diskon langsung (jika ada)
-    const hargaDiskon = parseFloat(localProd.harga_diskon) || 0;
-    const kuotaDiskon = (parseInt(localProd.kuota_diskon) || 0) > 0 ? parseInt(localProd.kuota_diskon) : Infinity;
-    if (appConfig.enablePromo && hargaDiskon > 0 && paidQty > 0) {
-      const pQty = Math.min(paidQty, kuotaDiskon);
-      const rQty = paidQty - pQty;
-      subtotal = (pQty * hargaDiskon) + (rQty * basePrice);
-      if (pQty > 0) {
-        result.badges.push({
-          type: 'active',
-          text: `⚡ Diskon Promo: ${pQty}x @Rp ${formatRupiah(hargaDiskon)}`
-        });
-      }
-    } else {
-      subtotal = paidQty * basePrice;
-    }
-  }
   
   result.subtotal = subtotal;
   result.savings = Math.max(0, standardTotal - subtotal);
