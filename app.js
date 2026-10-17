@@ -9687,8 +9687,6 @@ function canPerformAction(actionKey) {
 
 // Perbarui badge tampilan kasir di Navbar & kontrol tombol Logout
 function updateCashierAuthUI() {
-  const roleBadge = document.getElementById('current-user-role-badge');
-  const nameSpan = document.getElementById('current-user-name');
   const chkLogin = document.getElementById('chk-enable-staff-login');
   const ownerPinInput = document.getElementById('owner-pin-input');
   const logoutBtn = document.getElementById('btn-logout-staff');
