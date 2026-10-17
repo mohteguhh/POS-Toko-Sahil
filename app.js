@@ -17133,12 +17133,37 @@ function processDeliveryBarcodeManual() {
   }
 }
 
+function toggleDeliveryPpnMode() {
+  const hasPpn = document.getElementById('delivery-has-ppn')?.checked ?? false;
+  const percentInp = document.getElementById('delivery-ppn-percent');
+  if (percentInp) percentInp.disabled = !hasPpn;
+
+  const thPriceNota = document.getElementById('th-delivery-price-nota');
+  if (thPriceNota) {
+    thPriceNota.textContent = hasPpn ? 'Harga di Nota*' : 'Harga Beli*';
+  }
+
+  // Recalculate all rows
+  document.querySelectorAll('#delivery-items-tbody tr').forEach(tr => {
+    calculateDeliveryRowSubtotal(tr.querySelector('.delivery-item-price-nota') || tr.querySelector('.delivery-item-qty'));
+  });
+}
+
+function onDeliveryPpnPercentChanged() {
+  document.querySelectorAll('#delivery-items-tbody tr').forEach(tr => {
+    calculateDeliveryRowSubtotal(tr.querySelector('.delivery-item-price-nota') || tr.querySelector('.delivery-item-qty'));
+  });
+}
+
 function addDeliveryItemRow(defaultData = null) {
   const tbody = document.getElementById('delivery-items-tbody');
   if (!tbody) return;
 
   const tr = document.createElement('tr');
   tr.style.borderBottom = '1px solid var(--border-color)';
+
+  const initialHargaNota = defaultData ? (defaultData.hargaNota || defaultData.hargaBeli || 0) : 0;
+  const initialHargaBeli = defaultData ? (defaultData.hargaBeli || 0) : 0;
 
   tr.innerHTML = `
     <td style="padding: 0.4rem;">
@@ -17150,10 +17175,13 @@ function addDeliveryItemRow(defaultData = null) {
       <input type="number" class="delivery-item-qty" required min="1" value="${defaultData ? defaultData.qty : 1}" oninput="calculateDeliveryRowSubtotal(this)" style="width: 100%; padding: 0.4rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
     </td>
     <td style="padding: 0.4rem;">
-      <input type="number" class="delivery-item-price-buy" required min="0" value="${defaultData ? defaultData.hargaBeli : 0}" oninput="calculateDeliveryRowSubtotal(this)" style="width: 100%; padding: 0.4rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
+      <input type="number" class="delivery-item-price-nota" required min="0" value="${initialHargaNota}" oninput="calculateDeliveryRowSubtotal(this)" placeholder="Di nota" title="Harga yang tertera pada faktur/nota sales" style="width: 100%; padding: 0.4rem 0.5rem; border: 1px solid #f59e0b; background: #fffdfa; border-radius: 6px; font-size: 0.85rem; font-weight: 700;">
     </td>
     <td style="padding: 0.4rem;">
-      <input type="number" class="delivery-item-price-sell" required min="0" value="${defaultData ? defaultData.hargaJual : 0}" style="width: 100%; padding: 0.4rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
+      <input type="number" class="delivery-item-price-buy" required min="0" value="${initialHargaBeli}" readonly title="Harga Pokok Bersih (DPP) setelah dikurangi PPN" style="width: 100%; padding: 0.4rem 0.5rem; border: 1px solid #cbd5e1; background: #f8fafc; color: #0284c7; border-radius: 6px; font-size: 0.85rem; font-weight: 800;">
+    </td>
+    <td style="padding: 0.4rem;">
+      <input type="number" class="delivery-item-price-sell" required min="0" value="${defaultData ? defaultData.hargaJual : 0}" style="width: 100%; padding: 0.4rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem; font-weight: 700;">
     </td>
     <td style="padding: 0.4rem;">
       <input type="date" class="delivery-item-expiry" value="${defaultData ? defaultData.expired : ''}" style="width: 100%; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.82rem;">
@@ -17194,11 +17222,14 @@ function onDeliveryItemSelectChanged(selectEl) {
 
   const prod = products.find(p => p.id === prodId);
   if (prod) {
+    const notaInput = tr.querySelector('.delivery-item-price-nota');
     const buyInput = tr.querySelector('.delivery-item-price-buy');
     const sellInput = tr.querySelector('.delivery-item-price-sell');
     const expiryInput = tr.querySelector('.delivery-item-expiry');
 
-    if (buyInput) buyInput.value = prod.harga_beli || 0;
+    const defaultBuy = prod.harga_beli || 0;
+    if (notaInput) notaInput.value = defaultBuy;
+    if (buyInput) buyInput.value = defaultBuy;
     if (sellInput) sellInput.value = prod.harga_jual || prod.harga || 0;
     if (expiryInput && prod.tanggal_kadaluarsa) expiryInput.value = prod.tanggal_kadaluarsa;
 
@@ -17210,9 +17241,26 @@ function calculateDeliveryRowSubtotal(el) {
   const tr = el.closest('tr');
   if (!tr) return;
 
-  const qty = Number(tr.querySelector('.delivery-item-qty').value) || 0;
-  const price = Number(tr.querySelector('.delivery-item-price-buy').value) || 0;
-  const subtotal = qty * price;
+  const qty = Number(tr.querySelector('.delivery-item-qty')?.value) || 0;
+  const notaInput = tr.querySelector('.delivery-item-price-nota');
+  const buyInput = tr.querySelector('.delivery-item-price-buy');
+
+  const priceNota = Number(notaInput?.value) || 0;
+  const hasPpn = document.getElementById('delivery-has-ppn')?.checked ?? false;
+  const ppnRate = hasPpn ? (Number(document.getElementById('delivery-ppn-percent')?.value) || 0) : 0;
+
+  // Hitung DPP (Modal bersih sebelum PPN): Harga Nota / (1 + tarif)
+  let cleanPriceBuy = priceNota;
+  if (hasPpn && ppnRate > 0) {
+    cleanPriceBuy = Math.round(priceNota / (1 + (ppnRate / 100)));
+  }
+
+  if (buyInput) {
+    buyInput.value = cleanPriceBuy;
+  }
+
+  // Subtotal baris menggunakan harga faktur nota sales agar total tagihan sama persis dengan nota
+  const subtotal = qty * priceNota;
 
   const subtotalCell = tr.querySelector('.delivery-item-subtotal');
   if (subtotalCell) {
@@ -17225,8 +17273,10 @@ function calculateDeliveryRowSubtotal(el) {
 function calculateDeliveryGrandTotal() {
   let totalKotor = 0;
   document.querySelectorAll('#delivery-items-tbody tr').forEach(tr => {
-    const qty = Number(tr.querySelector('.delivery-item-qty').value) || 0;
-    const price = Number(tr.querySelector('.delivery-item-price-buy').value) || 0;
+    const qty = Number(tr.querySelector('.delivery-item-qty')?.value) || 0;
+    const notaInput = tr.querySelector('.delivery-item-price-nota');
+    const buyInput = tr.querySelector('.delivery-item-price-buy');
+    const price = notaInput ? (Number(notaInput.value) || 0) : (Number(buyInput?.value) || 0);
     totalKotor += (qty * price);
   });
 
@@ -17311,7 +17361,8 @@ function saveSalesDelivery(e) {
     const tr = rows[i];
     const prodId = tr.querySelector('.delivery-item-prod-select').value;
     const qty = Number(tr.querySelector('.delivery-item-qty').value) || 0;
-    const hargaBeli = Number(tr.querySelector('.delivery-item-price-buy').value) || 0;
+    const hargaNota = Number(tr.querySelector('.delivery-item-price-nota')?.value) || 0;
+    const hargaBeli = Number(tr.querySelector('.delivery-item-price-buy').value) || hargaNota;
     const hargaJual = Number(tr.querySelector('.delivery-item-price-sell').value) || 0;
     const expired = tr.querySelector('.delivery-item-expiry').value;
 
@@ -17322,7 +17373,8 @@ function saveSalesDelivery(e) {
     }
 
     const prod = products.find(p => p.id === prodId);
-    const subtotal = qty * hargaBeli;
+    // Subtotal tagihan sales didasarkan pada harga nota agar nominal tagihan distributor pas
+    const subtotal = qty * hargaNota;
     totalTagihan += subtotal;
     hasValidItem = true;
 
@@ -17330,7 +17382,8 @@ function saveSalesDelivery(e) {
       productId: prodId,
       nama: prod ? prod.nama : 'Produk',
       qty: qty,
-      hargaBeli: hargaBeli,
+      hargaNota: hargaNota,
+      hargaBeli: hargaBeli, // Harga DPP Bersih (Modal)
       hargaJual: hargaJual,
       expired: expired,
       subtotal: subtotal
@@ -17479,86 +17532,30 @@ function saveSalesDelivery(e) {
   alert(`✅ Nota ${noNota} dari ${salesName} berhasil disimpan!\n${statusMsg}${returMsg}\nStok ${items.length} jenis barang telah otomatis bertambah ke database.`);
 }
 
-function onInvoicePeriodTypeChange(val) {
-  const wDate = document.getElementById('wrap-invoice-date');
-  const wRange = document.getElementById('wrap-invoice-date-range');
-  const wMonth = document.getElementById('wrap-invoice-month');
-  const wYear = document.getElementById('wrap-invoice-year');
-
-  if (wDate) wDate.style.display = (val === 'date') ? 'block' : 'none';
-  if (wRange) wRange.style.display = (val === 'date-range') ? 'flex' : 'none';
-  if (wMonth) wMonth.style.display = (val === 'month') ? 'block' : 'none';
-  if (wYear) wYear.style.display = (val === 'year') ? 'block' : 'none';
-
-  // Set default values jika kosong
-  const todayStr = getLocalISODate();
-  const curMonth = todayStr.slice(0, 7);
-  const curYear = new Date().getFullYear();
-
-  if (val === 'date') {
-    const el = document.getElementById('filter-invoice-date');
-    if (el && !el.value) el.value = todayStr;
-  } else if (val === 'date-range') {
-    const elStart = document.getElementById('filter-invoice-date-start');
-    const elEnd = document.getElementById('filter-invoice-date-end');
-    if (elStart && !elStart.value) elStart.value = todayStr;
-    if (elEnd && !elEnd.value) elEnd.value = todayStr;
-  } else if (val === 'month') {
-    const el = document.getElementById('filter-invoice-month');
-    if (el && !el.value) el.value = curMonth;
-  } else if (val === 'year') {
-    const sel = document.getElementById('filter-invoice-year');
-    if (sel && sel.options.length === 0) {
-      for (let y = curYear; y >= curYear - 5; y--) {
-        const opt = document.createElement('option');
-        opt.value = String(y);
-        opt.textContent = `Tahun ${y}`;
-        sel.appendChild(opt);
-      }
-    }
-  }
-
+function resetInvoiceFilters() {
+  const elStart = document.getElementById('filter-invoice-date-start');
+  const elEnd = document.getElementById('filter-invoice-date-end');
+  if (elStart) elStart.value = '';
+  if (elEnd) elEnd.value = '';
   renderSalesDeliveriesTable();
 }
 
 function getFilteredSalesDeliveriesList() {
-  const salesFilter = document.getElementById('filter-invoice-sales') ? document.getElementById('filter-invoice-sales').value : 'All';
-  const statusFilter = document.getElementById('filter-invoice-status') ? document.getElementById('filter-invoice-status').value : 'All';
-  const periodType = document.getElementById('filter-invoice-period-type') ? document.getElementById('filter-invoice-period-type').value : 'all';
+  const start = document.getElementById('filter-invoice-date-start')?.value;
+  const end = document.getElementById('filter-invoice-date-end')?.value;
 
   let filtered = [...salesDeliveries];
 
-  if (salesFilter && salesFilter !== 'All') {
-    filtered = filtered.filter(d => d.salesId === salesFilter);
-  }
-  if (statusFilter && statusFilter !== 'All') {
-    filtered = filtered.filter(d => {
-      const isLunas = (d.statusBayar === 'Lunas') || ((d.sisaTagihan || 0) <= 0);
-      return statusFilter === 'Lunas' ? isLunas : !isLunas;
-    });
+  if (start && end) {
+    filtered = filtered.filter(d => d.tanggal >= start && d.tanggal <= end);
+  } else if (start) {
+    filtered = filtered.filter(d => d.tanggal >= start);
+  } else if (end) {
+    filtered = filtered.filter(d => d.tanggal <= end);
   }
 
-  if (periodType === 'date') {
-    const dVal = document.getElementById('filter-invoice-date')?.value;
-    if (dVal) filtered = filtered.filter(d => d.tanggal === dVal);
-  } else if (periodType === 'date-range') {
-    const start = document.getElementById('filter-invoice-date-start')?.value;
-    const end = document.getElementById('filter-invoice-date-end')?.value;
-    if (start && end) {
-      filtered = filtered.filter(d => d.tanggal >= start && d.tanggal <= end);
-    } else if (start) {
-      filtered = filtered.filter(d => d.tanggal >= start);
-    } else if (end) {
-      filtered = filtered.filter(d => d.tanggal <= end);
-    }
-  } else if (periodType === 'month') {
-    const mVal = document.getElementById('filter-invoice-month')?.value;
-    if (mVal) filtered = filtered.filter(d => d.tanggal && d.tanggal.startsWith(mVal));
-  } else if (periodType === 'year') {
-    const yVal = document.getElementById('filter-invoice-year')?.value;
-    if (yVal) filtered = filtered.filter(d => d.tanggal && d.tanggal.startsWith(yVal));
-  }
-
+  // Sort by tanggal descending (terbaru dulu)
+  filtered.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
   return filtered;
 }
 
@@ -18144,78 +18141,30 @@ function saveSalesReturn(e) {
   alert(`✅ Retur ${qty} pcs "${prod.nama}" ke Sales ${salesName} berhasil disimpan!\nStatus: ${statusText}\nStok toko otomatis disesuaikan menjadi ${newStok} pcs.`);
 }
 
-function onReturnPeriodTypeChange(val) {
-  const wDate = document.getElementById('wrap-return-date');
-  const wRange = document.getElementById('wrap-return-date-range');
-  const wMonth = document.getElementById('wrap-return-month');
-  const wYear = document.getElementById('wrap-return-year');
-
-  if (wDate) wDate.style.display = (val === 'date') ? 'block' : 'none';
-  if (wRange) wRange.style.display = (val === 'date-range') ? 'flex' : 'none';
-  if (wMonth) wMonth.style.display = (val === 'month') ? 'block' : 'none';
-  if (wYear) wYear.style.display = (val === 'year') ? 'block' : 'none';
-
-  const todayStr = getLocalISODate();
-  const curMonth = todayStr.slice(0, 7);
-  const curYear = new Date().getFullYear();
-
-  if (val === 'date') {
-    const el = document.getElementById('filter-return-date');
-    if (el && !el.value) el.value = todayStr;
-  } else if (val === 'date-range') {
-    const elStart = document.getElementById('filter-return-date-start');
-    const elEnd = document.getElementById('filter-return-date-end');
-    if (elStart && !elStart.value) elStart.value = todayStr;
-    if (elEnd && !elEnd.value) elEnd.value = todayStr;
-  } else if (val === 'month') {
-    const el = document.getElementById('filter-return-month');
-    if (el && !el.value) el.value = curMonth;
-  } else if (val === 'year') {
-    const sel = document.getElementById('filter-return-year');
-    if (sel && sel.options.length === 0) {
-      for (let y = curYear; y >= curYear - 5; y--) {
-        const opt = document.createElement('option');
-        opt.value = String(y);
-        opt.textContent = `Tahun ${y}`;
-        sel.appendChild(opt);
-      }
-    }
-  }
-
+function resetReturnFilters() {
+  const elStart = document.getElementById('filter-return-date-start');
+  const elEnd = document.getElementById('filter-return-date-end');
+  if (elStart) elStart.value = '';
+  if (elEnd) elEnd.value = '';
   renderSalesReturnsTable();
 }
 
 function getFilteredSalesReturnsList() {
-  const salesFilter = document.getElementById('filter-return-sales') ? document.getElementById('filter-return-sales').value : 'All';
-  const periodType = document.getElementById('filter-return-period-type') ? document.getElementById('filter-return-period-type').value : 'all';
+  const start = document.getElementById('filter-return-date-start')?.value;
+  const end = document.getElementById('filter-return-date-end')?.value;
 
   let filtered = [...salesReturns];
 
-  if (salesFilter && salesFilter !== 'All') {
-    filtered = filtered.filter(r => r.salesId === salesFilter);
+  if (start && end) {
+    filtered = filtered.filter(r => r.tanggal >= start && r.tanggal <= end);
+  } else if (start) {
+    filtered = filtered.filter(r => r.tanggal >= start);
+  } else if (end) {
+    filtered = filtered.filter(r => r.tanggal <= end);
   }
 
-  if (periodType === 'date') {
-    const dVal = document.getElementById('filter-return-date')?.value;
-    if (dVal) filtered = filtered.filter(r => r.tanggal === dVal);
-  } else if (periodType === 'date-range') {
-    const start = document.getElementById('filter-return-date-start')?.value;
-    const end = document.getElementById('filter-return-date-end')?.value;
-    if (start && end) {
-      filtered = filtered.filter(r => r.tanggal >= start && r.tanggal <= end);
-    } else if (start) {
-      filtered = filtered.filter(r => r.tanggal >= start);
-    } else if (end) {
-      filtered = filtered.filter(r => r.tanggal <= end);
-    }
-  } else if (periodType === 'month') {
-    const mVal = document.getElementById('filter-return-month')?.value;
-    if (mVal) filtered = filtered.filter(r => r.tanggal && r.tanggal.startsWith(mVal));
-  } else if (periodType === 'year') {
-    const yVal = document.getElementById('filter-return-year')?.value;
-    if (yVal) filtered = filtered.filter(r => r.tanggal && r.tanggal.startsWith(yVal));
-  }
-
+  // Sort by tanggal descending (terbaru dulu)
+  filtered.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
   return filtered;
 }
 
