@@ -449,6 +449,64 @@
               </div>
             </div>
             
+            <!-- Widget 2.5: Pemakaian Voucher Hari Ini / Periode Ini -->
+            <div class="widget-card" style="border: 1px solid rgba(217, 119, 6, 0.25);">
+              <div class="widget-header">
+                <div class="widget-title-group">
+                  <div class="widget-icon-wrap" style="background: rgba(217, 119, 6, 0.15); color: #d97706;">
+                    <i data-lucide="ticket" class="w-4 h-4"></i>
+                  </div>
+                  <div>
+                    <h3 class="widget-title" style="color: #b45309;">Voucher Diambil Hari Ini</h3>
+                    <p class="widget-subtitle">Tukar kupon belanja member</p>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <button class="btn btn-secondary btn-sm" onclick="openVoucherAnalyticsModal()" title="Lihat Rincian Lengkap Voucher &amp; Belanjaan" style="padding: 0.25rem 0.6rem; font-size: 0.78rem; display: flex; align-items: center; gap: 0.3rem;">
+                    <span>Detail</span>
+                  </button>
+                  <span class="widget-badge" id="analytics-voucher-count-badge" style="background: rgba(217, 119, 6, 0.15); color: #d97706; font-weight: 700;">0 Voucher</span>
+                </div>
+              </div>
+              <div id="analytics-vouchers-list" class="widget-body-stack" style="max-height: 220px; overflow-y: auto;">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 1rem;">Belum ada voucher yang ditukarkan hari ini.</div>
+              </div>
+            </div>
+
+            <!-- MODAL DETAIL PEMAKAIAN VOUCHER -->
+            <div class="modal-overlay" id="voucher-analytics-modal" style="display: none;">
+              <div class="modal-card" style="max-width: 800px; width: 95vw; max-height: 90vh; display: flex; flex-direction: column;">
+                <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding: 1rem 1.25rem;">
+                  <div>
+                    <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem; color: #b45309;">
+                      <i data-lucide="ticket" class="icon" style="color: #d97706;"></i>
+                      Rincian Voucher &amp; Belanjaan Pelanggan
+                    </h3>
+                    <p id="voucher-analytics-subtitle" style="margin: 0.2rem 0 0; font-size: 0.82rem; color: var(--text-muted);">Daftar pelanggan yang mengambil/menukarkan voucher hari ini beserta rincian barang belanjaannya.</p>
+                  </div>
+                  <button type="button" class="close-modal-btn" onclick="closeVoucherAnalyticsModal()" style="font-size: 1.5rem;">&times;</button>
+                </div>
+                <div class="modal-body" style="padding: 1.25rem; overflow-y: auto; flex: 1;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; padding: 0.85rem 1rem; background: rgba(217,119,6,0.06); border: 1px solid rgba(217,119,6,0.2); border-radius: var(--border-radius-md);">
+                    <div>
+                      <span style="font-size: 0.85rem; color: var(--text-muted);">Total Voucher Dipakai:</span>
+                      <strong id="modal-voucher-total-count" style="font-size: 1.15rem; color: #d97706; margin-left: 0.35rem;">0 Voucher</strong>
+                    </div>
+                    <div>
+                      <span style="font-size: 0.85rem; color: var(--text-muted);">Total Potongan Diskon Voucher:</span>
+                      <strong id="modal-voucher-total-discount" style="font-size: 1.15rem; color: #059669; margin-left: 0.35rem;">Rp 0</strong>
+                    </div>
+                  </div>
+                  <div id="voucher-analytics-table-container">
+                    <!-- Di-render dinamis oleh renderVoucherAnalyticsTable() -->
+                  </div>
+                </div>
+                <div class="modal-footer" style="display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); padding: 0.75rem 1.25rem;">
+                  <button type="button" class="btn btn-secondary" onclick="closeVoucherAnalyticsModal()">Tutup</button>
+                </div>
+              </div>
+            </div>
+
             <!-- Widget 3: Pelanggan Berhutang & Jatuh Tempo (Fitur CRM Bon) -->
             <div class="widget-card" style="border: 1px solid rgba(239, 68, 68, 0.25);">
               <div class="widget-header">

@@ -3849,6 +3849,54 @@ function updateAnalytics() {
       });
     }
   }
+
+  // Render Widget & Data Pemakaian Voucher Hari Ini / Periode Terpilih
+  const voucherBadgeEl = document.getElementById('analytics-voucher-count-badge');
+  const vouchersListEl = document.getElementById('analytics-vouchers-list');
+  const voucherTxs = todayTxs.filter(tx => (tx.voucher_ditukar && Number(tx.voucher_ditukar) > 0) || (tx.diskon_voucher && Number(tx.diskon_voucher) > 0));
+  const totalVouchersUsed = voucherTxs.reduce((sum, tx) => sum + (Number(tx.voucher_ditukar) || 1), 0);
+
+  if (voucherBadgeEl) {
+    voucherBadgeEl.textContent = `${totalVouchersUsed} Voucher`;
+  }
+
+  if (vouchersListEl) {
+    vouchersListEl.innerHTML = '';
+    if (voucherTxs.length === 0) {
+      vouchersListEl.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.82rem; padding: 1rem;">Belum ada voucher yang ditukarkan pada periode ini.</div>';
+    } else {
+      voucherTxs.forEach(tx => {
+        const custName = tx.nama_pelanggan || 'Pelanggan Umum';
+        const vCount = Number(tx.voucher_ditukar) || 1;
+        const vDisc = Number(tx.diskon_voucher) || 0;
+        const itemNames = Array.isArray(tx.items) ? tx.items.slice(0, 2).map(it => it.nama).join(', ') : '-';
+        const moreItems = Array.isArray(tx.items) && tx.items.length > 2 ? ` +${tx.items.length - 2} lainnya` : '';
+        const txTime = tx.waktu ? new Date(tx.waktu).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
+
+        const div = document.createElement('div');
+        div.className = 'widget-item';
+        div.style.padding = '0.6rem 0.75rem';
+        div.style.cursor = 'pointer';
+        div.onclick = () => openVoucherAnalyticsModal();
+        div.innerHTML = `
+          <div class="widget-item-left" style="gap: 0.6rem;">
+            <div class="widget-icon-box" style="background: rgba(217, 119, 6, 0.12); color: #d97706;">
+              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+            </div>
+            <div>
+              <div style="font-weight: 700; font-size: 0.88rem; color: var(--text-main);">${custName} <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(${txTime})</span></div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); max-width: 170px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">🛒 ${itemNames}${moreItems}</div>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-weight: 800; font-size: 0.9rem; color: #d97706;">🎟️ ${vCount} Vch</div>
+            <div style="font-size: 0.72rem; color: #059669; font-weight: 600;">-Rp ${formatRupiah(vDisc)}</div>
+          </div>
+        `;
+        vouchersListEl.appendChild(div);
+      });
+    }
+  }
   
   // Hitung Penerimaan Pembayaran Hutang pada periode ini
   let totalDebtRepaid = 0;
@@ -4393,6 +4441,131 @@ function quickCorrectStock(productId) {
   } else {
     alert(`✅ Stok "${p.nama}" diperbarui menjadi ${newQty} pcs.`);
   }
+}
+
+// --- MODAL DETAIL PEMAKAIAN VOUCHER (ANALISIS) ---
+function openVoucherAnalyticsModal() {
+  const modal = document.getElementById('voucher-analytics-modal');
+  if (!modal) return;
+
+  const filterType = document.getElementById('analytics-filter-type')?.value || 'hari';
+  const subtitleEl = document.getElementById('voucher-analytics-subtitle');
+  if (subtitleEl) {
+    if (filterType === 'hari') {
+      const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
+      subtitleEl.textContent = `Daftar pelanggan yang mengambil/menukarkan voucher pada tanggal ${d} beserta rincian barang belanjaannya.`;
+    } else if (filterType === 'bulan') {
+      const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
+      subtitleEl.textContent = `Daftar pelanggan yang mengambil/menukarkan voucher pada bulan ${m} beserta rincian barang belanjaannya.`;
+    } else {
+      subtitleEl.textContent = `Daftar pelanggan yang mengambil/menukarkan voucher pada periode yang dipilih beserta rincian barang belanjaannya.`;
+    }
+  }
+
+  renderVoucherAnalyticsTable();
+  modal.style.display = 'flex';
+  modal.classList.add('active');
+}
+
+function closeVoucherAnalyticsModal() {
+  const modal = document.getElementById('voucher-analytics-modal');
+  if (!modal) return;
+  modal.style.display = 'none';
+  modal.classList.remove('active');
+}
+
+function renderVoucherAnalyticsTable() {
+  const container = document.getElementById('voucher-analytics-table-container');
+  if (!container) return;
+
+  const filteredTxs = getAnalyticsFilteredTxs();
+  const voucherTxs = filteredTxs.filter(tx => (tx.voucher_ditukar && Number(tx.voucher_ditukar) > 0) || (tx.diskon_voucher && Number(tx.diskon_voucher) > 0));
+
+  const totalCount = voucherTxs.reduce((sum, tx) => sum + (Number(tx.voucher_ditukar) || 1), 0);
+  const totalDiscount = voucherTxs.reduce((sum, tx) => sum + (Number(tx.diskon_voucher) || 0), 0);
+
+  const totalCountEl = document.getElementById('modal-voucher-total-count');
+  const totalDiscEl = document.getElementById('modal-voucher-total-discount');
+  if (totalCountEl) totalCountEl.textContent = `${totalCount} Voucher`;
+  if (totalDiscEl) totalDiscEl.textContent = `Rp ${formatRupiah(totalDiscount)}`;
+
+  if (voucherTxs.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 2.5rem 1rem; background: var(--bg-surface-elevated); border-radius: var(--border-radius-md); border: 1px dashed var(--border-color);">
+        <svg viewBox="0 0 24 24" style="width: 36px; height: 36px; stroke: currentColor; fill: none; margin: 0 auto 0.5rem; opacity: 0.4;"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/></svg>
+        <p style="margin: 0; font-weight: 600;">Tidak ada voucher yang ditukarkan pada periode ini.</p>
+      </div>
+    `;
+    return;
+  }
+
+  let html = `
+    <div class="table-wrapper" style="border: 1px solid var(--border-color); border-radius: var(--border-radius-md); overflow-x: auto;">
+      <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+        <thead>
+          <tr style="background: var(--bg-surface-elevated); text-align: left;">
+            <th style="width: 45px; text-align: center;">No</th>
+            <th style="width: 140px;">Waktu &amp; No. Nota</th>
+            <th style="width: 170px;">Nama Pelanggan</th>
+            <th style="width: 110px; text-align: center;">Voucher Diambil</th>
+            <th style="width: 130px; text-align: right;">Potongan Diskon</th>
+            <th>Barang Belanjaan</th>
+            <th style="width: 120px; text-align: right;">Total Bayar</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  voucherTxs.forEach((tx, idx) => {
+    const custName = tx.nama_pelanggan || 'Pelanggan Umum';
+    const vCount = Number(tx.voucher_ditukar) || 1;
+    const vDisc = Number(tx.diskon_voucher) || 0;
+    const waktuStr = tx.waktu ? new Date(tx.waktu).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+
+    let itemsHtml = '<span style="color:var(--text-muted);">-</span>';
+    if (Array.isArray(tx.items) && tx.items.length > 0) {
+      itemsHtml = tx.items.map(it => {
+        const itemPcs = it.isBox ? (it.qty * (it.isiBox || it.ratio || 1)) : it.qty;
+        const boxLabel = it.isBox ? ` (${it.namaBox || 'Dus'})` : '';
+        const sub = it.subtotal !== undefined ? it.subtotal : (it.harga * it.qty);
+        return `<div style="font-size: 0.82rem; margin-bottom: 2px;">• <b>${it.nama}</b> &times; ${it.qty}${boxLabel} <span style="color:var(--text-muted); font-size:0.75rem;">(Rp ${formatRupiah(sub)})</span></div>`;
+      }).join('');
+    }
+
+    html += `
+      <tr style="border-bottom: 1px solid var(--border-color);">
+        <td style="text-align: center; color: var(--text-muted); font-weight: 600;">${idx + 1}</td>
+        <td>
+          <div style="font-weight: 600; color: var(--text-main); font-size: 0.82rem;">${waktuStr}</div>
+          <div style="font-family: monospace; font-size: 0.75rem; color: var(--color-primary); cursor: pointer;" onclick="closeVoucherAnalyticsModal(); showReceipt(transactions.find(t=>t.id==='${tx.id}'), transactions.find(t=>t.id==='${tx.id}')?.items);" title="Klik untuk lihat struk">#${tx.id}</div>
+        </td>
+        <td>
+          <div style="font-weight: 700; color: var(--text-main);">${custName}</div>
+          ${tx.id_pelanggan ? `<div style="font-size: 0.72rem; color: var(--text-muted);">ID: ${tx.id_pelanggan}</div>` : ''}
+        </td>
+        <td style="text-align: center;">
+          <span style="background: rgba(217, 119, 6, 0.15); color: #d97706; padding: 0.25rem 0.55rem; border-radius: 999px; font-weight: 800; font-size: 0.82rem;">🎟️ ${vCount} Vch</span>
+        </td>
+        <td style="text-align: right; font-weight: 700; color: #059669; font-family: monospace;">
+          -Rp ${formatRupiah(vDisc)}
+        </td>
+        <td style="max-width: 260px; line-height: 1.35;">
+          ${itemsHtml}
+        </td>
+        <td style="text-align: right; font-weight: 800; font-family: monospace; color: var(--text-main);">
+          Rp ${formatRupiah(tx.total || 0)}
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  container.innerHTML = html;
 }
 
 function toggleShoppingItemDone(checkbox) {
@@ -16335,6 +16508,9 @@ function renderSalesDeliveriesTable() {
       <td style="text-align: center;">${imageCellHtml}</td>
       <td style="text-align: center;">
         <div style="display: flex; gap: 0.35rem; justify-content: center; align-items: center;">
+          <button type="button" class="btn btn-sm btn-success" onclick="shareSalesDeliveryToWhatsApp('${d.id}')" title="Kirim Rincian Pembelian Nota ke WhatsApp Sales" style="padding: 0.25rem 0.45rem; display: inline-flex; align-items: center; justify-content: center; background: #25d366; border-color: #25d366; color: #fff;">
+            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </button>
           <button type="button" class="btn btn-sm btn-secondary" onclick="printSingleSalesDeliveryReceipt('${d.id}')" title="Cetak Bukti Nota Penerimaan" style="padding: 0.25rem 0.45rem; display: inline-flex; align-items: center; justify-content: center;">
             <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
           </button>
@@ -16889,6 +17065,9 @@ function renderSalesReturnsTable() {
       <td style="text-align: center;">${imageCellHtml}</td>
       <td style="text-align: center;">
         <div style="display: flex; gap: 0.35rem; justify-content: center; align-items: center;">
+          <button type="button" class="btn btn-sm btn-success" onclick="shareSalesReturnToWhatsApp('${r.id}')" title="Kirim Rincian Returan Barang ke WhatsApp Sales" style="padding: 0.25rem 0.45rem; display: inline-flex; align-items: center; justify-content: center; background: #25d366; border-color: #25d366; color: #fff;">
+            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </button>
           <button type="button" class="btn btn-sm btn-secondary" onclick="printSingleSalesReturnReceipt('${r.id}')" title="Cetak Surat Retur Barang" style="padding: 0.25rem 0.45rem; display: inline-flex; align-items: center; justify-content: center;">
             <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
           </button>
@@ -17448,6 +17627,106 @@ function printSingleSalesReturnReceipt(returnId) {
       printWin.close();
     }, 400);
   }
+}
+
+// E. Kirim Rincian Pembelian / Nota Pengiriman Barang ke WhatsApp Sales
+function shareSalesDeliveryToWhatsApp(deliveryId) {
+  const d = salesDeliveries.find(x => x.id === deliveryId);
+  if (!d) {
+    alert("Data nota pembelian tidak ditemukan!");
+    return;
+  }
+
+  const s = salesList.find(x => x.id === d.salesId || x.nama === d.salesName);
+  let targetPhone = s ? (s.hp || '') : '';
+  if (!targetPhone) {
+    const input = prompt(`Masukkan nomor WhatsApp untuk Sales "${d.salesName}" (contoh: 08123456789):`);
+    if (!input) return;
+    targetPhone = input;
+  }
+
+  let cleanPhone = targetPhone.replace(/[^0-9]/g, '');
+  if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
+
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'Toko Kami';
+  const sisa = (d.sisaTagihan !== undefined) ? d.sisaTagihan : (d.statusBayar === 'Tempo' ? d.grandTotal : 0);
+  const isLunas = sisa <= 0;
+
+  let text = `*📋 KONFIRMASI PENERIMAAN BARANG*\n`;
+  text += `*${storeName.toUpperCase()}*\n`;
+  text += `--------------------------------\n`;
+  text += `Sales: *${d.salesName}*\n`;
+  text += `No. Nota: *${d.noNota}*\n`;
+  text += `Tanggal Masuk: ${d.tanggal || '-'}\n`;
+  text += `--------------------------------\n`;
+  text += `*📦 RINCIAN BARANG MASUK:*\n`;
+
+  if (Array.isArray(d.items) && d.items.length > 0) {
+    d.items.forEach((item, idx) => {
+      const expStr = item.expired ? ` (Exp: ${item.expired})` : '';
+      text += `${idx + 1}. *${item.nama}*\n   ${item.qty} pcs @Rp ${formatRupiah(item.hargaBeli)} = Rp ${formatRupiah(item.subtotal)}${expStr}\n`;
+    });
+  }
+
+  text += `--------------------------------\n`;
+  text += `Total Tagihan: Rp ${formatRupiah(d.totalTagihan || 0)}\n`;
+  if (d.diskon) text += `Diskon Nota: -Rp ${formatRupiah(d.diskon)}\n`;
+  if (d.returDeduction) text += `Potongan Retur: -Rp ${formatRupiah(d.returDeduction)}\n`;
+  text += `*Grand Total: Rp ${formatRupiah(d.grandTotal || 0)}*\n`;
+  text += `--------------------------------\n`;
+  text += `Status Bayar: *${isLunas ? '✅ LUNAS' : `⏳ TEMPO (Sisa: Rp ${formatRupiah(sisa)})`}*\n`;
+  if (!isLunas && d.jatuhTempo) text += `Jatuh Tempo: *${d.jatuhTempo}*\n`;
+  if (d.bonus) text += `Bonus/Hadiah: 🎁 *${d.bonus}*\n`;
+  text += `--------------------------------\n`;
+  text += `_Terima kasih atas kiriman barangnya. Salam sukses & berkah selalu!_ 🙏`;
+
+  const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`;
+  window.open(waUrl, '_blank');
+}
+
+// F. Kirim Rincian Returan Barang Rusak / Kadaluarsa ke WhatsApp Sales
+function shareSalesReturnToWhatsApp(returnId) {
+  const r = salesReturns.find(x => x.id === returnId);
+  if (!r) {
+    alert("Data retur barang tidak ditemukan!");
+    return;
+  }
+
+  const s = salesList.find(x => x.id === r.salesId || x.nama === r.salesName);
+  let targetPhone = s ? (s.hp || '') : '';
+  if (!targetPhone) {
+    const input = prompt(`Masukkan nomor WhatsApp untuk Sales "${r.salesName}" (contoh: 08123456789):`);
+    if (!input) return;
+    targetPhone = input;
+  }
+
+  let cleanPhone = targetPhone.replace(/[^0-9]/g, '');
+  if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
+
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'Toko Kami';
+  const totalNilai = (r.qty || 0) * (r.hargaBeli || 0);
+
+  let text = `*🔄 PEMBERITAHUAN RETUR BARANG*\n`;
+  text += `*${storeName.toUpperCase()}*\n`;
+  text += `--------------------------------\n`;
+  text += `Kepada: *${r.salesName}*\n`;
+  text += `No. Bukti Retur: *${r.id}*\n`;
+  text += `Tanggal Retur: ${r.tanggal || '-'}\n`;
+  text += `--------------------------------\n`;
+  text += `*📦 BARANG YANG DIRETUR:*\n`;
+  text += `• Nama Produk: *${r.productName}*\n`;
+  text += `• Jumlah: *${r.qty} pcs*\n`;
+  text += `• Harga Modal/Beli: Rp ${formatRupiah(r.hargaBeli || 0)}\n`;
+  text += `• Estimasi Nilai: *Rp ${formatRupiah(totalNilai)}*\n`;
+  text += `--------------------------------\n`;
+  text += `Alasan Retur: *${r.alasan}*\n`;
+  text += `Status: *${r.status}*\n`;
+  if (r.catatan) text += `Catatan: _${r.catatan}_\n`;
+  text += `--------------------------------\n`;
+  text += `_Mohon bantuannya untuk diproses penggantian fisik / potongan nota pada kunjungan berikutnya. Terima kasih!_ 🙏`;
+
+  const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`;
+  window.open(waUrl, '_blank');
 }
 
 // D. Cetak Laporan Cepat Daftar Nota Sesuai Filter
