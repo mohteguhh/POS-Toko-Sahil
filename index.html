@@ -149,6 +149,27 @@
         </div>
       </div>
       
+      <!-- Peringatan Global Produk Mendekati / Sudah Kadaluarsa (Kurang 3 Bulan) -->
+      <div id="expired-products-warning-banner" style="display: none; background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%); border: 1.5px solid #f97316; border-radius: 12px; padding: 0.75rem 1.15rem; margin-bottom: 1.25rem; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.12); align-items: center; justify-content: space-between; gap: 0.85rem; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(249, 115, 22, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;">⏳</div>
+          <div>
+            <div style="font-weight: 800; color: #c2410c; font-size: 0.92rem;" id="expired-warning-title">Pemberitahuan: Ada Produk Mendekati / Sudah Kadaluarsa (&le; 3 Bulan)!</div>
+            <div style="font-size: 0.8rem; color: #7c2d12; margin-top: 2px;" id="expired-warning-detail">
+              Terdapat produk yang kadaluarsa dalam waktu kurang dari 3 bulan (90 hari). Segera periksa untuk dilakukan retur sales atau promo obral diskon.
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <button type="button" class="btn btn-primary btn-sm" onclick="goToExpiredTrackerTab()" style="background: #ea580c; border-color: #ea580c; font-weight: 800; font-size: 0.82rem; padding: 0.5rem 1rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(234, 88, 12, 0.3);">
+            📋 Buka Expired Tracker
+          </button>
+          <button type="button" onclick="dismissExpiredWarningBanner()" title="Sembunyikan notifikasi ini untuk sesi ini" style="background: transparent; border: 1px solid rgba(249, 115, 22, 0.3); color: #c2410c; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center;">
+            &times;
+          </button>
+        </div>
+      </div>
+      
       <!-- TAB 1: ANALISIS PENJUALAN (DASHBOARD) -->
       <section id="pane-analytics" class="tab-pane">
         <div class="analytics-header">
@@ -2332,21 +2353,26 @@
             </div>
 
             <!-- Ringkasan Status Expired -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
-              <div style="background: rgba(220, 38, 38, 0.08); border: 1.5px solid rgba(220, 38, 38, 0.35); border-radius: 12px; padding: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+              <div style="background: rgba(220, 38, 38, 0.08); border: 1.5px solid rgba(220, 38, 38, 0.35); border-radius: 12px; padding: 1rem; cursor: pointer;" onclick="filterExpiredByCard('PASSED')" title="Klik untuk filter produk sudah kadaluarsa">
                 <span style="font-size: 0.78rem; font-weight: 800; color: #b91c1c;">SUDAH KADALUARSA (EXPIRED)</span>
                 <div id="expired-count-passed" style="font-size: 1.5rem; font-weight: 900; color: #dc2626; margin-top: 4px;">0 Produk</div>
                 <div style="font-size: 0.75rem; color: #7f1d1d; margin-top: 2px;">Wajib segera ditarik / retur ke sales</div>
               </div>
-              <div style="background: rgba(234, 88, 12, 0.08); border: 1.5px solid rgba(234, 88, 12, 0.35); border-radius: 12px; padding: 1rem;">
-                <span style="font-size: 0.78rem; font-weight: 800; color: #c2410c;">KRITIS (H-14 HARI)</span>
+              <div style="background: rgba(234, 88, 12, 0.08); border: 1.5px solid rgba(234, 88, 12, 0.35); border-radius: 12px; padding: 1rem; cursor: pointer;" onclick="filterExpiredByCard('H14')" title="Klik untuk filter produk kritis <= 14 hari">
+                <span style="font-size: 0.78rem; font-weight: 800; color: #c2410c;">KRITIS (&le; 14 HARI)</span>
                 <div id="expired-count-h14" style="font-size: 1.5rem; font-weight: 900; color: #ea580c; margin-top: 4px;">0 Produk</div>
                 <div style="font-size: 0.75rem; color: #9a3412; margin-top: 2px;">Prioritas promo obral / hubungi sales</div>
               </div>
-              <div style="background: rgba(234, 179, 8, 0.08); border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 12px; padding: 1rem;">
-                <span style="font-size: 0.78rem; font-weight: 800; color: #854d0e;">WASPADA (H-30 HARI)</span>
+              <div style="background: rgba(234, 179, 8, 0.08); border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 12px; padding: 1rem; cursor: pointer;" onclick="filterExpiredByCard('H30')" title="Klik untuk filter produk <= 1 bulan">
+                <span style="font-size: 0.78rem; font-weight: 800; color: #854d0e;">WASPADA (&le; 1 BULAN)</span>
                 <div id="expired-count-h30" style="font-size: 1.5rem; font-weight: 900; color: #ca8a04; margin-top: 4px;">0 Produk</div>
                 <div style="font-size: 0.75rem; color: #713f12; margin-top: 2px;">Persiapkan stok display depan</div>
+              </div>
+              <div style="background: rgba(14, 165, 233, 0.08); border: 1.5px solid rgba(14, 165, 233, 0.35); border-radius: 12px; padding: 1rem; cursor: pointer;" onclick="filterExpiredByCard('H90')" title="Klik untuk filter produk <= 3 bulan">
+                <span style="font-size: 0.78rem; font-weight: 800; color: #0369a1;">PERINGATAN (&le; 3 BULAN)</span>
+                <div id="expired-count-h90" style="font-size: 1.5rem; font-weight: 900; color: #0284c7; margin-top: 4px;">0 Produk</div>
+                <div style="font-size: 0.75rem; color: #0c4a6e; margin-top: 2px;">Notifikasi awal kadaluarsa 3 bulan</div>
               </div>
             </div>
 
@@ -2355,12 +2381,13 @@
               <div style="flex: 1; min-width: 220px; position: relative;">
                 <input type="text" id="expired-search-input" placeholder="🔍 Cari nama produk, barcode, atau rak..." oninput="renderExpiredTrackerTable()" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-size: 0.88rem;">
               </div>
-              <select id="expired-status-filter" onchange="renderExpiredTrackerTable()" style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-size: 0.88rem;">
-                <option value="ALL">Semua Yang Memiliki Tanggal Expired</option>
-                <option value="PASSED" selected>Sudah Expired / Lewat Waktu</option>
+              <select id="expired-status-filter" onchange="renderExpiredTrackerTable()" style="padding: 0.5rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-size: 0.88rem; font-weight: 700;">
+                <option value="ALL" selected>Semua Yang Memiliki Tanggal Expired</option>
+                <option value="PASSED">Sudah Expired / Lewat Waktu</option>
                 <option value="H14">Kritis: &le; 14 Hari</option>
-                <option value="H30">Mendekati: &le; 30 Hari</option>
-                <option value="SAFE">Aman (&gt; 30 Hari)</option>
+                <option value="H30">Mendekati: &le; 1 Bulan (30 Hari)</option>
+                <option value="H90">Peringatan: &le; 3 Bulan (90 Hari)</option>
+                <option value="SAFE">Aman (&gt; 3 Bulan)</option>
               </select>
             </div>
 
@@ -4199,19 +4226,13 @@
               <label for="delivery-date" style="font-weight: 700; display: block; margin-bottom: 0.35rem; font-size: 0.85rem;">Tanggal Datang Barang*</label>
               <input type="date" id="delivery-date" required style="width: 100%; padding: 0.5rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px;">
             </div>
-            <!-- Pengaturan PPN Otomatis -->
-            <div class="form-group" style="background: rgba(245, 158, 11, 0.08); padding: 0.45rem 0.65rem; border-radius: 8px; border: 1px dashed #f59e0b;">
-              <label style="font-weight: 700; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.83rem; color: #92400e;">
-                <span>🏷️ Pajak PPN Nota:</span>
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; font-weight: 700;">
-                  <input type="checkbox" id="delivery-has-ppn" checked onchange="toggleDeliveryPpnMode()" style="accent-color: #ea580c; width: 15px; height: 15px;">
-                  <span>Kena PPN</span>
-                </label>
-              </label>
-              <div style="display: flex; align-items: center; gap: 0.35rem;">
-                <input type="number" id="delivery-ppn-percent" value="11" min="0" max="100" step="0.5" oninput="onDeliveryPpnPercentChanged()" style="width: 65px; padding: 0.35rem 0.5rem; border: 1.5px solid #f59e0b; border-radius: 6px; font-weight: 800; font-size: 0.85rem; text-align: center;">
-                <span style="font-size: 0.85rem; font-weight: 800; color: #92400e;">%</span>
-                <span style="font-size: 0.72rem; color: #78350f; line-height: 1.1; margin-left: 2px;">Harga beli nota otomatis dipotong PPN jadi modal DPP</span>
+            <!-- Pengaturan PPN Otomatis (Minimalis Sesuai Request) -->
+            <div class="form-group" style="display: flex; align-items: flex-end; justify-content: flex-start; padding-bottom: 0.15rem;">
+              <div style="display: inline-flex; align-items: center; gap: 0.45rem; background: var(--bg-surface-elevated); padding: 0.4rem 0.65rem; border-radius: 8px; border: 1.5px solid var(--border-color);">
+                <span style="font-weight: 800; font-size: 0.85rem; color: var(--text-main);">PPN</span>
+                <input type="number" id="delivery-ppn-percent" value="11" min="0" max="100" step="0.5" oninput="onDeliveryPpnPercentChanged()" style="width: 58px; padding: 0.35rem 0.4rem; border: 1.5px solid var(--border-color); border-radius: 6px; font-weight: 800; font-size: 0.85rem; text-align: center;">
+                <span style="font-size: 0.85rem; font-weight: 800; color: var(--text-main);">%</span>
+                <input type="checkbox" id="delivery-has-ppn" checked onchange="toggleDeliveryPpnMode()" title="Aktifkan / Nonaktifkan Potongan PPN" style="accent-color: #ea580c; width: 17px; height: 17px; cursor: pointer; margin-left: 2px;">
               </div>
             </div>
           </div>

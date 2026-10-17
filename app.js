@@ -22575,29 +22575,85 @@ function getProductExpiryStatus(dateStr) {
   } else if (diffDays <= 14) {
     return { status: 'H14', label: `Kritis: Sisa ${diffDays} Hari`, days: diffDays, color: '#ea580c' };
   } else if (diffDays <= 30) {
-    return { status: 'H30', label: `Waspada: Sisa ${diffDays} Hari`, days: diffDays, color: '#ca8a04' };
+    return { status: 'H30', label: `Waspada: Sisa ${diffDays} Hari (&le; 1 Bln)`, days: diffDays, color: '#ca8a04' };
+  } else if (diffDays <= 90) {
+    return { status: 'H90', label: `Peringatan: Sisa ${diffDays} Hari (&le; 3 Bln)`, days: diffDays, color: '#0284c7' };
   } else {
     return { status: 'SAFE', label: `Aman (${diffDays} Hari lagi)`, days: diffDays, color: '#16a34a' };
   }
 }
 
+let isExpiredBannerDismissed = false;
+
 function updateExpiredBadgeCount() {
-  let countCritical = 0;
+  let countPassed = 0;
+  let countCritical14 = 0;
+  let countH30 = 0;
+  let countH90 = 0;
+
   products.forEach(p => {
     if (p.tanggal_kadaluarsa) {
       const st = getProductExpiryStatus(p.tanggal_kadaluarsa);
-      if (st.status === 'PASSED' || st.status === 'H14') countCritical++;
+      if (st.status === 'PASSED') countPassed++;
+      else if (st.status === 'H14') countCritical14++;
+      else if (st.status === 'H30') countH30++;
+      else if (st.status === 'H90') countH90++;
     }
   });
 
+  // Total produk yang perlu notifikasi: sudah expired atau kurang dari sama dengan 90 hari (3 bulan)
+  const totalNeedAttention = countPassed + countCritical14 + countH30 + countH90;
+
   const badge = document.getElementById('badge-expired-count');
   if (badge) {
-    if (countCritical > 0) {
-      badge.textContent = countCritical;
+    if (totalNeedAttention > 0) {
+      badge.textContent = totalNeedAttention;
       badge.style.display = 'inline-block';
+      badge.title = `${totalNeedAttention} Produk kadaluarsa / kurang dari 3 bulan`;
     } else {
       badge.style.display = 'none';
     }
+  }
+
+  // Notifikasi Banner Global di bagian atas aplikasi
+  const banner = document.getElementById('expired-products-warning-banner');
+  const bannerTitle = document.getElementById('expired-warning-title');
+  const bannerDetail = document.getElementById('expired-warning-detail');
+
+  if (banner && !isExpiredBannerDismissed) {
+    if (totalNeedAttention > 0) {
+      banner.style.display = 'flex';
+      if (bannerTitle) {
+        bannerTitle.innerHTML = `⚠️ Perhatian: Ditemukan <b>${totalNeedAttention} Produk</b> Mendekati / Sudah Kadaluarsa (&le; 3 Bulan)!`;
+      }
+      if (bannerDetail) {
+        bannerDetail.innerHTML = `Rincian: <b>${countPassed}</b> sudah lewat tanggal, <b>${countCritical14}</b> kritis (&le;14 hari), <b>${countH30}</b> waspada (&le;1 bulan), dan <b>${countH90}</b> peringatan (&le;3 bulan). Segera lakukan retur sales atau diskon obral.`;
+      }
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+}
+
+function dismissExpiredWarningBanner() {
+  isExpiredBannerDismissed = true;
+  const banner = document.getElementById('expired-products-warning-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+function goToExpiredTrackerTab() {
+  if (typeof switchTab === 'function') switchTab('products');
+  if (typeof switchProductSubTab === 'function') switchProductSubTab('expired');
+  const filter = document.getElementById('expired-status-filter');
+  if (filter) filter.value = 'ALL';
+  renderExpiredTrackerTable();
+}
+
+function filterExpiredByCard(statusVal) {
+  const filter = document.getElementById('expired-status-filter');
+  if (filter) {
+    filter.value = statusVal;
+    renderExpiredTrackerTable();
   }
 }
 
@@ -22606,11 +22662,13 @@ function renderExpiredTrackerTable() {
   if (!tbody) return;
 
   const searchVal = (document.getElementById('expired-search-input')?.value || '').toLowerCase().trim();
-  const statusFilter = document.getElementById('expired-status-filter')?.value || 'PASSED';
+  // Default filter adalah 'ALL' (semua yang memiliki tanggal expired)
+  const statusFilter = document.getElementById('expired-status-filter')?.value || 'ALL';
 
   let countPassed = 0;
   let countH14 = 0;
   let countH30 = 0;
+  let countH90 = 0;
 
   products.forEach(p => {
     if (p.tanggal_kadaluarsa) {
@@ -22618,15 +22676,18 @@ function renderExpiredTrackerTable() {
       if (info.status === 'PASSED') countPassed++;
       else if (info.status === 'H14') countH14++;
       else if (info.status === 'H30') countH30++;
+      else if (info.status === 'H90') countH90++;
     }
   });
 
   const elP = document.getElementById('expired-count-passed');
   const elH14 = document.getElementById('expired-count-h14');
   const elH30 = document.getElementById('expired-count-h30');
+  const elH90 = document.getElementById('expired-count-h90');
   if (elP) elP.textContent = `${countPassed} Produk`;
   if (elH14) elH14.textContent = `${countH14} Produk`;
   if (elH30) elH30.textContent = `${countH30} Produk`;
+  if (elH90) elH90.textContent = `${countH90} Produk`;
 
   const prodsWithExp = products.filter(p => !!p.tanggal_kadaluarsa);
 
