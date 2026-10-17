@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#ea580c">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Portal Mandiri Anggota - Cek Tabungan, Voucher, Riwayat & Ajukan Bon</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Offline Libraries -->
+  <script src="lib/lucide.js"></script>
+  <script src="lib/JsBarcode.all.min.js"></script>
+  <script src="lib/firebase-app-compat.js"></script>
+  <script src="lib/firebase-database-compat.js"></script>
+
+  <style>
+    :root {
+      --primary: #ea580c;
+      --primary-dark: #c2410c;
+      --primary-light: #fff7ed;
+      --bg-body: #f8fafc;
+      --bg-card: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+      --radius: 14px;
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
+      --shadow-md: 0 8px 24px rgba(0,0,0,0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background: var(--bg-body);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Bar */
+    .portal-header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: #fff;
+      padding: 1rem 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border-bottom: 2px solid var(--primary);
+    }
+
+    .portal-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .portal-brand-icon {
+      width: 40px;
+      height: 40px;
+      background: rgba(234,88,12,0.25);
+      border: 1.5px solid var(--primary);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+    }
+
+    .portal-brand-text h1 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.2px;
+    }
+
+    .portal-brand-text p {
+      font-size: 0.74rem;
+      color: #94a3b8;
+    }
+
+    .portal-main {
+      flex: 1;
+      width: 100%;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 1.25rem 1rem 3rem 1rem;
+    }
+
+    /* Login Box */
+    .login-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 75vh;
+    }
+
+    .login-card {
+      background: var(--bg-card);
+      border: 1.5px solid var(--border-color);
+      border-radius: 20px;
+      padding: 2rem 1.75rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: var(--shadow-md);
+    }
+
+    .form-group {
+      margin-bottom: 1.15rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.84rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+      color: var(--text-main);
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 1.5px solid var(--border-color);
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: var(--text-main);
+      background: var(--bg-card);
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .form-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(234,88,12,0.15);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 0.92rem;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+      font-family: inherit;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary) 0%, #f97316 100%);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(234,88,12,0.25);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+      transform: translateY(-1px);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid var(--border-color);
+      color: var(--text-muted);
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      color: #fff;
+    }
+
+    /* Profile Hero Card */
+    .profile-hero {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #fff;
+      border-radius: 18px;
+      padding: 1.35rem 1.5rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: var(--shadow-md);
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 1.15rem 1.25rem;
+      border: 1.5px solid var(--border-color);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Tabs */
+    .tabs-nav {
+      display: flex;
+      gap: 0.4rem;
+      border-bottom: 2px solid var(--border-color);
+      margin-bottom: 1.25rem;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+    .tabs-nav::-webkit-scrollbar { display: none; }
+
+    .tab-btn {
+      padding: 0.6rem 1.1rem;
+      font-size: 0.88rem;
+      font-weight: 800;
+      border-radius: 10px 10px 0 0;
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(234,88,12,0.25);
+    }
+
+    .tab-pane {
+      display: none;
+      animation: fadeIn 0.2s ease-in;
+    }
+    .tab-pane.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ID Card Modal / Preview */
+    .idcard-preview {
+      width: 100%;
+      max-width: 360px;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 1.25rem;
+      position: relative;
+      border: 2px solid var(--primary);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      margin: 1rem auto;
+    }
+
+    @media print {
+      body * { visibility: hidden; }
+      #printable-id-card, #printable-id-card * { visibility: visible; }
+      #printable-id-card { position: fixed; left: 0; top: 0; width: 100%; max-width: 400px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navbar -->
+  <header class="portal-header">
+    <div class="portal-brand">
+      <div class="portal-brand-icon">🛡️</div>
+      <div class="portal-brand-text">
+        <h1 id="portal-store-name">Portal Mandiri Anggota</h1>
+        <p>Cek Saldo, Voucher, Riwayat Belanja & Ajukan Bon</p>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <span id="cloud-badge" style="font-size: 0.72rem; padding: 0.2rem 0.6rem; border-radius: 999px; background: rgba(16,185,129,0.2); color: #34d399; font-weight: 700;">🟢 Cloud Sync</span>
+      <button id="btn-logout" onclick="logoutPortal()" class="btn btn-outline" style="display: none; padding: 0.35rem 0.8rem; font-size: 0.78rem; color: #fca5a5; border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.1);">
+        Keluar Akun
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="portal-main">
+
+    <!-- VIEW 1: LOGIN -->
+    <div id="view-login" class="login-container">
+      <div class="login-card">
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+          <div style="width: 58px; height: 58px; margin: 0 auto 0.75rem auto; background: var(--primary-light); border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--primary);">
+            👤
+          </div>
+          <h2 style="font-size: 1.25rem; font-weight: 900; color: var(--text-main); margin-bottom: 0.3rem;">Masuk Akun Anggota</h2>
+          <p style="font-size: 0.82rem; color: var(--text-muted);">Akses saldo tabungan dan info mandiri Anda</p>
+        </div>
+
+        <form onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label class="form-label" for="login-id">ID Anggota / No. Telepon *</label>
+            <input type="text" id="login-id" class="form-control" placeholder="Contoh: ANG-001 atau 0812..." required autocomplete="off">
+          </div>
+
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <label class="form-label" for="login-pin" style="margin: 0;">PIN 6 Digit *</label>
+              <a href="javascript:void(0)" onclick="alertForgotPin()" style="font-size: 0.76rem; color: var(--primary); font-weight: 700; text-decoration: underline;">Lupa PIN?</a>
+            </div>
+            <input type="password" id="login-pin" class="form-control" placeholder="6 digit angka PIN" maxlength="6" pattern="[0-9]*" inputmode="numeric" required autocomplete="off" style="letter-spacing: 4px; text-align: center; font-size: 1.2rem; font-weight: 900;">
+            <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 0.4rem;">
+              *Belum memiliki PIN? Hubungi kasir / admin toko untuk aktivasi tabungan anggota Anda.
+            </small>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.8rem; margin-top: 0.5rem;">
+            Masuk ke Portal
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- VIEW 2: DASHBOARD -->
+    <div id="view-dashboard" style="display: none;">
+
+      <!-- Profile Hero -->
+      <div class="profile-hero">
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+            <h2 id="prof-name" style="margin: 0; font-size: 1.25rem; font-weight: 900;">Nama Anggota</h2>
+            <span id="prof-instansi" style="background: rgba(234,88,12,0.25); color: #fb923c; border: 1px solid rgba(234,88,12,0.4); font-size: 0.75rem; font-weight: 800; padding: 0.15rem 0.6rem; border-radius: 999px;">Instansi</span>
+          </div>
+          <div style="font-size: 0.82rem; color: #94a3b8; margin-top: 0.45rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+            <span>ID: <b id="prof-id" style="color: #fff; font-family: monospace;">-</b></span>
+            <span>HP: <b id="prof-phone" style="color: #fff;">-</b></span>
+            <span>Alamat: <b id="prof-address" style="color: #fff;">-</b></span>
+          </div>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" onclick="printMyIdCard()" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.45rem 0.85rem; border-radius: 9px;">
+            🪪 Cetak ID Card
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="stat-grid">
+        <!-- Saldo Tabungan -->
+        <div class="stat-card" style="background: linear-gradient(135deg, rgba(2,132,199,0.08) 0%, rgba(3,105,161,0.14) 100%); border-color: rgba(2,132,199,0.3);">
+          <div style="font-size: 0.78rem; font-weight: 800; color: #0284c7; text-transform: uppercase;">🏦 Saldo Tabungan Anda</div>
+          <div id="stat-savings" style="font-size: 1.65rem; font-weight: 900; color: #0284c7; margin-top: 4px; font-family: monospace;">Rp 0</div>
+          <div id="stat-savings-status" style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">Tabungan Aktif</div>
+        </div>
+
+        <!-- Sisa Hutang -->
+        <div class="stat-card" style="background: linear-gradient(135deg, rgba(220,38,38,0.08) 0%, rgba(185,28,28,0.14) 100%); border-color: rgba(220,38,38,0.3);">
+          <div style="font-size: 0.78rem; font-weight: 800; color: #dc2626; text-transform: uppercase;">💳 Sisa Hutang / Bon</div>
+          <div id="stat-debt" style="font-size: 1.65rem; font-weight: 900; color: #dc2626; margin-top: 4px; font-family: monospace;">Rp 0</div>
+          <div id="stat-debt-info" style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">0 Transaksi Belum Lunas</div>
+        </div>
+
+        <!-- Voucher Aktif -->
+        <div class="stat-card" style="background: linear-gradient(135deg, rgba(234,88,12,0.08) 0%, rgba(194,65,12,0.14) 100%); border-color: rgba(234,88,12,0.3);">
+          <div style="font-size: 0.78rem; font-weight: 800; color: #ea580c; text-transform: uppercase;">🎟️ Voucher Belanja Aktif</div>
+          <div id="stat-voucher" style="font-size: 1.65rem; font-weight: 900; color: #ea580c; margin-top: 4px;">0 Voucher</div>
+          <div id="stat-voucher-info" style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">Siap digunakan di kasir</div>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="tabs-nav">
+        <button type="button" class="tab-btn active" id="btn-tab-vouchers" onclick="switchTab('vouchers')">🎟️ Voucher Saya</button>
+        <button type="button" class="tab-btn" id="btn-tab-savings" onclick="switchTab('savings')">🏦 Mutasi Tabungan</button>
+        <button type="button" class="tab-btn" id="btn-tab-history" onclick="switchTab('history')">🛍️ Riwayat Belanja</button>
+        <button type="button" class="tab-btn" id="btn-tab-debt" onclick="switchTab('debt')">💳 Hutang &amp; Ajukan Bon</button>
+      </div>
+
+      <!-- TAB 1: VOUCHER SAYA -->
+      <div id="tab-vouchers" class="tab-pane active">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h3 style="font-size: 0.95rem; font-weight: 800;">Daftar Voucher Belanja Anda</h3>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">Sebutkan kode/nama voucher ke kasir saat checkout</span>
+        </div>
+        <div id="list-vouchers" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.85rem;"></div>
+      </div>
+
+      <!-- TAB 2: MUTASI TABUNGAN -->
+      <div id="tab-savings" class="tab-pane">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h3 style="font-size: 0.95rem; font-weight: 800;">Riwayat Setor, Tarik, & Pembayaran Saldo</h3>
+          <span id="savings-count" style="font-size: 0.75rem; color: var(--text-muted);">0 Mutasi</span>
+        </div>
+        <div id="list-savings" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 480px; overflow-y: auto;"></div>
+      </div>
+
+      <!-- TAB 3: RIWAYAT BELANJA -->
+      <div id="tab-history" class="tab-pane">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h3 style="font-size: 0.95rem; font-weight: 800;">Daftar Transaksi & Produk yang Pernah Dibeli</h3>
+          <span id="history-count" style="font-size: 0.75rem; color: var(--text-muted);">0 Transaksi</span>
+        </div>
+        <div id="list-history" style="display: flex; flex-direction: column; gap: 0.65rem; max-height: 500px; overflow-y: auto;"></div>
+      </div>
+
+      <!-- TAB 4: HUTANG & PENGAJUAN -->
+      <div id="tab-debt" class="tab-pane">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
+          <div>
+            <h3 style="font-size: 0.95rem; font-weight: 800; margin-bottom: 0.75rem;">Rincian Tagihan Hutang / Bon</h3>
+            <div id="list-debt" style="display: flex; flex-direction: column; gap: 0.6rem; max-height: 400px; overflow-y: auto;"></div>
+          </div>
+
+          <div style="background: var(--bg-card); border: 1.5px solid var(--border-color); border-radius: 16px; padding: 1.25rem; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+              <span style="font-size: 1.25rem;">📝</span>
+              <h3 style="font-size: 0.95rem; font-weight: 800;">Form Pengajuan Hutang / Bon</h3>
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 1rem;">
+              Pengajuan akan langsung masuk ke Buku Hutang kasir untuk ditinjau dan disetujui.
+            </p>
+
+            <form onsubmit="submitDebtApplication(event)">
+              <div class="form-group">
+                <label class="form-label" for="apply-amount">Nominal yang Diajukan (Rp) *</label>
+                <input type="text" id="apply-amount" class="form-control" placeholder="Contoh: 100.000" required oninput="formatRupiahInput(this)" style="font-size: 1.15rem; font-weight: 900; color: #dc2626; font-family: monospace;">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="apply-reason">Alasan / Keperluan *</label>
+                <input type="text" id="apply-reason" class="form-control" placeholder="Contoh: Belanja kebutuhan sembako" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="apply-due-date">Rencana Tanggal Pelunasan</label>
+                <input type="date" id="apply-due-date" class="form-control">
+              </div>
+
+              <button type="submit" class="btn btn-primary" style="width: 100%; background: #dc2626; border-color: #dc2626;">
+                Kirim Permohonan Pengajuan
+              </button>
+            </form>
+
+            <div style="margin-top: 1.25rem; border-top: 1px dashed var(--border-color); padding-top: 0.85rem;">
+              <div style="font-size: 0.78rem; font-weight: 800; color: var(--text-muted); margin-bottom: 0.45rem;">Status Permohonan Terakhir:</div>
+              <div id="list-applications" style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 140px; overflow-y: auto;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    // State Portal
+    let portalCustomerId = null;
+    let customersData = [];
+    let transactionsData = [];
+    let appConfigData = {};
+    let receiptSettingsData = {};
+    let firebaseDb = null;
+
+    function formatRupiah(num) {
+      return (Number(num) || 0).toLocaleString('id-ID');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatRupiahInput(el) {
+      let val = el.value.replace(/\D/g, '');
+      el.value = val ? formatRupiah(parseInt(val, 10)) : '';
+    }
+
+    // Init Data & Firebase
+    function initData() {
+      try {
+        const c = localStorage.getItem('kasir_customers');
+        if (c) customersData = JSON.parse(c);
+      } catch (e) { customersData = []; }
+
+      try {
+        const t = localStorage.getItem('kasir_transactions');
+        if (t) transactionsData = JSON.parse(t);
+      } catch (e) { transactionsData = []; }
+
+      try {
+        const cfg = localStorage.getItem('kasir_app_config');
+        if (cfg) appConfigData = JSON.parse(cfg);
+      } catch (e) {}
+
+      try {
+        const r = localStorage.getItem('kasir_receipt_settings');
+        if (r) {
+          receiptSettingsData = JSON.parse(r);
+          if (receiptSettingsData.name) {
+            document.getElementById('portal-store-name').textContent = receiptSettingsData.name + ' - Portal Anggota';
+            document.title = receiptSettingsData.name + ' - Portal Mandiri Anggota';
+          }
+        }
+      } catch (e) {}
+
+      // Inisialisasi Firebase jika diizinkan
+      initFirebaseSync();
+
+      // Cek sesi login tersimpan di sessionStorage
+      const savedSession = sessionStorage.getItem('portal_active_cust_id');
+      if (savedSession) {
+        portalCustomerId = savedSession;
+        showDashboard();
+      }
+    }
+
+    function initFirebaseSync() {
+      const cloudBadge = document.getElementById('cloud-badge');
+      if (!appConfigData.enableCloudSync || !appConfigData.firebaseConfig || !appConfigData.firebaseConfig.apiKey) {
+        if (cloudBadge) {
+          cloudBadge.textContent = '💾 Offline / Lokal';
+          cloudBadge.style.background = 'rgba(100,116,139,0.2)';
+          cloudBadge.style.color = '#94a3b8';
+        }
+        return;
+      }
+
+      try {
+        if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+          firebase.initializeApp(appConfigData.firebaseConfig);
+        }
+        if (typeof firebase !== 'undefined' && firebase.database) {
+          firebaseDb = firebase.database();
+          const storeCode = (appConfigData.firebaseStoreCode || 'default_store').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+          // Listener live customers
+          firebaseDb.ref(`stores/${storeCode}/customers`).on('value', snap => {
+            const val = snap.val();
+            if (val) {
+              customersData = Object.values(val);
+              localStorage.setItem('kasir_customers', JSON.stringify(customersData));
+              if (portalCustomerId) renderDashboard();
+            }
+          });
+
+          // Listener live transactions
+          firebaseDb.ref(`stores/${storeCode}/transactions`).on('value', snap => {
+            const val = snap.val();
+            if (val) {
+              transactionsData = Object.values(val);
+              localStorage.setItem('kasir_transactions', JSON.stringify(transactionsData));
+              if (portalCustomerId) renderDashboard();
+            }
+          });
+
+          if (cloudBadge) {
+            cloudBadge.textContent = '🟢 Cloud Terhubung';
+            cloudBadge.style.background = 'rgba(16,185,129,0.2)';
+            cloudBadge.style.color = '#34d399';
+          }
+        }
+      } catch (err) {
+        console.warn('Firebase init error di portal:', err);
+      }
+    }
+
+    function saveCustomersLocalAndCloud(cust) {
+      localStorage.setItem('kasir_customers', JSON.stringify(customersData));
+      if (firebaseDb && appConfigData.enableCloudSync && cust) {
+        try {
+          const storeCode = (appConfigData.firebaseStoreCode || 'default_store').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const clean = JSON.parse(JSON.stringify(cust));
+          const key = clean.id || clean.no_hp || ('CUST-' + Date.now());
+          firebaseDb.ref(`stores/${storeCode}/customers/${key}`).set(clean).catch(e => console.warn(e));
+        } catch (e) {}
+      }
+    }
+
+    // Login Handler
+    function handleLogin(e) {
+      if (e) e.preventDefault();
+      const idOrPhone = (document.getElementById('login-id')?.value || '').trim();
+      const pin = (document.getElementById('login-pin')?.value || '').trim();
+
+      if (!idOrPhone || !pin) {
+        alert("Harap masukkan ID Anggota/No. HP dan 6 digit PIN!");
+        return;
+      }
+
+      const cleanPhone = idOrPhone.replace(/\D/g, '');
+      const member = customersData.find(c => {
+        const matchId = (c.id && c.id.toLowerCase() === idOrPhone.toLowerCase()) || 
+                        (c.kode_anggota && c.kode_anggota.toLowerCase() === idOrPhone.toLowerCase());
+        const matchPhone = (cleanPhone && c.telepon && c.telepon.replace(/\D/g, '') === cleanPhone);
+        return matchId || matchPhone;
+      });
+
+      if (!member) {
+        alert("⛔ Anggota tidak ditemukan!\nPastikan ID Anggota atau No. Telepon Anda sudah terdaftar di sistem kasir/koperasi.");
+        return;
+      }
+
+      if (!member.tabungan_aktif || !member.pin_tabungan) {
+        alert(`Akun anggota "${member.nama}" belum memiliki PIN aktif.\nSilakan hubungi kasir/admin untuk aktivasi tabungan dan pengaturan 6 digit PIN.`);
+        return;
+      }
+
+      if (member.pin_tabungan !== pin) {
+        alert("⛔ PIN Anda salah! Silakan coba lagi atau hubungi kasir untuk reset PIN.");
+        document.getElementById('login-pin')?.focus();
+        return;
+      }
+
+      portalCustomerId = member.id;
+      sessionStorage.setItem('portal_active_cust_id', member.id);
+      showDashboard();
+    }
+
+    function logoutPortal() {
+      portalCustomerId = null;
+      sessionStorage.removeItem('portal_active_cust_id');
+      document.getElementById('view-login').style.display = 'flex';
+      document.getElementById('view-dashboard').style.display = 'none';
+      document.getElementById('btn-logout').style.display = 'none';
+      document.getElementById('login-id').value = '';
+      document.getElementById('login-pin').value = '';
+    }
+
+    function alertForgotPin() {
+      alert("ℹ️ LUPA PIN ANGGOTA?\n\nDemi keamanan saldo dan akun Anda, PIN hanya dapat direset langsung oleh Kasir / Pengelola Toko melalui verifikasi akun kasir.\n\nSilakan kunjungi kasir atau hubungi admin toko/koperasi.");
+    }
+
+    function showDashboard() {
+      document.getElementById('view-login').style.display = 'none';
+      document.getElementById('view-dashboard').style.display = 'block';
+      document.getElementById('btn-logout').style.display = 'inline-flex';
+      renderDashboard();
+    }
+
+    function renderDashboard() {
+      const c = customersData.find(x => x.id === portalCustomerId);
+      if (!c) {
+        logoutPortal();
+        return;
+      }
+
+      // Profile Info
+      document.getElementById('prof-name').textContent = c.nama || 'Anggota';
+      document.getElementById('prof-instansi').textContent = c.instansi || 'Anggota Koperasi';
+      document.getElementById('prof-id').textContent = c.kode_anggota || c.id || '-';
+      document.getElementById('prof-phone').textContent = c.telepon || '-';
+      document.getElementById('prof-address').textContent = c.domisili || '-';
+
+      // 1. Saldo Tabungan
+      const balance = Number(c.saldo_tabungan) || 0;
+      document.getElementById('stat-savings').textContent = `Rp ${formatRupiah(balance)}`;
+      document.getElementById('stat-savings-status').textContent = c.tabungan_aktif ? '✓ Tabungan Terverifikasi Aktif' : 'Tabungan Belum Aktif';
+
+      // 2. Transaksi & Sisa Hutang
+      const memberTxs = transactionsData.filter(t => {
+        const matchId = t.customerId && String(t.customerId) === String(c.id);
+        const matchName = t.nama_pelanggan && t.nama_pelanggan.toLowerCase().trim() === c.nama.toLowerCase().trim();
+        return matchId || matchName;
+      });
+
+      const unpaidTxs = memberTxs.filter(t => (t.sisa_piutang || 0) > 0);
+      const totalUnpaid = unpaidTxs.reduce((sum, t) => sum + (Number(t.sisa_piutang) || 0), 0);
+      document.getElementById('stat-debt').textContent = `Rp ${formatRupiah(totalUnpaid)}`;
+      document.getElementById('stat-debt-info').textContent = `${unpaidTxs.length} Transaksi Belum Lunas`;
+
+      // 3. Voucher Aktif
+      const vouchers = Array.isArray(c.vouchers) ? c.vouchers : [];
+      const today = new Date(new Date().setHours(0,0,0,0));
+      const activeVouchers = vouchers.filter(v => v.claimed !== true && (!v.expiry || new Date(v.expiry) >= today));
+      document.getElementById('stat-voucher').textContent = `${activeVouchers.length} Voucher`;
+      document.getElementById('stat-voucher-info').textContent = activeVouchers.length > 0 ? `Total: Rp ${formatRupiah(activeVouchers.reduce((s,v) => s + (Number(v.nominal)||0), 0))}` : 'Belum ada voucher aktif';
+
+      // Render Tabs
+      renderVouchersTab(vouchers);
+      renderSavingsTab(c);
+      renderHistoryTab(memberTxs);
+      renderDebtTab(unpaidTxs, c);
+      renderApplications(c);
+    }
+
+    function switchTab(tabId) {
+      ['vouchers', 'savings', 'history', 'debt'].forEach(t => {
+        const btn = document.getElementById(`btn-tab-${t}`);
+        const pane = document.getElementById(`tab-${t}`);
+        if (btn) btn.classList.toggle('active', t === tabId);
+        if (pane) pane.classList.toggle('active', t === tabId);
+      });
+    }
+
+    function renderVouchersTab(vouchers) {
+      const container = document.getElementById('list-vouchers');
+      if (!vouchers || vouchers.length === 0) {
+        container.innerHTML = `
+          <div style="grid-column: 1/-1; text-align: center; padding: 2.5rem 1rem; background: var(--bg-card); border-radius: 14px; border: 1.5px dashed var(--border-color); color: var(--text-muted);">
+            <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">🎟️</div>
+            <div style="font-weight: 800;">Belum Ada Voucher Belanja</div>
+            <div style="font-size: 0.8rem; margin-top: 0.2rem;">Voucher reward atau voucher custom yang diterbitkan admin akan tampil otomatis di sini.</div>
+          </div>
+        `;
+        return;
+      }
+
+      const today = new Date(new Date().setHours(0,0,0,0));
+      container.innerHTML = vouchers.map(v => {
+        const isExpired = v.expiry && new Date(v.expiry) < today;
+        const isUsed = v.claimed === true;
+        let badgeText = 'AKTIF';
+        let badgeColor = '#059669';
+        let badgeBg = '#dcfce7';
+
+        if (isUsed) {
+          badgeText = 'SUDAH DIGUNAKAN';
+          badgeColor = '#64748b';
+          badgeBg = '#f1f5f9';
+        } else if (isExpired) {
+          badgeText = 'KADALUARSA';
+          badgeColor = '#dc2626';
+          badgeBg = '#fee2e2';
+        }
+
+        return `
+          <div style="background: var(--bg-card); border: 1.5px solid ${isUsed ? 'var(--border-color)' : (isExpired ? '#fca5a5' : 'var(--primary)')}; border-radius: 14px; padding: 1.15rem; box-shadow: var(--shadow-sm); opacity: ${isUsed || isExpired ? '0.75' : '1'};">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+              <span style="font-size: 0.72rem; font-weight: 800; background: ${badgeBg}; color: ${badgeColor}; padding: 0.15rem 0.55rem; border-radius: 999px;">
+                ${badgeText}
+              </span>
+              <span style="font-size: 0.76rem; color: var(--text-muted); font-weight: 600;">${escapeHtml(v.kategori || 'Umum')}</span>
+            </div>
+            <div style="font-weight: 800; font-size: 1.05rem; color: var(--text-main); margin-bottom: 0.25rem;">
+              ${escapeHtml(v.namaVoucher || 'Voucher Belanja')}
+            </div>
+            <div style="font-size: 1.4rem; font-weight: 900; color: var(--primary); font-family: monospace;">
+              Rp ${formatRupiah(v.nominal || 0)}
+            </div>
+            <div style="margin-top: 0.65rem; border-top: 1px dashed var(--border-color); padding-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+              <span>Berlaku s/d:</span>
+              <b>${v.expiry ? v.expiry : 'Selamanya'}</b>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderSavingsTab(c) {
+      const container = document.getElementById('list-savings');
+      const countEl = document.getElementById('savings-count');
+      const history = Array.isArray(c.riwayat_tabungan) ? c.riwayat_tabungan : [];
+      if (countEl) countEl.textContent = `${history.length} Mutasi`;
+
+      if (history.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); background: var(--bg-card); border-radius: 14px; border: 1.5px dashed var(--border-color);">
+            Belum ada catatan mutasi tabungan (setor, tarik tunai, atau bayar belanja di kasir).
+          </div>
+        `;
+        return;
+      }
+
+      const reversed = [...history].reverse();
+      container.innerHTML = reversed.map(h => {
+        const isPlus = h.tipe === 'setor';
+        const isBayar = h.tipe === 'bayar_pos';
+        const color = isPlus ? '#059669' : (isBayar ? '#d97706' : '#dc2626');
+        const bg = isPlus ? '#dcfce7' : (isBayar ? '#fef3c7' : '#fee2e2');
+        const sign = isPlus ? '+' : '-';
+        const label = isPlus ? '📥 Setor Saldo' : (isBayar ? '🛍️ Bayar Belanja Kasir' : '📤 Tarik Tunai');
+        const dateFormatted = new Date(h.waktu).toLocaleString('id-ID');
+        const nominal = h.nominal !== undefined ? h.nominal : (h.jumlah || 0);
+        const sisa = h.sisa_saldo !== undefined ? h.sisa_saldo : (h.saldo_setelah || 0);
+
+        return `
+          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.85rem 1.15rem; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <span style="font-size: 0.76rem; font-weight: 800; background: ${bg}; color: ${color}; padding: 0.25rem 0.6rem; border-radius: 8px;">
+                ${label}
+              </span>
+              <div>
+                <div style="font-size: 0.78rem; color: var(--text-muted);">${dateFormatted}</div>
+                <div style="font-size: 0.84rem; font-weight: 700; color: var(--text-main);">${escapeHtml(h.catatan || '-')}</div>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 1.05rem; font-weight: 900; color: ${color}; font-family: monospace;">
+                ${sign} Rp ${formatRupiah(nominal)}
+              </div>
+              <div style="font-size: 0.74rem; color: var(--text-muted);">Saldo: Rp ${formatRupiah(sisa)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderHistoryTab(memberTxs) {
+      const container = document.getElementById('list-history');
+      const countEl = document.getElementById('history-count');
+      if (countEl) countEl.textContent = `${memberTxs.length} Transaksi`;
+
+      if (memberTxs.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); background: var(--bg-card); border-radius: 14px; border: 1.5px dashed var(--border-color);">
+            Belum ada riwayat transaksi belanja di kasir.
+          </div>
+        `;
+        return;
+      }
+
+      const sorted = [...memberTxs].sort((a,b) => new Date(b.waktu) - new Date(a.waktu));
+      container.innerHTML = sorted.map(tx => {
+        const dateFormatted = new Date(tx.waktu).toLocaleString('id-ID');
+        const items = Array.isArray(tx.items) ? tx.items : [];
+        const isBon = (tx.status_pembayaran === 'Bon') || ((tx.sisa_piutang || 0) > 0);
+
+        return `
+          <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 1.15rem; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 0.5rem; margin-bottom: 0.65rem;">
+              <div>
+                <strong style="font-size: 0.92rem; font-family: monospace; color: var(--text-main);">${escapeHtml(tx.id)}</strong>
+                <span style="font-size: 0.76rem; color: var(--text-muted); margin-left: 0.5rem;">${dateFormatted}</span>
+              </div>
+              <span style="font-size: 0.75rem; font-weight: 800; padding: 0.15rem 0.6rem; border-radius: 999px; background: ${isBon ? '#fee2e2' : '#dcfce7'}; color: ${isBon ? '#dc2626' : '#15803d'};">
+                ${isBon ? 'Hutang / Bon' : 'LUNAS'}
+              </span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.65rem;">
+              ${items.length > 0 ? items.map(it => `
+                <div style="display: flex; justify-content: space-between; font-size: 0.84rem;">
+                  <span>${escapeHtml(it.nama)} <b style="color: var(--primary);">x${it.qty}</b></span>
+                  <span style="font-family: monospace; font-weight: 700;">Rp ${formatRupiah((it.harga || 0) * (it.qty || 1))}</span>
+                </div>
+              `).join('') : `
+                <div style="font-size: 0.82rem; color: var(--text-muted); font-style: italic;">
+                  ${escapeHtml(tx.catatan_bon || tx.keterangan_manual || 'Transaksi Belanja')}
+                </div>
+              `}
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 0.5rem;">
+              <span style="color: var(--text-muted); font-size: 0.84rem;">Total Belanja:</span>
+              <strong style="font-size: 1.15rem; color: var(--text-main); font-family: monospace;">Rp ${formatRupiah(tx.total || 0)}</strong>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderDebtTab(unpaidTxs, c) {
+      const container = document.getElementById('list-debt');
+      if (unpaidTxs.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 2rem 1rem; color: #059669; background: #ecfdf5; border-radius: 14px; border: 1.5px solid #a7f3d0; font-weight: 800; font-size: 0.88rem;">
+            🎉 Luar Biasa! Anda tidak memiliki tagihan hutang atau bon tertunggak.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = unpaidTxs.map(tx => {
+        const sisa = Number(tx.sisa_piutang) || 0;
+        const dateFormatted = new Date(tx.waktu).toLocaleDateString('id-ID');
+        const isOverdue = tx.jatuh_tempo && new Date(tx.jatuh_tempo) < new Date(new Date().setHours(0,0,0,0));
+
+        return `
+          <div style="background: #fff; border: 1.5px solid ${isOverdue ? '#ef4444' : '#fca5a5'}; border-radius: 12px; padding: 0.95rem 1.15rem; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <strong style="font-size: 0.88rem; font-family: monospace; color: #991b1b;">${escapeHtml(tx.id)}</strong>
+              <span style="font-size: 0.74rem; font-weight: 800; color: ${isOverdue ? '#dc2626' : '#ea580c'};">
+                ${isOverdue ? '⚠️ Lewat Jatuh Tempo' : (tx.jatuh_tempo ? 'Jatuh Tempo: ' + tx.jatuh_tempo : 'Tanpa Jatuh Tempo')}
+              </span>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.45rem;">
+              Tgl: ${dateFormatted} | ${escapeHtml(tx.catatan_bon || tx.keterangan_manual || 'Bon Belanja')}
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #fecaca; padding-top: 0.4rem;">
+              <span style="font-size: 0.8rem; color: #b91c1c; font-weight: 700;">Sisa Tagihan:</span>
+              <strong style="font-size: 1.15rem; color: #dc2626; font-family: monospace;">Rp ${formatRupiah(sisa)}</strong>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function submitDebtApplication(e) {
+      if (e) e.preventDefault();
+      const c = customersData.find(x => x.id === portalCustomerId);
+      if (!c) {
+        alert("Sesi login berakhir. Silakan login kembali!");
+        logoutPortal();
+        return;
+      }
+
+      const amountStr = document.getElementById('apply-amount')?.value || '';
+      const amount = parseInt(amountStr.replace(/\D/g, ''), 10) || 0;
+      const reason = (document.getElementById('apply-reason')?.value || '').trim();
+      const dueDate = document.getElementById('apply-due-date')?.value || '';
+
+      if (amount <= 0) {
+        alert("Nominal yang diajukan harus lebih dari Rp 0!");
+        return;
+      }
+      if (!reason) {
+        alert("Alasan / keperluan pengajuan hutang wajib diisi!");
+        return;
+      }
+
+      const application = {
+        id: 'AJU-' + Date.now(),
+        tanggal: new Date().toISOString(),
+        nominal: amount,
+        alasan: reason,
+        jatuh_tempo: dueDate,
+        status: 'Menunggu Persetujuan Admin',
+        anggota_id: c.id,
+        nama_anggota: c.nama,
+        telepon: c.telepon || ''
+      };
+
+      if (!Array.isArray(c.pengajuan_hutang)) c.pengajuan_hutang = [];
+      c.pengajuan_hutang.unshift(application);
+
+      saveCustomersLocalAndCloud(c);
+
+      alert(`✅ Permohonan hutang sebesar Rp ${formatRupiah(amount)} berhasil dikirim!\nStatus: Menunggu Persetujuan Admin.\nKasir atau admin toko akan meninjau pengajuan Anda.`);
+
+      document.getElementById('apply-amount').value = '';
+      document.getElementById('apply-reason').value = '';
+      document.getElementById('apply-due-date').value = '';
+
+      renderApplications(c);
+    }
+
+    function renderApplications(c) {
+      const container = document.getElementById('list-applications');
+      if (!container) return;
+      const list = Array.isArray(c.pengajuan_hutang) ? c.pengajuan_hutang : [];
+
+      if (list.length === 0) {
+        container.innerHTML = `<div style="color: var(--text-muted); font-size: 0.75rem; font-style: italic;">Belum ada pengajuan hutang.</div>`;
+        return;
+      }
+
+      container.innerHTML = list.slice(0, 5).map(app => {
+        let badgeColor = '#d97706';
+        let badgeBg = '#fef3c7';
+        if (app.status === 'Disetujui') {
+          badgeColor = '#059669';
+          badgeBg = '#dcfce7';
+        } else if (app.status === 'Ditolak') {
+          badgeColor = '#dc2626';
+          badgeBg = '#fee2e2';
+        }
+
+        const tgl = new Date(app.tanggal).toLocaleDateString('id-ID');
+        return `
+          <div style="background: var(--bg-body); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.45rem 0.65rem; font-size: 0.78rem; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <span style="font-weight: 800; color: var(--text-main);">Rp ${formatRupiah(app.nominal)}</span>
+              <span style="color: var(--text-muted); font-size: 0.72rem; margin-left: 0.35rem;">(${tgl}) - ${escapeHtml(app.alasan)}</span>
+            </div>
+            <span style="font-size: 0.7rem; font-weight: 800; background: ${badgeBg}; color: ${badgeColor}; padding: 0.15rem 0.5rem; border-radius: 6px;">
+              ${escapeHtml(app.status)}
+            </span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function printMyIdCard() {
+      const c = customersData.find(x => x.id === portalCustomerId);
+      if (!c) return;
+
+      const printWindow = window.open('', '_blank');
+      const storeName = receiptSettingsData.name || 'TOKO KASIR / KOPERASI';
+      const barcodeValue = c.kode_anggota || c.id || 'MEMBER';
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>ID Card - ${escapeHtml(c.nama)}</title>
+          <script src="lib/JsBarcode.all.min.js"><\/script>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f1f5f9; }
+            .card { width: 340px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border: 2px solid #ea580c; position: relative; }
+            .header { text-align: center; border-bottom: 1.5px solid rgba(234,88,12,0.4); padding-bottom: 10px; margin-bottom: 15px; }
+            .header h3 { margin: 0; font-size: 16px; font-weight: 900; letter-spacing: 1px; color: #ea580c; text-transform: uppercase; }
+            .header p { margin: 2px 0 0; font-size: 10px; color: #94a3b8; }
+            .body { display: flex; gap: 15px; align-items: center; margin-bottom: 15px; }
+            .avatar { width: 60px; height: 60px; border-radius: 50%; background: #ea580c; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 900; flex-shrink: 0; }
+            .info h4 { margin: 0 0 4px; font-size: 16px; font-weight: 800; color: #fff; }
+            .info p { margin: 0 0 3px; font-size: 11px; color: #cbd5e1; }
+            .barcode-box { background: #fff; padding: 8px; border-radius: 8px; text-align: center; }
+            @media print {
+              body { background: #fff; min-height: auto; }
+              .card { box-shadow: none; border: 1.5px solid #000; color: #000; background: #fff; }
+              .header h3 { color: #000; }
+              .info h4 { color: #000; }
+              .info p { color: #333; }
+              .avatar { background: #eee; color: #000; border: 1px solid #ccc; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="header">
+              <h3>${escapeHtml(storeName)}</h3>
+              <p>KARTU IDENTITAS ANGGOTA RESMI</p>
+            </div>
+            <div class="body">
+              <div class="avatar">${c.nama.charAt(0).toUpperCase()}</div>
+              <div class="info">
+                <h4>${escapeHtml(c.nama)}</h4>
+                <p>ID: <b>${escapeHtml(c.kode_anggota || c.id)}</b></p>
+                <p>Instansi: ${escapeHtml(c.instansi || 'Anggota')}</p>
+                <p>No. HP: ${escapeHtml(c.telepon || '-')}</p>
+              </div>
+            </div>
+            <div class="barcode-box">
+              <svg id="card-barcode"></svg>
+            </div>
+          </div>
+          <script>
+            try {
+              JsBarcode("#card-barcode", "${barcodeValue}", {
+                format: "CODE128",
+                width: 1.6,
+                height: 40,
+                displayValue: true,
+                fontSize: 12
+              });
+            } catch(e) {}
+            setTimeout(() => { window.print(); }, 500);
+          <\/script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+
+    // Launch on load
+    window.addEventListener('DOMContentLoaded', initData);
+  </script>
+</body>
+</html>

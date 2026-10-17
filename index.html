@@ -94,11 +94,11 @@
           <i data-lucide="settings" class="icon"></i>
           <span>Pengaturan</span>
         </button>
-        <!-- Tombol Portal Mandiri Anggota -->
-        <button class="tab-btn" id="tab-member-portal" onclick="openMemberPortalModal()" title="Portal Mandiri Anggota: Cek Saldo, Voucher, Riwayat & Ajukan Bon" style="background: linear-gradient(135deg, rgba(234,88,12,0.15) 0%, rgba(249,115,22,0.2) 100%); color: #ea580c; border: 1.5px solid rgba(234,88,12,0.3); font-weight: 800;">
+        <!-- Tombol Portal Mandiri Anggota (Buka Link Sendiri) -->
+        <a href="portal.html" target="_blank" class="tab-btn" id="tab-member-portal" title="Portal Mandiri Anggota: Link Sendiri untuk Anggota Cek Saldo, Voucher, Riwayat & Ajukan Bon" style="background: linear-gradient(135deg, rgba(234,88,12,0.15) 0%, rgba(249,115,22,0.2) 100%); color: #ea580c; border: 1.5px solid rgba(234,88,12,0.3); font-weight: 800; text-decoration: none; display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; border-radius: 10px;">
           <i data-lucide="shield-check" class="icon" style="color: #ea580c;"></i>
           <span>Portal Anggota</span>
-        </button>
+        </a>
       </nav>
       
       <!-- System Indicators -->
@@ -1448,6 +1448,11 @@
               <i data-lucide="printer" style="width: 15px; height: 15px;"></i>
               🪪 Cetak Massal ID Card
             </button>
+            <!-- Tombol Buka Portal Anggota (Link Sendiri) -->
+            <a href="portal.html" target="_blank" title="Buka Portal Mandiri Anggota di tab baru / link terpisah" style="background: rgba(255,255,255,0.22); color: #fff; border: 1.5px solid rgba(255,255,255,0.45); padding: 0.55rem 0.95rem; border-radius: 11px; font-weight: 800; font-size: 0.84rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; backdrop-filter: blur(10px); text-decoration: none; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.06);" onmouseover="this.style.background='rgba(255,255,255,0.32)';this.style.transform='translateY(-1px)';" onmouseout="this.style.background='rgba(255,255,255,0.22)';this.style.transform='';">
+              <i data-lucide="external-link" style="width: 15px; height: 15px;"></i>
+              🌐 Buka Link Portal
+            </a>
             <!-- Tombol Tambah Anggota -->
             <button type="button" onclick="openAddCustomerModal()" style="background: #fff; color: #c2410c; border: none; padding: 0.6rem 1.15rem; border-radius: 11px; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem; box-shadow: 0 4px 14px rgba(0,0,0,0.16); transition: all 0.2s ease;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(0,0,0,0.22)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.16)'">
               <i data-lucide="user-plus" style="width: 16px; height: 16px;"></i>
@@ -1898,6 +1903,21 @@
                 <span style="font-size: 0.78rem; font-weight: 700; color: #047857;">TOTAL PIUTANG SUDAH LUNAS</span>
                 <div id="summary-total-paid-debt" style="font-size: 1.4rem; font-weight: 900; color: #059669; margin-top: 4px;">Rp 0</div>
                 <div style="font-size: 0.75rem; color: #065f46; margin-top: 2px;">Tercatat dari riwayat pelunasan kasir</div>
+              </div>
+            <!-- Banner Permohonan Hutang Masuk dari Portal Anggota -->
+            <div id="container-member-debt-applications" style="display: none; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 12px; padding: 1.15rem; margin-bottom: 1.25rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <span style="font-size: 1.25rem;">📬</span>
+                  <div>
+                    <h3 style="margin: 0; font-size: 0.95rem; font-weight: 800; color: #92400e;">Permohonan Hutang Masuk dari Anggota</h3>
+                    <div style="font-size: 0.75rem; color: #b45309;">Anggota mengajukan hutang/bon melalui Portal Anggota mandiri. Tinjau dan setujui atau tolak di bawah ini.</div>
+                  </div>
+                </div>
+                <span id="badge-debt-app-count" style="background: #ea580c; color: #fff; font-size: 0.78rem; font-weight: 800; padding: 0.2rem 0.65rem; border-radius: 999px;">0 Permohonan Baru</span>
+              </div>
+              <div id="list-member-debt-applications" style="display: flex; flex-direction: column; gap: 0.65rem;">
+                <!-- Diisi dinamis -->
               </div>
             </div>
 

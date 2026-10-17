@@ -15953,6 +15953,8 @@ function renderMemberPortalSavings(c) {
     const sign = isPlus ? '+' : '-';
     const label = isPlus ? '📥 Setor Saldo' : (isBayar ? '🛍️ Bayar Belanja Kasir' : '📤 Tarik Tunai');
     const dateFormatted = new Date(h.waktu).toLocaleString('id-ID');
+    const nominal = h.nominal !== undefined ? h.nominal : (h.jumlah || 0);
+    const sisa = h.sisa_saldo !== undefined ? h.sisa_saldo : (h.saldo_setelah || 0);
 
     return `
       <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.75rem 1rem;">
@@ -15967,9 +15969,9 @@ function renderMemberPortalSavings(c) {
         </div>
         <div style="text-align: right;">
           <div style="font-size: 1rem; font-weight: 900; color: ${color}; font-family: monospace;">
-            ${sign} Rp ${formatRupiah(h.jumlah || 0)}
+            ${sign} Rp ${formatRupiah(nominal)}
           </div>
-          <div style="font-size: 0.74rem; color: var(--text-muted);">Saldo: Rp ${formatRupiah(h.saldo_setelah || 0)}</div>
+          <div style="font-size: 0.74rem; color: var(--text-muted);">Saldo: Rp ${formatRupiah(sisa)}</div>
         </div>
       </div>
     `;
@@ -16159,6 +16161,106 @@ function renderMemberPortalApplications(c) {
       </div>
     `;
   }).join('');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROSES PERSETUJUAN / PENOLAKAN PENGAJUAN HUTANG ANGGOTA OLEH ADMIN / KASIR
+// ═════════════════════════════════════════════════════════════════════════════
+function approveMemberDebtApplication(appId, custId) {
+  const c = customers.find(x => x.id === custId);
+  if (!c || !Array.isArray(c.pengajuan_hutang)) {
+    alert("Data pengajuan tidak ditemukan!");
+    return;
+  }
+
+  const app = c.pengajuan_hutang.find(a => a.id === appId);
+  if (!app) {
+    alert("Permohonan hutang tidak ditemukan!");
+    return;
+  }
+
+  if (app.status === 'Disetujui') {
+    alert("Permohonan hutang ini sudah disetujui sebelumnya.");
+    return;
+  }
+
+  if (!confirm(`Setujui pengajuan hutang sebesar Rp ${formatRupiah(app.nominal)} untuk anggota "${c.nama}"?\n\nTransaksi hutang baru akan otomatis dicatat ke Buku Hutang.`)) {
+    return;
+  }
+
+  const now = new Date();
+  const ymd = now.getFullYear().toString().slice(-2) +
+              String(now.getMonth() + 1).padStart(2, '0') +
+              String(now.getDate()).padStart(2, '0');
+  const hms = String(now.getHours()).padStart(2, '0') +
+              String(now.getMinutes()).padStart(2, '0') +
+              String(now.getSeconds()).padStart(2, '0');
+  const txId = `MANUAL-${ymd}-${hms}`;
+
+  const tx = {
+    id: txId,
+    waktu: now.toISOString(),
+    items: [],
+    total: app.nominal,
+    bayar: 0,
+    kembalian: 0,
+    metode_pembayaran: 'Manual',
+    kasir: activeCashier || 'Admin',
+    status_pembayaran: 'Bon',
+    nama_pelanggan: c.nama,
+    telepon_pelanggan: c.telepon || '',
+    customerId: c.id,
+    sisa_piutang: app.nominal,
+    jatuh_tempo: app.jatuh_tempo || null,
+    catatan_bon: `[Disetujui dari Portal] ${app.alasan || 'Pengajuan Mandiri Anggota'}`,
+    keterangan_manual: app.alasan || 'Pengajuan Mandiri Anggota',
+    sumber_dana: 'saldo_penjualan',
+    is_manual_debt: true,
+    riwayat_pelunasan: []
+  };
+
+  transactions.unshift(tx);
+  saveTransactionsLocally();
+  syncSingleTransactionToCloud(tx);
+
+  app.status = 'Disetujui';
+  app.disetujui_pada = now.toISOString();
+  app.disetujui_oleh = activeCashier || 'Admin';
+  app.tx_id = txId;
+
+  saveCustomersLocally();
+  saveCustomerCloud(c);
+
+  alert(`✅ Sukses! Permohonan hutang Rp ${formatRupiah(app.nominal)} untuk ${c.nama} telah disetujui dan masuk ke Buku Hutang.`);
+  renderCustomerDebtBook();
+}
+
+function rejectMemberDebtApplication(appId, custId) {
+  const c = customers.find(x => x.id === custId);
+  if (!c || !Array.isArray(c.pengajuan_hutang)) {
+    alert("Data pengajuan tidak ditemukan!");
+    return;
+  }
+
+  const app = c.pengajuan_hutang.find(a => a.id === appId);
+  if (!app) {
+    alert("Permohonan hutang tidak ditemukan!");
+    return;
+  }
+
+  const reason = prompt(`Masukkan alasan penolakan pengajuan hutang untuk ${c.nama}:`, 'Tidak memenuhi persyaratan / batas kredit tercapai');
+  if (reason === null) return;
+
+  app.status = 'Ditolak';
+  app.ditolak_pada = new Date().toISOString();
+  app.ditolak_oleh = activeCashier || 'Admin';
+  app.alasan_penolakan = reason.trim() || 'Ditolak oleh kasir';
+
+  saveCustomersLocally();
+  saveCustomerCloud(c);
+
+  alert(`Permohonan hutang untuk ${c.nama} telah ditolak.`);
+  renderCustomerDebtBook();
 }
 
 
@@ -20069,6 +20171,59 @@ function renderCustomerDebtBook() {
   if (sumDebtorsCountEl) sumDebtorsCountEl.textContent = `${uniqueDebtorsSet.size} Pelanggan Masih Memiliki Hutang`;
   if (overdueCountEl) overdueCountEl.textContent = `${overdueCount} Tagihan`;
   if (overdueAmountEl) overdueAmountEl.textContent = `Rp ${formatRupiah(overdueTotalRp)} Perlu Ditagih Segera`;
+
+  // Render Permohonan Hutang Masuk dari Anggota
+  const appContainer = document.getElementById('container-member-debt-applications');
+  const appListEl = document.getElementById('list-member-debt-applications');
+  const appBadgeEl = document.getElementById('badge-debt-app-count');
+
+  if (appContainer && appListEl) {
+    const pendingApps = [];
+    customers.forEach(cust => {
+      if (Array.isArray(cust.pengajuan_hutang)) {
+        cust.pengajuan_hutang.forEach(app => {
+          if (app.status === 'Menunggu Persetujuan Admin' || !app.status) {
+            pendingApps.push({ ...app, custId: cust.id, custNama: cust.nama, custTelp: cust.telepon });
+          }
+        });
+      }
+    });
+
+    if (pendingApps.length > 0) {
+      appContainer.style.display = 'block';
+      if (appBadgeEl) appBadgeEl.textContent = `${pendingApps.length} Permohonan Baru`;
+
+      appListEl.innerHTML = pendingApps.map(app => {
+        const tglStr = new Date(app.tanggal).toLocaleDateString('id-ID');
+        return `
+          <div style="background: #fff; border: 1px solid #fde68a; border-radius: 10px; padding: 0.85rem 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <strong style="font-size: 0.95rem; color: #92400e;">${escapeHtml(app.custNama || 'Anggota')}</strong>
+                <span style="font-size: 0.75rem; background: #fef3c7; color: #b45309; padding: 0.15rem 0.5rem; border-radius: 999px; font-weight: 700;">${app.custTelp || 'No HP -'}</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Tgl Pengajuan: ${tglStr}</span>
+              </div>
+              <div style="font-size: 0.84rem; color: var(--text-main); margin-top: 0.25rem;">
+                <b>Nominal:</b> <span style="font-size: 1.05rem; font-weight: 900; color: #dc2626; font-family: monospace;">Rp ${formatRupiah(app.nominal)}</span>
+                <span style="margin-left: 0.75rem; color: var(--text-muted);">| <b>Alasan:</b> ${escapeHtml(app.alasan || '-')}</span>
+                ${app.jatuh_tempo ? `<span style="margin-left: 0.5rem; color: #ea580c; font-weight: 700;">| Rencana Pelunasan: ${app.jatuh_tempo}</span>` : ''}
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.45rem;">
+              <button type="button" onclick="approveMemberDebtApplication('${app.id}', '${app.custId}')" style="background: #15803d; color: #fff; border: none; font-weight: 800; font-size: 0.82rem; padding: 0.45rem 0.85rem; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                <span>✓ Setujui</span>
+              </button>
+              <button type="button" onclick="rejectMemberDebtApplication('${app.id}', '${app.custId}')" style="background: #dc2626; color: #fff; border: none; font-weight: 800; font-size: 0.82rem; padding: 0.45rem 0.85rem; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                <span>✕ Tolak</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      appContainer.style.display = 'none';
+    }
+  }
 
   // Filter tampilan sesuai tab aktif
   let displayTxs = debtTxs;
