@@ -86,9 +86,9 @@
           <i data-lucide="package" class="icon"></i>
           <span>Produk</span>
         </button>
-        <button class="tab-btn" id="tab-customers" onclick="switchTab('customers')" title="Pelanggan & CRM Member">
+        <button class="tab-btn" id="tab-customers" onclick="switchTab('customers')" title="Data Anggota &amp; CRM">
           <i data-lucide="users" class="icon"></i>
-          <span>Member</span>
+          <span>Anggota</span>
         </button>
         <button class="tab-btn" id="tab-settings" onclick="switchTab('settings')" title="Pengaturan Sistem & Toko">
           <i data-lucide="settings" class="icon"></i>
@@ -507,7 +507,7 @@
               </div>
             </div>
 
-            <!-- Widget 3: Pelanggan Berhutang & Jatuh Tempo (Fitur CRM Bon) -->
+            <!-- Widget 3: Anggota Berhutang & Jatuh Tempo (Fitur CRM Bon) -->
             <div class="widget-card" style="border: 1px solid rgba(239, 68, 68, 0.25);">
               <div class="widget-header">
                 <div class="widget-title-group">
@@ -908,9 +908,9 @@
                 </button>
               </div>
 
-              <!-- Filter Waktu & Sales untuk Penerimaan -->
+              <!-- Filter Waktu & Sales untuk Penerimaan (Tanggal, Bulan, Tahun, Rentang) -->
               <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: 0.75rem; background: var(--bg-surface-elevated); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
-                <span style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted);">Filter Nota:</span>
+                <span style="font-weight: 700; font-size: 0.85rem; color: var(--text-muted);">Filter Nota:</span>
                 <select id="filter-invoice-sales" onchange="renderSalesDeliveriesTable()" style="padding: 0.4rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
                   <option value="All">-- Semua Sales --</option>
                 </select>
@@ -919,7 +919,29 @@
                   <option value="Tempo">⏳ Tempo / Belum Lunas</option>
                   <option value="Lunas">✅ Lunas</option>
                 </select>
-                <input type="month" id="filter-invoice-month" onchange="renderSalesDeliveriesTable()" style="padding: 0.35rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                <select id="filter-invoice-period-type" onchange="onInvoicePeriodTypeChange(this.value)" style="padding: 0.4rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem; font-weight: 700;">
+                  <option value="all">Semua Waktu</option>
+                  <option value="date">Per Tanggal</option>
+                  <option value="date-range">Rentang Tanggal</option>
+                  <option value="month">Per Bulan</option>
+                  <option value="year">Per Tahun</option>
+                </select>
+                <!-- Control Waktu Dinamis -->
+                <div id="wrap-invoice-date" style="display: none;">
+                  <input type="date" id="filter-invoice-date" onchange="renderSalesDeliveriesTable()" style="padding: 0.35rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                </div>
+                <div id="wrap-invoice-date-range" style="display: none; align-items: center; gap: 0.3rem;">
+                  <input type="date" id="filter-invoice-date-start" onchange="renderSalesDeliveriesTable()" style="padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                  <span style="font-size: 0.8rem;">s/d</span>
+                  <input type="date" id="filter-invoice-date-end" onchange="renderSalesDeliveriesTable()" style="padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                </div>
+                <div id="wrap-invoice-month" style="display: none;">
+                  <input type="month" id="filter-invoice-month" onchange="renderSalesDeliveriesTable()" style="padding: 0.35rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                </div>
+                <div id="wrap-invoice-year" style="display: none;">
+                  <select id="filter-invoice-year" onchange="renderSalesDeliveriesTable()" style="padding: 0.35rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem; font-weight: 700;">
+                  </select>
+                </div>
                 <button type="button" class="btn btn-secondary btn-sm" onclick="resetInvoiceFilters()" style="padding: 0.35rem 0.65rem;">Reset</button>
                 <button type="button" class="btn btn-secondary btn-sm" onclick="printFilteredDeliveriesReport()" style="padding: 0.35rem 0.75rem; margin-left: auto; display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 600;">
                   <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
@@ -969,13 +991,35 @@
                 </button>
               </div>
 
-              <!-- Filter Retur -->
+              <!-- Filter Retur (Tanggal, Bulan, Tahun, Rentang) -->
               <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: 0.75rem; background: var(--bg-surface-elevated); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
-                <span style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted);">Filter Retur:</span>
+                <span style="font-weight: 700; font-size: 0.85rem; color: var(--text-muted);">Filter Retur:</span>
                 <select id="filter-return-sales" onchange="renderSalesReturnsTable()" style="padding: 0.4rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
                   <option value="All">-- Semua Sales --</option>
                 </select>
-                <input type="month" id="filter-return-month" onchange="renderSalesReturnsTable()" style="padding: 0.35rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                <select id="filter-return-period-type" onchange="onReturnPeriodTypeChange(this.value)" style="padding: 0.4rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem; font-weight: 700;">
+                  <option value="all">Semua Waktu</option>
+                  <option value="date">Per Tanggal</option>
+                  <option value="date-range">Rentang Tanggal</option>
+                  <option value="month">Per Bulan</option>
+                  <option value="year">Per Tahun</option>
+                </select>
+                <!-- Control Waktu Retur Dinamis -->
+                <div id="wrap-return-date" style="display: none;">
+                  <input type="date" id="filter-return-date" onchange="renderSalesReturnsTable()" style="padding: 0.35rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                </div>
+                <div id="wrap-return-date-range" style="display: none; align-items: center; gap: 0.3rem;">
+                  <input type="date" id="filter-return-date-start" onchange="renderSalesReturnsTable()" style="padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                  <span style="font-size: 0.8rem;">s/d</span>
+                  <input type="date" id="filter-return-date-end" onchange="renderSalesReturnsTable()" style="padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                </div>
+                <div id="wrap-return-month" style="display: none;">
+                  <input type="month" id="filter-return-month" onchange="renderSalesReturnsTable()" style="padding: 0.35rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem;">
+                </div>
+                <div id="wrap-return-year" style="display: none;">
+                  <select id="filter-return-year" onchange="renderSalesReturnsTable()" style="padding: 0.35rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem; font-weight: 700;">
+                  </select>
+                </div>
                 <button type="button" class="btn btn-secondary btn-sm" onclick="resetReturnFilters()" style="padding: 0.35rem 0.65rem;">Reset</button>
                 <button type="button" class="btn btn-secondary btn-sm" onclick="printFilteredReturnsReport()" style="padding: 0.35rem 0.75rem; margin-left: auto; display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 600;">
                   <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
@@ -1372,14 +1416,14 @@
             </div>
             <div>
               <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                <h2 style="margin: 0; font-size: 1.35rem; font-weight: 900; color: #fff; letter-spacing: -0.4px;">Manajemen Pelanggan & CRM</h2>
+                <h2 style="margin: 0; font-size: 1.35rem; font-weight: 900; color: #fff; letter-spacing: -0.4px;">Manajemen Anggota & CRM</h2>
                 <span style="display: inline-flex; align-items: center; gap: 0.3rem; background: rgba(255,255,255,0.22); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 0.2rem 0.55rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.5px;">
                   <i data-lucide="sparkles" style="width: 12px; height: 12px;"></i> Loyalitas & Bon
                 </span>
               </div>
               <div style="display: flex; align-items: center; gap: 0.65rem; margin-top: 0.4rem; flex-wrap: wrap;">
                 <span id="crm-member-count-badge" style="background: rgba(255,255,255,0.22); color: #fff; font-size: 0.78rem; font-weight: 800; padding: 0.22rem 0.75rem; border-radius: 999px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.3); display: inline-flex; align-items: center; gap: 0.35rem;">
-                  <i data-lucide="user-check" style="width: 13px; height: 13px;"></i> 0 Member
+                  <i data-lucide="user-check" style="width: 13px; height: 13px;"></i> 0 Anggota
                 </span>
                 <span id="loyalty-mode-active-badge" style="background: rgba(255,255,255,0.18); color: #fff; font-size: 0.78rem; font-weight: 800; padding: 0.22rem 0.75rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.35); backdrop-filter: blur(8px);">🎟️ Mode Voucher Aktif</span>
               </div>
@@ -1414,10 +1458,15 @@
               <i data-lucide="download" style="width: 15px; height: 15px;"></i>
               Export Excel
             </button>
-            <!-- Tombol Tambah Member -->
+            <!-- Tombol Buat Voucher Custom -->
+            <button type="button" onclick="openCreateCustomVoucherModal()" style="background: rgba(255,255,255,0.22); color: #fff; border: 1.5px solid rgba(255,255,255,0.45); padding: 0.55rem 0.95rem; border-radius: 11px; font-weight: 800; font-size: 0.84rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; backdrop-filter: blur(10px); transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.06);" onmouseover="this.style.background='rgba(255,255,255,0.32)';this.style.transform='translateY(-1px)';" onmouseout="this.style.background='rgba(255,255,255,0.22)';this.style.transform='';">
+              <i data-lucide="ticket" style="width: 15px; height: 15px;"></i>
+              Buat Voucher Custom
+            </button>
+            <!-- Tombol Tambah Anggota -->
             <button type="button" onclick="openAddCustomerModal()" style="background: #fff; color: #c2410c; border: none; padding: 0.6rem 1.15rem; border-radius: 11px; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem; box-shadow: 0 4px 14px rgba(0,0,0,0.16); transition: all 0.2s ease;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(0,0,0,0.22)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.16)'">
               <i data-lucide="user-plus" style="width: 16px; height: 16px;"></i>
-              Tambah Member
+              Tambah Anggota
             </button>
           </div>
         </div>
@@ -1564,15 +1613,15 @@
         </div>
 
         <!-- ═══════════════════════════════════════════════════════════
-             MODAL: TAMBAH / EDIT PELANGGAN
+             MODAL: TAMBAH / EDIT ANGGOTA
         ═══════════════════════════════════════════════════════════ -->
         <div id="add-customer-modal" class="modal-overlay" style="display: none; z-index: 2900;">
-          <div class="modal-card" style="max-width: 520px; border-radius: 20px; overflow: hidden; padding: 0;">
+          <div class="modal-card" style="max-width: 540px; border-radius: 20px; overflow: hidden; padding: 0;">
             <!-- Modal Header -->
             <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
               <div style="display: flex; align-items: center; gap: 0.65rem;">
                 <div style="width: 38px; height: 38px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">👤</div>
-                <h3 id="customer-form-title" style="margin: 0; font-size: 1rem; font-weight: 900; color: #fff;">Tambah Pelanggan Baru</h3>
+                <h3 id="customer-form-title" style="margin: 0; font-size: 1rem; font-weight: 900; color: #fff;">Tambah Anggota Baru</h3>
               </div>
               <button onclick="closeAddCustomerModal()" style="background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 8px; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
             </div>
@@ -1580,23 +1629,36 @@
             <div style="padding: 1.5rem; background: var(--bg-surface);">
               <form id="customer-form" onsubmit="saveCustomer(event)">
                 <input type="hidden" id="edit-customer-id" value="">
-                <div class="form-group">
-                  <label for="cust-name" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Nama Pelanggan *</label>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.85rem;">
+                  <div class="form-group" style="margin: 0;">
+                    <label for="cust-code" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Id Anggota * <small style="color: var(--text-muted); font-weight: normal;">(Diisi manual)</small></label>
+                    <input type="text" id="cust-code" class="form-control" placeholder="Contoh: ANG-001" required style="border-radius: 10px; font-family: monospace; font-weight: 700;">
+                  </div>
+                  <div class="form-group" style="margin: 0;">
+                    <label for="cust-instansi" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Instansi <small style="color: var(--text-muted); font-weight: normal;">(Opsional)</small></label>
+                    <input type="text" id="cust-instansi" class="form-control" placeholder="Contoh: Koperasi / Sekolah" style="border-radius: 10px;">
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.85rem;">
+                  <label for="cust-name" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Nama Anggota *</label>
                   <input type="text" id="cust-name" class="form-control" placeholder="Contoh: Budi Santoso" required style="border-radius: 10px;">
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                  <div class="form-group">
-                    <label for="cust-phone" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">No. Telepon (WA)</label>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.85rem;">
+                  <div class="form-group" style="margin: 0;">
+                    <label for="cust-phone" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">No. HP (WA)</label>
                     <input type="text" id="cust-phone" class="form-control" placeholder="0812..." style="border-radius: 10px;">
                   </div>
-                  <div class="form-group">
-                    <label for="cust-address" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Domisili / Alamat</label>
+                  <div class="form-group" style="margin: 0;">
+                    <label for="cust-address" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Alamat</label>
                     <input type="text" id="cust-address" class="form-control" placeholder="Contoh: Gresik" style="border-radius: 10px;">
                   </div>
                 </div>
 
                 <!-- Saldo Poin (Tampak jika mode Poin) -->
-                <div class="form-group" id="group-cust-points">
+                <div class="form-group" id="group-cust-points" style="margin-bottom: 0.85rem;">
                   <label for="cust-points" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Saldo Poin Awal</label>
                   <input type="number" id="cust-points" class="form-control" value="0" min="0" style="border-radius: 10px;">
                 </div>
@@ -1606,8 +1668,8 @@
                   <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: #92400e; margin: 0;">
                     <input type="checkbox" id="cust-voucher-eligible" checked style="width: 18px; height: 18px; margin-top: 2px; accent-color: #d97706;">
                     <span>
-                      <strong>🎟️ Berikan Akses Voucher Bulanan</strong>
-                      <div style="font-size: 0.75rem; font-weight: normal; color: #b45309; margin-top: 2px;">Pelanggan ini berhak menggunakan kuota voucher saat berbelanja.</div>
+                      <strong>🎟️ Berikan Akses Voucher</strong>
+                      <div style="font-size: 0.75rem; font-weight: normal; color: #b45309; margin-top: 2px;">Anggota ini berhak menggunakan kuota voucher saat berbelanja.</div>
                     </span>
                   </label>
                 </div>
@@ -1615,7 +1677,7 @@
                 <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem;">
                   <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.65rem; font-weight: 800; border-radius: 10px; font-size: 0.9rem;">
                     <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.5; margin-right: 4px; vertical-align: middle;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                    Simpan Pelanggan
+                    Simpan Anggota
                   </button>
                   <button type="button" onclick="closeAddCustomerModal()" style="background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-color); padding: 0.65rem 1.25rem; border-radius: 10px; font-weight: 600; cursor: pointer;">Batal</button>
                 </div>
@@ -1628,7 +1690,7 @@
         <div style="display: flex; gap: 0.35rem; margin-bottom: 1.25rem; background: var(--bg-surface); border: 1px solid var(--border-color); padding: 5px; border-radius: 12px; width: fit-content;">
           <button type="button" id="tab-btn-cust-members" onclick="switchCustomerSubView('members')" style="background: #ea580c; color: #fff; border: none; padding: 0.55rem 1.25rem; font-weight: 800; font-size: 0.88rem; cursor: pointer; border-radius: 9px; display: inline-flex; align-items: center; gap: 0.5rem; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(234,88,12,0.3);">
             <i data-lucide="users" style="width: 16px; height: 16px;"></i>
-            <span>Daftar Member</span>
+            <span>Daftar Anggota</span>
           </button>
           <button type="button" id="tab-btn-cust-debt" onclick="switchCustomerSubView('debt')" style="background: transparent; color: #64748b; border: none; padding: 0.55rem 1.25rem; font-weight: 700; font-size: 0.88rem; cursor: pointer; border-radius: 9px; display: inline-flex; align-items: center; gap: 0.5rem; transition: all 0.2s ease;">
             <i data-lucide="book-open" style="width: 16px; height: 16px;"></i>
@@ -1646,7 +1708,7 @@
             <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 14px; padding: 1.15rem 1.25rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 10px rgba(0,0,0,0.02); position: relative; overflow: hidden;">
               <div style="position: absolute; right: -15px; bottom: -15px; width: 75px; height: 75px; background: rgba(234,88,12,0.06); border-radius: 50%; pointer-events: none;"></div>
               <div>
-                <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Total Member Aktif</span>
+                <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Total Anggota Aktif</span>
                 <div id="crm-stat-total-members" style="font-size: 1.5rem; font-weight: 900; color: #ea580c; margin-top: 2px;">0</div>
                 <div style="font-size: 0.74rem; color: #16a34a; margin-top: 2px; display: flex; align-items: center; gap: 3px; font-weight: 700;">
                   <i data-lucide="check-circle-2" style="width: 12px; height: 12px;"></i> Terverifikasi di Database
@@ -1679,7 +1741,7 @@
                 <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Piutang / Bon Aktif</span>
                 <div id="crm-stat-active-debt" style="font-size: 1.35rem; font-weight: 900; color: #dc2626; margin-top: 2px;">Rp 0</div>
                 <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px; display: flex; align-items: center; gap: 3px;">
-                  <i data-lucide="alert-circle" style="width: 12px; height: 12px; color: #dc2626;"></i> <span id="crm-stat-debtors-label">0 pelanggan</span>
+                  <i data-lucide="alert-circle" style="width: 12px; height: 12px; color: #dc2626;"></i> <span id="crm-stat-debtors-label">0 anggota</span>
                 </div>
               </div>
               <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(239,68,68,0.1); color: #dc2626; display: flex; align-items: center; justify-content: center;">
@@ -1687,7 +1749,7 @@
               </div>
             </div>
 
-            <!-- Card 4: Transaksi Terkait Member -->
+            <!-- Card 4: Transaksi Terkait Anggota -->
             <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 14px; padding: 1.15rem 1.25rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 10px rgba(0,0,0,0.02); position: relative; overflow: hidden;">
               <div style="position: absolute; right: -15px; bottom: -15px; width: 75px; height: 75px; background: rgba(99,102,241,0.06); border-radius: 50%; pointer-events: none;"></div>
               <div>
@@ -1709,62 +1771,102 @@
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
               <div>
                 <div style="display: flex; align-items: center; gap: 0.6rem;">
-                  <h2 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Daftar Pelanggan & Member</h2>
-                  <span id="customer-total-badge" style="background: rgba(234,88,12,0.1); color: #ea580c; font-weight: 700; font-size: 0.78rem; padding: 0.2rem 0.65rem; border-radius: 999px; border: 1px solid rgba(234,88,12,0.2);">0 Member</span>
+                  <h2 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Daftar Anggota</h2>
+                  <span id="customer-total-badge" style="background: rgba(234,88,12,0.1); color: #ea580c; font-weight: 700; font-size: 0.78rem; padding: 0.2rem 0.65rem; border-radius: 999px; border: 1px solid rgba(234,88,12,0.2);">0 Anggota</span>
                 </div>
-                <!-- Voucher Filter Tabs (shown in voucher mode) -->
+                <!-- Voucher Filter Tabs & Sorting (shown in voucher mode) -->
                 <div id="voucher-filter-tabs-container" style="display: none; margin-top: 0.75rem;">
-                  <!-- Pilih Bulan -->
-                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.65rem; flex-wrap: wrap; background: rgba(234,88,12,0.06); padding: 0.5rem 0.75rem; border-radius: 10px; border: 1px solid rgba(234,88,12,0.2);">
+                  <!-- Baris 1: Filter Periode & Kategori -->
+                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.65rem; flex-wrap: wrap; background: rgba(234,88,12,0.06); padding: 0.6rem 0.85rem; border-radius: 12px; border: 1px solid rgba(234,88,12,0.2);">
                     <span style="font-size: 0.8rem; font-weight: 800; color: #c2410c; display: flex; align-items: center; gap: 0.35rem;">
-                      <i data-lucide="calendar" style="width: 14px; height: 14px;"></i>
-                      Pilih Bulan Voucher:
+                      <i data-lucide="filter" style="width: 14px; height: 14px;"></i>
+                      Filter Voucher:
                     </span>
-                    <select id="voucher-filter-month-select" class="form-control"
-                      style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto; min-width: 130px; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);"
-                      onchange="onVoucherDropdownMonthChange()">
-                      <option value="01">Januari</option>
-                      <option value="02">Februari</option>
-                      <option value="03">Maret</option>
-                      <option value="04">April</option>
-                      <option value="05">Mei</option>
-                      <option value="06">Juni</option>
-                      <option value="07">Juli</option>
-                      <option value="08">Agustus</option>
-                      <option value="09">September</option>
-                      <option value="10">Oktober</option>
-                      <option value="11">November</option>
-                      <option value="12">Desember</option>
+                    
+                    <!-- Mode Filter: Tanggal / Bulan / Tahun / Semua -->
+                    <select id="voucher-filter-mode-select" class="form-control" style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);" onchange="onVoucherFilterModeChange(this.value)">
+                      <option value="month">Bulan Tertentu</option>
+                      <option value="month-range">Rentang Bulan</option>
+                      <option value="date-range">Rentang Tanggal (Dari - Sampai)</option>
+                      <option value="year">Tahun</option>
+                      <option value="all">Semua Waktu</option>
                     </select>
-                    <select id="voucher-filter-year-select" class="form-control"
-                      style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto; min-width: 85px; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);"
-                      onchange="onVoucherDropdownMonthChange()">
+
+                    <!-- Control: Bulan Tunggal -->
+                    <div id="vwrap-single-month" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                      <select id="voucher-filter-month-select" class="form-control"
+                        style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);"
+                        onchange="renderCustomersTable()">
+                        <option value="01">Januari</option>
+                        <option value="02">Februari</option>
+                        <option value="03">Maret</option>
+                        <option value="04">April</option>
+                        <option value="05">Mei</option>
+                        <option value="06">Juni</option>
+                        <option value="07">Juli</option>
+                        <option value="08">Agustus</option>
+                        <option value="09">September</option>
+                        <option value="10">Oktober</option>
+                        <option value="11">November</option>
+                        <option value="12">Desember</option>
+                      </select>
+                      <select id="voucher-filter-year-select" class="form-control"
+                        style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto; min-width: 80px; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);"
+                        onchange="renderCustomersTable()">
+                      </select>
+                    </div>
+
+                    <!-- Control: Rentang Bulan -->
+                    <div id="vwrap-month-range" style="display: none; align-items: center; gap: 0.35rem;">
+                      <input type="month" id="voucher-filter-month-start" class="form-control" style="font-size: 0.82rem; padding: 0.3rem 0.5rem; border-radius: 8px; width: auto;" onchange="renderCustomersTable()">
+                      <span style="font-size: 0.8rem; color: var(--text-muted);">s/d</span>
+                      <input type="month" id="voucher-filter-month-end" class="form-control" style="font-size: 0.82rem; padding: 0.3rem 0.5rem; border-radius: 8px; width: auto;" onchange="renderCustomersTable()">
+                    </div>
+
+                    <!-- Control: Rentang Tanggal -->
+                    <div id="vwrap-date-range" style="display: none; align-items: center; gap: 0.35rem;">
+                      <input type="date" id="voucher-filter-date-start" class="form-control" style="font-size: 0.82rem; padding: 0.3rem 0.5rem; border-radius: 8px; width: auto;" onchange="renderCustomersTable()">
+                      <span style="font-size: 0.8rem; color: var(--text-muted);">s/d</span>
+                      <input type="date" id="voucher-filter-date-end" class="form-control" style="font-size: 0.82rem; padding: 0.3rem 0.5rem; border-radius: 8px; width: auto;" onchange="renderCustomersTable()">
+                    </div>
+
+                    <!-- Control: Tahun Saja -->
+                    <div id="vwrap-year-only" style="display: none; align-items: center; gap: 0.35rem;">
+                      <select id="voucher-filter-year-only-select" class="form-control" style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto;" onchange="renderCustomersTable()">
+                      </select>
+                    </div>
+
+                    <!-- Filter Kategori Voucher -->
+                    <select id="voucher-filter-category-select" class="form-control" style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);" onchange="renderCustomersTable()">
+                      <option value="All">-- Semua Kategori --</option>
                     </select>
+
                     <input type="hidden" id="voucher-filter-month" value="">
-                    <button type="button" onclick="resetVoucherMonthFilter()" style="font-size: 0.76rem; font-weight: 700; color: #ea580c; background: #fff; border: 1px solid rgba(234,88,12,0.3); padding: 0.35rem 0.75rem; border-radius: 8px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                      Bulan Ini
+                    <button type="button" onclick="resetVoucherAdvancedFilter()" style="font-size: 0.76rem; font-weight: 700; color: #ea580c; background: #fff; border: 1px solid rgba(234,88,12,0.3); padding: 0.35rem 0.75rem; border-radius: 8px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                      Reset Filter
                     </button>
                     <span id="voucher-filter-month-label" style="font-size: 0.8rem; color: #ea580c; font-weight: 800;"></span>
                   </div>
-                  <!-- Filter Tabs -->
+
+                  <!-- Baris 2: Tab Status Klaim Voucher (Semua / Sudah Klaim / Belum Klaim) -->
                   <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
                     <button type="button" id="btn-vf-all" onclick="setVoucherTableFilter('all')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: #ea580c; color: #fff; border: none; cursor: pointer;">
                       Semua (<span id="count-vf-all">0</span>)
                     </button>
                     <button type="button" id="btn-vf-used" onclick="setVoucherTableFilter('used')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-color); cursor: pointer;">
-                      &#10003; Sudah Klaim (<span id="count-vf-used">0</span>)
+                      &#10003; Sudah Ambil (<span id="count-vf-used">0</span>)
                     </button>
                     <button type="button" id="btn-vf-unused" onclick="setVoucherTableFilter('unused')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-color); cursor: pointer;">
-                      &#9202; Belum Klaim (<span id="count-vf-unused">0</span>)
+                      &#9202; Belum Ambil (<span id="count-vf-unused">0</span>)
                     </button>
                   </div>
                 </div>
               </div>
               <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                 <!-- Search box -->
-                <div style="position: relative; min-width: 220px; display: flex; align-items: center;">
+                <div style="position: relative; min-width: 250px; display: flex; align-items: center;">
                   <i data-lucide="search" style="position: absolute; left: 12px; width: 16px; height: 16px; color: var(--text-muted); pointer-events: none;"></i>
-                  <input type="text" id="customer-search" class="form-control" placeholder="Cari nama, no HP, domisili..." oninput="renderCustomersTable()" style="padding: 0.5rem 2rem 0.5rem 2.2rem; border-radius: 50px; border: 1.5px solid var(--border-color); font-size: 0.86rem; width: 100%;">
+                  <input type="text" id="customer-search" class="form-control" placeholder="Cari ID, nama, instansi, no HP..." oninput="renderCustomersTable()" style="padding: 0.5rem 2rem 0.5rem 2.2rem; border-radius: 50px; border: 1.5px solid var(--border-color); font-size: 0.86rem; width: 100%;">
                   <button type="button" id="btn-clear-cust-search" onclick="clearCustomerSearch()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1.1rem; color: var(--text-muted); cursor: pointer; display: none;">&times;</button>
                 </div>
               </div>
@@ -1774,11 +1876,14 @@
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Nama Pelanggan</th>
-                    <th>No. Telepon</th>
-                    <th>Domisili</th>
-                    <th id="th-customer-reward-status">Poin</th>
-                    <th style="width: 260px; text-align: center;">Aksi &amp; Riwayat</th>
+                    <th style="width: 100px;">ID Anggota</th>
+                    <th>Nama Anggota</th>
+                    <th>Instansi</th>
+                    <th>No. HP</th>
+                    <th>Alamat</th>
+                    <th>Saldo Tabungan</th>
+                    <th id="th-customer-reward-status">Voucher</th>
+                    <th style="width: 280px; text-align: center;">Aksi &amp; Tabungan</th>
                   </tr>
                 </thead>
                 <tbody id="customer-table-body">
@@ -1796,7 +1901,7 @@
               <div>
                 <h2 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
                   <i data-lucide="book-open" style="width: 20px; height: 20px; color: #ea580c;"></i>
-                  <span>Buku Hutang &amp; Piutang Member</span>
+                  <span>Buku Hutang &amp; Piutang Anggota</span>
                 </h2>
                 <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-muted);">
                   Pantau member yang berhutang, tanggal transaksi, jatuh tempo, serta bayar/lunasi hutang langsung per pelanggan atau per transaksi.
@@ -1879,6 +1984,180 @@
                   <!-- Diisi dinamis -->
                 </tbody>
               </table>
+            </div>
+          </div>
+        <!-- ═══════════════════════════════════════════════════════════
+             MODAL: TABUNGAN ANGGOTA (SETOR / TARIK SALDO MANDIRI)
+        ═══════════════════════════════════════════════════════════ -->
+        <div id="savings-account-modal" class="modal-overlay" style="display: none; z-index: 2950;">
+          <div class="modal-card" style="max-width: 580px; border-radius: 20px; overflow: hidden; padding: 0;">
+            <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">🏦</div>
+                <div>
+                  <h3 style="margin: 0; font-size: 1.1rem; font-weight: 900; color: #fff;">Tabungan Anggota</h3>
+                  <div id="savings-modal-subtitle" style="font-size: 0.8rem; color: rgba(255,255,255,0.85); margin-top: 2px;">Kelola simpanan, setor, dan penarikan saldo mandiri</div>
+                </div>
+              </div>
+              <button onclick="closeSavingsAccountModal()" style="background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 8px; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+            </div>
+            
+            <div style="padding: 1.5rem; background: var(--bg-surface);">
+              <!-- Card Saldo Sekarang -->
+              <div style="background: linear-gradient(135deg, rgba(2,132,199,0.08) 0%, rgba(3,105,161,0.14) 100%); border: 1.5px solid rgba(2,132,199,0.25); border-radius: 14px; padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <div>
+                  <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Saldo Tabungan Saat Ini</div>
+                  <div id="savings-current-balance" style="font-size: 1.8rem; font-weight: 900; color: #0284c7; margin-top: 2px;">Rp 0</div>
+                  <div id="savings-member-info" style="font-size: 0.82rem; color: var(--text-main); font-weight: 600; margin-top: 2px;">[ANG-001] Ahmad - Koperasi</div>
+                </div>
+                <div style="text-align: right;">
+                  <span style="display: inline-block; font-size: 0.75rem; background: #e0f2fe; color: #0369a1; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 999px;">Bisa Dipakai Checkout</span>
+                </div>
+              </div>
+
+              <!-- Form Aksi: Setor / Tarik -->
+              <form id="savings-form" onsubmit="submitSavingsTransaction(event)">
+                <input type="hidden" id="savings-cust-id" value="">
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                  <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1.5px solid #0284c7; border-radius: 10px; cursor: pointer; background: rgba(2,132,199,0.05);">
+                    <input type="radio" name="savings-type" value="setor" checked style="accent-color: #0284c7;">
+                    <div>
+                      <strong style="color: #0369a1; font-size: 0.9rem;">📥 Setor Tabungan</strong>
+                      <div style="font-size: 0.74rem; color: var(--text-muted);">Menambah saldo simpanan</div>
+                    </div>
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1.5px solid var(--border-color); border-radius: 10px; cursor: pointer; background: var(--bg-card);">
+                    <input type="radio" name="savings-type" value="tarik" style="accent-color: #e11d48;">
+                    <div>
+                      <strong style="color: #e11d48; font-size: 0.9rem;">📤 Tarik Tunai Mandiri</strong>
+                      <div style="font-size: 0.74rem; color: var(--text-muted);">Ambil uang tabungan</div>
+                    </div>
+                  </label>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.85rem;">
+                  <label for="savings-amount" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Jumlah Nominal (Rp) *</label>
+                  <input type="text" id="savings-amount" class="form-control" placeholder="Masukkan jumlah, contoh: 50.000" required autocomplete="off" oninput="formatSavingsAmount(this)" style="font-size: 1.15rem; font-weight: 800; border-radius: 10px; color: #0284c7;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                  <label for="savings-notes" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Catatan / Keterangan</label>
+                  <input type="text" id="savings-notes" class="form-control" placeholder="Contoh: Titip tabungan mingguan" style="border-radius: 10px;">
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.7rem; font-weight: 800; font-size: 0.95rem; border-radius: 10px; background: #0284c7; border-color: #0284c7;">
+                  Proses Transaksi Tabungan
+                </button>
+              </form>
+
+              <!-- Riwayat Mutasi Tabungan -->
+              <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
+                  <h4 style="margin: 0; font-size: 0.92rem; font-weight: 800; color: var(--text-main);">Riwayat Mutasi Tabungan</h4>
+                  <span id="savings-history-count" style="font-size: 0.75rem; color: var(--text-muted);">0 Riwayat</span>
+                </div>
+                <div id="savings-history-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem;">
+                  <!-- Diisi dinamis -->
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             MODAL: BUAT VOUCHER CUSTOM
+        ═══════════════════════════════════════════════════════════ -->
+        <div id="create-custom-voucher-modal" class="modal-overlay" style="display: none; z-index: 2950;">
+          <div class="modal-card" style="max-width: 680px; width: 95vw; max-height: 92vh; border-radius: 20px; overflow: hidden; padding: 0; display: flex; flex-direction: column;">
+            <div style="background: linear-gradient(135deg, #c2410c 0%, #ea580c 50%, #f97316 100%); padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+              <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">🎟️</div>
+                <div>
+                  <h3 style="margin: 0; font-size: 1.1rem; font-weight: 900; color: #fff;">Buat Voucher Custom</h3>
+                  <div style="font-size: 0.8rem; color: rgba(255,255,255,0.85); margin-top: 2px;">Atur nominal per anggota, kategori, dan batas kadaluarsa</div>
+                </div>
+              </div>
+              <button onclick="closeCreateCustomVoucherModal()" style="background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 8px; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+            </div>
+
+            <div style="padding: 1.5rem; background: var(--bg-surface); overflow-y: auto; flex: 1;">
+              <form id="create-custom-voucher-form" onsubmit="saveCustomVoucher(event)">
+                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 1rem; margin-bottom: 0.85rem;">
+                  <div class="form-group" style="margin: 0;">
+                    <label for="cv-name" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Nama Voucher *</label>
+                    <input type="text" id="cv-name" class="form-control" placeholder="Contoh: Voucher Belanja Ramadhan" required style="border-radius: 10px;">
+                  </div>
+                  <div class="form-group" style="margin: 0;">
+                    <label for="cv-category" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Kategori Voucher</label>
+                    <input type="text" id="cv-category" class="form-control" placeholder="Contoh: Sembako / Belanja Umum" value="Umum" style="border-radius: 10px;">
+                  </div>
+                </div>
+
+                <!-- Kadaluarsa -->
+                <div style="background: rgba(234,88,12,0.06); border: 1px solid rgba(234,88,12,0.2); border-radius: 12px; padding: 0.85rem 1rem; margin-bottom: 1rem;">
+                  <label style="font-size: 0.85rem; font-weight: 800; color: #c2410c; display: block; margin-bottom: 0.4rem;">Masa Berlaku / Kadaluarsa:</label>
+                  <div style="display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap;">
+                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 700; cursor: pointer; color: var(--text-main); margin: 0;">
+                      <input type="radio" name="cv-expiry-type" value="tanpa_kadaluarsa" checked onchange="toggleCustomVoucherExpiryInput(this.value)" style="accent-color: #ea580c;">
+                      <span>Tanpa Kadaluarsa (Selamanya)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 700; cursor: pointer; color: var(--text-main); margin: 0;">
+                      <input type="radio" name="cv-expiry-type" value="tanggal" onchange="toggleCustomVoucherExpiryInput(this.value)" style="accent-color: #ea580c;">
+                      <span>Atur Tanggal Kadaluarsa</span>
+                    </label>
+                  </div>
+                  <div id="cv-expiry-date-container" style="display: none; margin-top: 0.65rem;">
+                    <input type="date" id="cv-expiry-date" class="form-control" style="width: auto; border-radius: 8px; font-size: 0.85rem; padding: 0.35rem 0.65rem;">
+                  </div>
+                </div>
+
+                <!-- Penerima Anggota & Besaran Nominal -->
+                <div style="margin-bottom: 1rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.65rem;">
+                    <div>
+                      <label style="font-size: 0.88rem; font-weight: 800; color: var(--text-main); margin: 0;">Pilih Anggota &amp; Besaran Nominal:</label>
+                      <div style="font-size: 0.74rem; color: var(--text-muted);">Besaran nominal voucher bisa diatur sama rata atau berbeda tiap anggota</div>
+                    </div>
+                    <!-- Quick apply all nominal -->
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                      <input type="text" id="cv-quick-nominal" placeholder="Nominal Rp..." style="width: 110px; font-size: 0.8rem; padding: 0.25rem 0.45rem; border-radius: 6px; border: 1px solid var(--border-color);" oninput="formatQuickVoucherNominal(this)">
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="applyQuickNominalToAll()" style="font-size: 0.74rem; padding: 0.25rem 0.55rem; font-weight: 700;">Terapkan Semua</button>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem; align-items: center;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSelectAllMembersVoucher(true)" style="font-size: 0.74rem; padding: 0.2rem 0.5rem;">Pilih Semua</button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSelectAllMembersVoucher(false)" style="font-size: 0.74rem; padding: 0.2rem 0.5rem;">Hapus Semua</button>
+                    <input type="text" id="cv-search-member" placeholder="Cari nama anggota..." oninput="filterCustomVoucherMemberList(this.value)" style="margin-left: auto; width: 180px; font-size: 0.78rem; padding: 0.25rem 0.5rem; border-radius: 6px; border: 1px solid var(--border-color);">
+                  </div>
+
+                  <!-- Tabel Anggota Penerima -->
+                  <div style="border: 1px solid var(--border-color); border-radius: 12px; max-height: 240px; overflow-y: auto; background: var(--bg-card);">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+                      <thead style="background: var(--bg-surface-elevated); position: sticky; top: 0; z-index: 10;">
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                          <th style="width: 35px; text-align: center; padding: 0.5rem;">✓</th>
+                          <th style="text-align: left; padding: 0.5rem;">ID &amp; Nama Anggota</th>
+                          <th style="text-align: left; padding: 0.5rem;">Instansi</th>
+                          <th style="text-align: right; padding: 0.5rem; width: 140px;">Nominal (Rp)</th>
+                        </tr>
+                      </thead>
+                      <tbody id="cv-members-table-body">
+                        <!-- Diisi dinamis oleh JS -->
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem;">
+                  <button type="button" onclick="closeCreateCustomVoucherModal()" style="background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-color); padding: 0.65rem 1.25rem; border-radius: 10px; font-weight: 600; cursor: pointer;">Batal</button>
+                  <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.5rem; font-weight: 800; border-radius: 10px; font-size: 0.9rem; background: linear-gradient(135deg, #ea580c, #f97316); border: none;">
+                    Terbitkan Voucher Custom
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
@@ -3391,23 +3670,39 @@
             </div>
           </div>
           
-          <!-- Input Nama Pelanggan (CRM) dengan Dropdown Pencarian & Bayar Poin Langsung -->
+          <!-- Input Nama / ID Anggota (CRM) dengan Dropdown Pencarian, Rincian Voucher, & Bayar Pakai Tabungan -->
           <div class="form-group" id="customer-name-group" style="margin-bottom: 0.75rem; position: relative;">
             <label for="customer-name-input" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-              <span>Pelanggan / Member:</span>
-              <span id="cust-search-badge" style="font-size: 0.75rem; color: var(--primary-color); font-weight: 600;">Pilih untuk Poin &amp; Bon</span>
+              <span>Anggota:</span>
+              <span id="cust-search-badge" style="font-size: 0.75rem; color: var(--primary-color); font-weight: 600;">Pilih untuk Voucher, Tabungan &amp; Bon</span>
             </label>
             <div style="position: relative;">
-              <input type="text" id="customer-name-input" list="customer-list" placeholder="🔍 Cari nama / telepon / domisili pelanggan..." autocomplete="off" oninput="onCustomerSearchInput(this.value)" onfocus="openCustomerDropdown()" onkeydown="handleCustomerInputKeydowns(event)" style="width: 100%; padding: 0.6rem 2.2rem 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); outline: none; font-size: 0.9rem;">
+              <input type="text" id="customer-name-input" list="customer-list" placeholder="🔍 Masukkan ID Anggota / Nama / No HP..." autocomplete="off" oninput="onCustomerSearchInput(this.value)" onfocus="openCustomerDropdown()" onkeydown="handleCustomerInputKeydowns(event)" style="width: 100%; padding: 0.6rem 2.2rem 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); outline: none; font-size: 0.9rem;">
               <datalist id="customer-list"></datalist>
               <button type="button" id="btn-clear-customer" onclick="clearSelectedCustomer()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1.1rem; color: var(--text-muted); cursor: pointer; display: none;">&times;</button>
             </div>
             
-            <!-- DROPDOWN HASIL PENCARIAN DAFTAR PELANGGAN -->
-            <div id="customer-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; background: var(--bg-surface-elevated, #fff); border: 1px solid var(--border-color); border-radius: 8px; max-height: 220px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.15); margin-top: 4px;">
-              <!-- Item pelanggan di-render oleh JS -->
+            <!-- DROPDOWN HASIL PENCARIAN DAFTAR ANGGOTA (Bisa lewat ID Anggota & Nama) -->
+            <div id="customer-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; background: var(--bg-surface-elevated, #fff); border: 1px solid var(--border-color); border-radius: 8px; max-height: 240px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.15); margin-top: 4px;">
+              <!-- Item anggota di-render oleh JS -->
             </div>
             
+            <!-- PANEL BAYAR DENGAN SALDO TABUNGAN (FITUR TABUNGAN) -->
+            <div id="customer-savings-info" style="display: none; margin-top: 0.45rem; background: #e0f2fe; border: 1px solid #7dd3fc; padding: 0.5rem 0.75rem; border-radius: 8px; font-size: 0.82rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 0.45rem; margin: 0; cursor: pointer; font-weight: 700; color: #0369a1;">
+                  <input type="checkbox" id="chk-use-savings-payment" onchange="toggleUseSavingsPayment(this.checked)" style="width: 16px; height: 16px; accent-color: #0284c7;">
+                  <span>💳 Bayar Pakai Saldo Tabungan</span>
+                </label>
+                <div style="font-weight: 800; color: #0284c7;">
+                  Sisa Saldo: <span id="customer-savings-balance-label">Rp 0</span>
+                </div>
+              </div>
+              <div id="savings-payment-summary" style="margin-top: 0.35rem; font-size: 0.76rem; color: #075985; font-weight: 600; display: none;">
+                <!-- Ringkasan potongan tabungan -->
+              </div>
+            </div>
+
             <!-- PANEL BAYAR DENGAN POIN (MINIMALIS & RINGKAS) -->
             <div id="customer-points-info" style="display: none; margin-top: 0.45rem; background: #eff6ff; border: 1px solid #bfdbfe; padding: 0.45rem 0.65rem; border-radius: 6px; font-size: 0.8rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; gap: 0.35rem;">
@@ -3431,20 +3726,25 @@
               </div>
             </div>
 
-            <!-- PANEL BAYAR DENGAN VOUCHER (MINIMALIS & RINGKAS) -->
-            <div id="customer-voucher-info" style="display: none; margin-top: 0.45rem; background: #fffbeb; border: 1px solid #fde68a; padding: 0.45rem 0.65rem; border-radius: 6px; font-size: 0.8rem;">
+            <!-- PANEL BAYAR DENGAN VOUCHER (MENAMPILKAN DAFTAR VOUCHER ANGGOTA & STATUS SUDAH/BELUM DIAMBIL) -->
+            <div id="customer-voucher-info" style="display: none; margin-top: 0.45rem; background: #fffbeb; border: 1px solid #fde68a; padding: 0.55rem 0.75rem; border-radius: 8px; font-size: 0.8rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; gap: 0.35rem;">
                 <div style="display: flex; align-items: center; gap: 0.25rem;">
-                  <span style="color: #92400e; font-weight: 700; font-size: 0.78rem;">🎟️ Voucher:</span>
+                  <span style="color: #92400e; font-weight: 700; font-size: 0.8rem;">🎟️ Voucher Anggota:</span>
                   <strong id="customer-voucher-balance" style="color: #d97706; font-size: 0.95rem;">0</strong>
                   <span style="font-size: 0.75rem; color: #b45309;">(<strong id="customer-voucher-rp">Rp 0</strong>)</span>
                 </div>
-                <div id="customer-voucher-eligibility-badge" style="font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 999px; background: #fef3c7; color: #b45309; font-weight: 700;">
+                <div id="customer-voucher-eligibility-badge" style="font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 999px; background: #fef3c7; color: #b45309; font-weight: 700;">
                   Kuota: --
                 </div>
               </div>
 
-              <div id="customer-voucher-action-row" style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
+              <!-- Daftar Rincian Voucher Anggota (Nama, Nominal, dan Status Sudah/Belum Diambil) -->
+              <div id="customer-vouchers-detail-list" style="margin: 0.4rem 0; max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem;">
+                <!-- Di-render dinamis oleh JS -->
+              </div>
+
+              <div id="customer-voucher-action-row" style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px dashed #fde68a;">
                 <div style="display: inline-flex; align-items: center; gap: 0.2rem;">
                   <button type="button" onclick="stepVoucherRedeem(-1)" class="btn btn-sm btn-secondary" style="padding: 0.15rem 0.45rem; font-weight: 800; font-size: 0.75rem;">-</button>
                   <input type="number" id="redeem-voucher-count" class="form-control" style="padding: 0.2rem 0.35rem; width: 50px; font-size: 0.82rem; font-weight: 800; text-align: center; height: 26px;" value="0" min="0" oninput="calculateChange()">
@@ -3637,6 +3937,14 @@
           <div class="receipt-detail-row" id="rec-cashier-row">
             <span>Kasir</span>
             <span id="rec-cashier">Kasir Utama</span>
+          </div>
+          <div class="receipt-detail-row" id="rec-customer-row" style="display: none;">
+            <span>Anggota</span>
+            <span id="rec-customer-name">-</span>
+          </div>
+          <div class="receipt-detail-row" id="rec-customer-id-row" style="display: none;">
+            <span>ID Anggota</span>
+            <span id="rec-customer-id" style="font-family: monospace; font-weight: 700;">-</span>
           </div>
         </div>
         
@@ -4953,31 +5261,47 @@
     </div>
   </div>
 
-  <!-- MODAL EDIT PELANGGAN (CRM) -->
+  <!-- MODAL EDIT ANGGOTA (CRM) -->
   <div class="modal-overlay" id="edit-customer-modal">
-    <div class="modal-card" style="max-width: 480px; width: 92vw; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.25);">
+    <div class="modal-card" style="max-width: 520px; width: 92vw; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.25);">
       <div class="modal-header" style="background: var(--bg-surface-elevated); padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 0.5rem;">
           <svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: none; stroke: var(--primary-color); stroke-width: 2.2;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <h3 id="modal-customer-title" style="margin: 0; font-size: 1.05rem; font-weight: 700;">Edit Data Pelanggan</h3>
+          <h3 id="modal-customer-title" style="margin: 0; font-size: 1.05rem; font-weight: 700;">Edit Data Anggota</h3>
         </div>
         <button type="button" class="close-modal-btn" onclick="closeEditCustomerModal()" style="font-size: 1.5rem; background: none; border: none; cursor: pointer;">&times;</button>
       </div>
       <form id="modal-customer-form" onsubmit="saveCustomerModal(event)">
         <div class="modal-body" style="padding: 1.25rem;">
           <input type="hidden" id="modal-cust-id" value="">
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+            <div class="form-group" style="margin: 0;">
+              <label for="modal-cust-code" style="font-size: 0.85rem; font-weight: 600;">Id Anggota* (Manual)</label>
+              <input type="text" id="modal-cust-code" class="form-control" placeholder="ANG-001" required style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px; font-family: monospace; font-weight: 700;">
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <label for="modal-cust-instansi" style="font-size: 0.85rem; font-weight: 600;">Instansi (Opsional)</label>
+              <input type="text" id="modal-cust-instansi" class="form-control" placeholder="Nama Instansi/Koperasi" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
+            </div>
+          </div>
+
           <div class="form-group" style="margin-bottom: 0.85rem;">
-            <label for="modal-cust-name" style="font-size: 0.85rem; font-weight: 600;">Nama Pelanggan*</label>
+            <label for="modal-cust-name" style="font-size: 0.85rem; font-weight: 600;">Nama Anggota*</label>
             <input type="text" id="modal-cust-name" class="form-control" placeholder="Contoh: Budi Santoso" required style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
           </div>
-          <div class="form-group" style="margin-bottom: 0.85rem;">
-            <label for="modal-cust-phone" style="font-size: 0.85rem; font-weight: 600;">Nomor Telepon (WA)</label>
-            <input type="text" id="modal-cust-phone" class="form-control" placeholder="0812..." style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.85rem;">
+            <div class="form-group" style="margin: 0;">
+              <label for="modal-cust-phone" style="font-size: 0.85rem; font-weight: 600;">No. HP (WA)</label>
+              <input type="text" id="modal-cust-phone" class="form-control" placeholder="0812..." style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <label for="modal-cust-address" style="font-size: 0.85rem; font-weight: 600;">Alamat</label>
+              <input type="text" id="modal-cust-address" class="form-control" placeholder="Contoh: Gresik" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
+            </div>
           </div>
-          <div class="form-group" style="margin-bottom: 0.85rem;">
-            <label for="modal-cust-address" style="font-size: 0.85rem; font-weight: 600;">Domisili / Alamat</label>
-            <input type="text" id="modal-cust-address" class="form-control" placeholder="Contoh: Desa Karanganyar, Gresik" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
-          </div>
+
           <div class="form-group" style="margin-bottom: 0.5rem;" id="modal-group-cust-points">
             <label for="modal-cust-points" style="font-size: 0.85rem; font-weight: 600;">Saldo Poin</label>
             <input type="number" id="modal-cust-points" class="form-control" value="0" min="0" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 8px;">
@@ -4986,8 +5310,8 @@
             <label style="display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: #92400e; margin: 0;">
               <input type="checkbox" id="modal-cust-voucher-eligible" checked style="width: 18px; height: 18px; margin-top: 2px;">
               <span>
-                <strong>🎟️ Berikan Akses Voucher Bulanan</strong>
-                <div style="font-size: 0.75rem; font-weight: normal; color: #b45309; margin-top: 2px;">Pelanggan berhak menerima & menggunakan kuota voucher bulanan.</div>
+                <strong>🎟️ Berikan Akses Voucher</strong>
+                <div style="font-size: 0.75rem; font-weight: normal; color: #b45309; margin-top: 2px;">Anggota berhak menerima &amp; menggunakan voucher.</div>
               </span>
             </label>
           </div>
