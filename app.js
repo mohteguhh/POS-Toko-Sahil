@@ -130,39 +130,25 @@ function isCustomVoucherAllocationInFilter(allocItem) {
   const refDate = allocItem.status === 'sudah_diambil' ? (allocItem.tanggalAmbil || allocItem.tanggalMulai || '') : (allocItem.tanggalMulai || '');
   if (!refDate) return true; // Bila tanpa tanggal, loloskan
 
-  if (currentVoucherFilterMode === 'all') return true;
-
-  if (currentVoucherFilterMode === 'month') {
-    const selMonth = document.getElementById('voucher-filter-month-select')?.value || '01';
-    const selYear = document.getElementById('voucher-filter-year-select')?.value || new Date().getFullYear();
-    const targetKey = `${selYear}-${selMonth}`;
-    return refDate.startsWith(targetKey);
-  }
-
-  if (currentVoucherFilterMode === 'month-range') {
-    const startM = document.getElementById('voucher-filter-month-start')?.value || '';
-    const endM = document.getElementById('voucher-filter-month-end')?.value || '';
-    const dateM = refDate.slice(0, 7);
-    if (startM && dateM < startM) return false;
-    if (endM && dateM > endM) return false;
-    return true;
-  }
-
-  if (currentVoucherFilterMode === 'date-range') {
-    const startD = document.getElementById('voucher-filter-date-start')?.value || '';
-    const endD = document.getElementById('voucher-filter-date-end')?.value || '';
-    const onlyD = refDate.slice(0, 10);
-    if (startD && onlyD < startD) return false;
-    if (endD && onlyD > endD) return false;
-    return true;
-  }
-
-  if (currentVoucherFilterMode === 'year') {
-    const selYear = document.getElementById('voucher-filter-year-only-select')?.value || String(new Date().getFullYear());
-    return refDate.startsWith(selYear);
-  }
+  const startD = document.getElementById('voucher-filter-date-start')?.value || '';
+  const endD = document.getElementById('voucher-filter-date-end')?.value || '';
+  const onlyD = refDate.slice(0, 10);
+  if (startD && onlyD < startD) return false;
+  if (endD && onlyD > endD) return false;
 
   return true;
+}
+
+function resetVoucherDateRangeFilter() {
+  const startInp = document.getElementById('voucher-filter-date-start');
+  const endInp = document.getElementById('voucher-filter-date-end');
+  const catSel = document.getElementById('voucher-filter-category-select');
+  if (startInp) startInp.value = '';
+  if (endInp) endInp.value = '';
+  if (catSel) catSel.value = 'All';
+  currentCustomerVoucherFilter = 'all';
+  currentVoucherCategoryFilter = 'All';
+  setVoucherTableFilter('all');
 }
 
 // --- Helper Gambar Offline (Flicker-Free) & Lightbox Perbesar Gambar ---
@@ -6724,42 +6710,37 @@ function calculateChange() {
   let redeemVouchers = 0;
 
   if (isVoucherMode) {
-    // Mode Voucher
-    const redeemVoucherInput = document.getElementById('redeem-voucher-count');
-    redeemVouchers = Math.max(0, parseInt(redeemVoucherInput ? redeemVoucherInput.value : 0) || 0);
-    if (redeemVoucherInput && parseInt(redeemVoucherInput.value) < 0) {
-      redeemVoucherInput.value = '0';
-    }
-    
-    const vStats = getCustomerMonthlyVoucherStats(customer);
-    if (redeemVouchers > vStats.remaining) {
-      redeemVouchers = vStats.remaining;
-      if (redeemVoucherInput) redeemVoucherInput.value = redeemVouchers;
-    }
+    // Mode Voucher: Ambil voucher custom yang sedang dicentang kasir
+    let totalSelectedVoucherNominal = 0;
+    const selectedVoucherCheckboxes = document.querySelectorAll('.checkout-voucher-checkbox:checked');
+    selectedVoucherCheckboxes.forEach(cb => {
+      const nom = parseInt(cb.getAttribute('data-nominal')) || 0;
+      totalSelectedVoucherNominal += nom;
+    });
 
-    const rpPerVoucher = parseInt(loyaltySettings.voucherRpValue) || 10000;
-    voucherDiscount = redeemVouchers * rpPerVoucher;
-
-    // Diskon tidak boleh melebihi total belanja
-    if (voucherDiscount > globalTotal) {
-      voucherDiscount = globalTotal;
-    }
+    redeemVouchers = selectedVoucherCheckboxes.length;
+    voucherDiscount = totalSelectedVoucherNominal;
 
     if (document.getElementById('redeem-voucher-discount')) {
       document.getElementById('redeem-voucher-discount').textContent = `Rp ${formatRupiah(voucherDiscount)}`;
     }
 
-    // Update ringkasan pembayaran voucher vs tunai
+    // Kelebihan nominal voucher: jika nominal voucher melebihi total belanja, kelebihannya diberikan tunai sebagai kembalian
+    const voucherExcessCash = Math.max(0, voucherDiscount - globalTotal);
+    const billRemainingAfterVoucher = Math.max(0, globalTotal - voucherDiscount);
+
     const vSummaryEl = document.getElementById('voucher-payment-summary');
-    const finalTotalWithVoucher = Math.max(0, globalTotal - voucherDiscount);
     if (vSummaryEl) {
       if (voucherDiscount > 0) {
         vSummaryEl.style.display = 'block';
-        if (finalTotalWithVoucher === 0) {
-          vSummaryEl.innerHTML = `🎉 <b>LUNAS DENGAN VOUCHER!</b> (${redeemVouchers} Voucher). Tidak perlu uang tunai.`;
+        if (voucherExcessCash > 0) {
+          vSummaryEl.innerHTML = `🎉 <b>LUNAS DENGAN VOUCHER!</b> (${redeemVouchers} Voucher: Rp ${formatRupiah(voucherDiscount)}) &bull; <b style="color:#059669;">Kelebihan Voucher Rp ${formatRupiah(voucherExcessCash)} wajib diberikan TUNAI ke konsumen!</b>`;
+          vSummaryEl.style.color = '#059669';
+        } else if (billRemainingAfterVoucher === 0) {
+          vSummaryEl.innerHTML = `🎉 <b>LUNAS PAS DENGAN VOUCHER!</b> (${redeemVouchers} Voucher). Tidak perlu uang tunai.`;
           vSummaryEl.style.color = '#059669';
         } else {
-          vSummaryEl.innerHTML = `🎟️ Dipotong ${redeemVouchers} Voucher: <b>-Rp ${formatRupiah(voucherDiscount)}</b> &bull; Sisa Tunai yang Harus Dibayar: <b style="color:#dc2626;">Rp ${formatRupiah(finalTotalWithVoucher)}</b>`;
+          vSummaryEl.innerHTML = `🎟️ Dipotong ${redeemVouchers} Voucher: <b>-Rp ${formatRupiah(voucherDiscount)}</b> &bull; Sisa yang Harus Dibayar: <b style="color:#dc2626;">Rp ${formatRupiah(billRemainingAfterVoucher)}</b>`;
           vSummaryEl.style.color = '#b45309';
         }
       } else {
@@ -6811,8 +6792,10 @@ function calculateChange() {
     }
   }
   
-  const totalDiscount = isVoucherMode ? voucherDiscount : pointDiscount;
-  let remainingAfterDiscount = Math.max(0, globalTotal - totalDiscount);
+  const voucherCover = isVoucherMode ? Math.min(voucherDiscount, globalTotal) : 0;
+  const voucherExcessChange = isVoucherMode ? Math.max(0, voucherDiscount - globalTotal) : 0;
+  const totalDeduction = isVoucherMode ? voucherCover : pointDiscount;
+  let remainingAfterDiscount = Math.max(0, globalTotal - totalDeduction);
 
   // Potongan Saldo Tabungan Anggota (jika dicentang)
   const chkUseSavings = document.getElementById('chk-use-savings-payment');
@@ -6835,7 +6818,8 @@ function calculateChange() {
   const finalTotalToPay = Math.max(0, remainingAfterDiscount - savingsDeduction);
   document.getElementById('pay-total-amount').textContent = `Rp ${formatRupiah(finalTotalToPay)}`;
   
-  const change = cash - finalTotalToPay;
+  // Perhitungan Kembalian: Jika ada kelebihan voucher, langsung tambahkan ke uang kembalian tunai
+  const change = (cash - finalTotalToPay) + voucherExcessChange;
   
   const changeBox = changeVal.parentElement;
   const changeLabel = changeBox.querySelector('.bill-label');
@@ -6844,7 +6828,7 @@ function calculateChange() {
     if (changeLabel) changeLabel.textContent = "SISA BON PIUTANG (DEBT)";
     
     if (change >= 0) {
-      changeVal.textContent = 'Rp 0 (Lunas)';
+      changeVal.textContent = voucherExcessChange > 0 ? `Rp ${formatRupiah(change)} (Kembalian Tunai)` : 'Rp 0 (Lunas)';
       changeVal.className = 'bill-amount change-ok';
       if (changeBox) changeBox.className = 'payment-bill-box change-box-large change-ok';
       btnSubmit.disabled = false;
@@ -6858,18 +6842,25 @@ function calculateChange() {
   } else {
     if (changeLabel) changeLabel.textContent = "KEMBALIAN";
     
-    if (cashInput.value === '' && method === 'Tunai') {
+    // Jika tidak memasukkan uang cash tapi finalTotalToPay sudah 0 (karena lunas oleh voucher / tabungan)
+    if (finalTotalToPay === 0) {
+      changeVal.textContent = `Rp ${formatRupiah(change)}`;
+      changeVal.className = 'bill-amount change-ok';
+      if (changeBox) changeBox.className = 'payment-bill-box change-box-large change-ok';
+      btnSubmit.disabled = false;
+    } else if (cashInput.value === '' && method === 'Tunai') {
       changeVal.textContent = 'Rp 0';
       changeVal.className = 'bill-amount change-neutral';
       if (changeBox) changeBox.className = 'payment-bill-box change-box-large change-neutral';
       btnSubmit.disabled = true;
-    } else if (change >= 0) {
+    } else if (cash >= finalTotalToPay) {
       changeVal.textContent = `Rp ${formatRupiah(change)}`;
       changeVal.className = 'bill-amount change-ok';
       if (changeBox) changeBox.className = 'payment-bill-box change-box-large change-ok';
       btnSubmit.disabled = false;
     } else {
-      changeVal.textContent = `Kurang Rp ${formatRupiah(Math.abs(change))}`;
+      const kurang = finalTotalToPay - cash;
+      changeVal.textContent = `Kurang Rp ${formatRupiah(kurang)}`;
       changeVal.className = 'bill-amount change-insufficient';
       if (changeBox) changeBox.className = 'payment-bill-box change-box-large change-insufficient';
       btnSubmit.disabled = true;
@@ -6880,7 +6871,9 @@ function calculateChange() {
 function setQuickCash(amount) {
   const cashInput = document.getElementById('cash-received');
   if (amount === 'pass') {
-    cashInput.value = new Intl.NumberFormat('id-ID').format(globalTotal);
+    const payTotalText = document.getElementById('pay-total-amount')?.textContent || '';
+    const cleanPayTotal = parseInt(payTotalText.replace(/\D/g, '')) || 0;
+    cashInput.value = new Intl.NumberFormat('id-ID').format(cleanPayTotal);
   } else {
     cashInput.value = new Intl.NumberFormat('id-ID').format(amount);
   }
@@ -6947,23 +6940,15 @@ async function processCheckout() {
   const currentMonth = getCurrentMonthKey();
 
   if (isVoucherMode) {
-    const redeemVoucherInput = document.getElementById('redeem-voucher-count');
-    redeemVouchers = Math.max(0, parseInt(redeemVoucherInput ? redeemVoucherInput.value : 0) || 0);
-    
-    if (customer) {
-      const vStats = getCustomerMonthlyVoucherStats(customer, currentMonth);
-      if (redeemVouchers > vStats.remaining) {
-        redeemVouchers = vStats.remaining;
-      }
-    } else {
-      redeemVouchers = 0;
-    }
+    const selectedVoucherCheckboxes = document.querySelectorAll('.checkout-voucher-checkbox:checked');
+    let totalSelectedVoucherNominal = 0;
+    selectedVoucherCheckboxes.forEach(cb => {
+      const nom = parseInt(cb.getAttribute('data-nominal')) || 0;
+      totalSelectedVoucherNominal += nom;
+    });
 
-    const rpPerVoucher = parseInt(loyaltySettings.voucherRpValue) || 10000;
-    voucherDiscount = redeemVouchers * rpPerVoucher;
-    if (voucherDiscount > globalTotal) {
-      voucherDiscount = globalTotal;
-    }
+    redeemVouchers = selectedVoucherCheckboxes.length;
+    voucherDiscount = totalSelectedVoucherNominal;
   } else {
     // Mode Poin
     const redeemInput = document.getElementById('redeem-points-input');
@@ -6976,13 +6961,42 @@ async function processCheckout() {
     }
   }
   
-  const totalRewardDiscount = isVoucherMode ? voucherDiscount : pointDiscount;
+  const voucherCover = isVoucherMode ? Math.min(voucherDiscount, globalTotal) : 0;
+  const voucherExcessChange = isVoucherMode ? Math.max(0, voucherDiscount - globalTotal) : 0;
+  const totalRewardDiscount = isVoucherMode ? voucherCover : pointDiscount;
   let remainingAfterReward = Math.max(0, globalTotal - totalRewardDiscount);
 
   // Potongan Saldo Tabungan Anggota
   const chkUseSavings = document.getElementById('chk-use-savings-payment');
   let savingsDeduction = 0;
   if (customer && chkUseSavings && chkUseSavings.checked) {
+    // Validasi PIN Anggota saat checkout pakai tabungan
+    if (!customer.tabungan_aktif || !customer.pin_tabungan) {
+      alert("⚠️ Fitur tabungan anggota belum aktif atau belum memiliki PIN!\nSilakan aktifkan tabungan dan buat PIN terlebih dahulu di menu Tabungan Anggota.");
+      if (btnSubmit) btnSubmit.disabled = false;
+      isCheckingOut = false;
+      return;
+    }
+
+    const enteredCheckoutPin = (document.getElementById('checkout-savings-pin')?.value || '').trim();
+    if (!enteredCheckoutPin) {
+      alert("⚠️ Masukkan 6 digit PIN Anggota untuk konfirmasi pembayaran pakai Saldo Tabungan!");
+      const pinInp = document.getElementById('checkout-savings-pin');
+      if (pinInp) pinInp.focus();
+      if (btnSubmit) btnSubmit.disabled = false;
+      isCheckingOut = false;
+      return;
+    }
+
+    if (enteredCheckoutPin !== customer.pin_tabungan) {
+      alert("⛔ PIN Tabungan Anggota Salah! Pembayaran tabungan tidak dapat diproses.");
+      const pinInp = document.getElementById('checkout-savings-pin');
+      if (pinInp) { pinInp.focus(); pinInp.select(); }
+      if (btnSubmit) btnSubmit.disabled = false;
+      isCheckingOut = false;
+      return;
+    }
+
     const custSavingsBal = Number(customer.saldo_tabungan) || 0;
     savingsDeduction = Math.min(custSavingsBal, remainingAfterReward);
   }
@@ -6999,14 +7013,21 @@ async function processCheckout() {
       alert("⚠️ Transaksi Bon (Hutang) WAJIB memilih atau mengisi Nama Pelanggan terdaftar agar dapat ditagih!");
       const custInput = document.getElementById('customer-name-input');
       if (custInput) custInput.focus();
+      if (btnSubmit) btnSubmit.disabled = false;
+      isCheckingOut = false;
       return;
     }
-  } else if (cash < finalTotalToPay) {
+  } else if (cash < finalTotalToPay && finalTotalToPay > 0) {
     alert("Pembayaran kurang!");
+    if (btnSubmit) btnSubmit.disabled = false;
+    isCheckingOut = false;
     return;
   }
   
-  const change = status === 'Bon' ? (cash >= finalTotalToPay ? cash - finalTotalToPay : 0) : cash - finalTotalToPay;
+  // Perhitungan Kembalian: Kelebihan nilai voucher diberikan TUNAI kepada konsumen
+  const change = status === 'Bon' 
+    ? (cash >= finalTotalToPay ? (cash - finalTotalToPay) + voucherExcessChange : 0) 
+    : (cash - finalTotalToPay) + voucherExcessChange;
   const sisaPiutang = status === 'Bon' ? (cash < finalTotalToPay ? finalTotalToPay - cash : 0) : 0;
   
   const now = new Date();
@@ -7016,7 +7037,6 @@ async function processCheckout() {
   const dd = String(now.getDate()).padStart(2, '0');
   const MM = String(now.getMonth() + 1).padStart(2, '0');
   const yy = now.getFullYear().toString().slice(-2);
-  // Format: jam(2) + menit(2) + detik(2) + tanggal(2) + bulan(2) + tahun(2) -> 12 digit (misal: 1353141026)
   const txId = `${hh}${mm}${ss}${dd}${MM}${yy}`;
   
   let jatuhTempo = null;
@@ -7041,8 +7061,9 @@ async function processCheckout() {
     reward_mode: isVoucherMode ? 'voucher' : 'points',
     diskon_poin: pointDiscount, // Track diskon poin
     poin_ditukar: redeemPoints, // Track poin ditukar
-    diskon_voucher: voucherDiscount, // Track diskon voucher
-    voucher_ditukar: redeemVouchers, // Track voucher ditukar
+    diskon_voucher: voucherDiscount, // Track nilai total voucher yang dipakai
+    voucher_ditukar: redeemVouchers, // Track jumlah lembar voucher
+    kelebihan_voucher_tunai: voucherExcessChange, // Kembalian tunai dari kelebihan voucher
     bayar_tabungan: savingsDeduction, // Track pembayaran pakai saldo tabungan
     bayar: cash,
     kembalian: change,
@@ -7069,37 +7090,26 @@ async function processCheckout() {
   if (customer) {
     if (isVoucherMode) {
       if (redeemVouchers > 0) {
-        if (!customer.voucherUsage) customer.voucherUsage = {};
-        if (!customer.voucherUsage[currentMonth]) {
-          customer.voucherUsage[currentMonth] = { used: 0, transactions: [] };
-        }
-        customer.voucherUsage[currentMonth].used = (customer.voucherUsage[currentMonth].used || 0) + redeemVouchers;
-        if (!Array.isArray(customer.voucherUsage[currentMonth].transactions)) {
-          customer.voucherUsage[currentMonth].transactions = [];
-        }
-        customer.voucherUsage[currentMonth].transactions.push(txId);
+        // Tandai hanya voucher-voucher yang dicentang kasir
+        const selectedVoucherCheckboxes = document.querySelectorAll('.checkout-voucher-checkbox:checked');
+        const selectedVidSet = new Set();
+        selectedVoucherCheckboxes.forEach(cb => {
+          const vid = cb.getAttribute('data-vid');
+          if (vid) selectedVidSet.add(vid);
+        });
 
-        // Jika ada custom voucher yang dialokasikan, tandai voucher aktifnya sebagai sudah diambil
-        let remainingVouchersToMark = redeemVouchers;
         customVouchers.forEach(cv => {
-          if (remainingVouchersToMark <= 0) return;
-          if (!isCustomVoucherActive(cv)) return;
+          if (!selectedVidSet.has(cv.id)) return;
           cv.allocations.forEach(alloc => {
-            if (remainingVouchersToMark <= 0) return;
             if ((alloc.anggotaId === customer.id || alloc.anggotaId === customer.kode_anggota) && alloc.status === 'belum_diambil') {
               alloc.status = 'sudah_diambil';
               alloc.tanggalAmbil = now.toISOString();
               alloc.txId = txId;
-              remainingVouchersToMark--;
             }
           });
         });
         saveCustomVouchersLocally();
       }
-      // Catat sisa voucher bulan ini pada snapshot transaksi untuk struk
-      const vStats = getCustomerMonthlyVoucherStats(customer, currentMonth);
-      transaction.sisa_voucher_bulan_ini = vStats.remaining;
-      transaction.kuota_voucher_bulan_ini = vStats.quota;
     } else {
       customer.poin = (customer.poin || 0) - redeemPoints; // Kurangi poin
       // Tambah poin baru berdasarkan total bayar
@@ -14119,6 +14129,9 @@ function renderCustomersTable() {
     `;
 
     actionButtonsHtml = `
+      <button type="button" class="btn btn-sm" onclick="openCustomerIdCard('${c.id}')" title="Lihat & Cetak ID Card Anggota" style="border-radius: 8px; padding: 0.35rem 0.65rem; font-weight: 700; font-size: 0.8rem; background: #ea580c; color: #fff; border: none; display: inline-flex; align-items: center; gap: 0.3rem;">
+        <span>🪪 ID Card</span>
+      </button>
       <button type="button" class="btn btn-sm" onclick="openSavingsAccountModal('${c.id}')" title="Kelola Tabungan Anggota (Setor / Tarik Tunai Mandiri)" style="border-radius: 8px; padding: 0.35rem 0.65rem; font-weight: 700; font-size: 0.8rem; background: #0284c7; color: #fff; border: none; display: inline-flex; align-items: center; gap: 0.3rem;">
         <span>🏦 Tabungan</span>
       </button>
@@ -14177,17 +14190,14 @@ function renderCustomersTable() {
 
 let activeVoucherCardCustomerId = null;
 
-// Lihat status voucher member individual dalam bentuk Kartu Digital Modern
-function openCustomerVoucherDetail(customerId) {
+// Buka dialog ID Card Anggota dengan Barcode Sesuai ID Anggota
+function openCustomerIdCard(customerId) {
   const c = customers.find(x => x.id === customerId);
   if (!c) return;
   activeVoucherCardCustomerId = customerId;
 
-  const curMonth = getCurrentMonthKey();
-  const vStats = getCustomerMonthlyVoucherStats(c, curMonth);
-  const rpNominal = loyaltySettings.voucherRpValue || 10000;
-  const totalRp = vStats.remaining * rpNominal;
   const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : ((appConfig && appConfig.storeName) ? appConfig.storeName : 'TOKO KAMI');
+  const memberCode = c.kode_anggota || c.id || 'ANGGOTA';
 
   const modal = document.getElementById('customer-voucher-card-modal');
   if (!modal) return;
@@ -14195,48 +14205,50 @@ function openCustomerVoucherDetail(customerId) {
   const elStore = document.getElementById('vcard-store-name');
   if (elStore) elStore.textContent = storeName;
 
-  const elPeriod = document.getElementById('vcard-period');
-  if (elPeriod) elPeriod.textContent = `Periode ${curMonth}`;
-
   const elCustName = document.getElementById('vcard-cust-name');
-  if (elCustName) elCustName.textContent = c.nama || 'Pelanggan';
+  if (elCustName) elCustName.textContent = c.nama || 'Anggota';
+
+  const elCustId = document.getElementById('vcard-cust-id');
+  if (elCustId) elCustId.textContent = memberCode;
+
+  const elCustInstansi = document.getElementById('vcard-cust-instansi');
+  if (elCustInstansi) elCustInstansi.textContent = c.instansi || '-';
 
   const elCustPhone = document.getElementById('vcard-cust-phone');
-  if (elCustPhone) elCustPhone.textContent = c.telepon ? `No. HP: ${c.telepon}` : 'No. HP: Belum terdaftar';
+  if (elCustPhone) elCustPhone.textContent = c.telepon || '-';
 
-  const elQuotaStatus = document.getElementById('vcard-quota-status');
-  if (elQuotaStatus) {
-    if (vStats.remaining > 0) {
-      elQuotaStatus.textContent = `Tersedia: ${vStats.remaining} Voucher`;
-      elQuotaStatus.style.color = '#ffffff';
-    } else {
-      elQuotaStatus.textContent = `⚠️ Kuota Habis (0 Voucher)`;
-      elQuotaStatus.style.color = '#fee2e2';
+  const elCustAlamat = document.getElementById('vcard-cust-alamat');
+  if (elCustAlamat) elCustAlamat.textContent = c.domisili || '-';
+
+  // Render Barcode menggunakan JsBarcode
+  setTimeout(() => {
+    try {
+      if (typeof JsBarcode !== 'undefined') {
+        JsBarcode('#idcard-barcode', memberCode, {
+          format: "CODE128",
+          width: 1.8,
+          height: 40,
+          displayValue: true,
+          fontSize: 13,
+          fontOptions: "bold",
+          font: "monospace",
+          lineColor: "#000",
+          background: "#fff",
+          margin: 0
+        });
+      }
+    } catch(err) {
+      console.warn("Gagal render barcode ID card:", err);
     }
-  }
-
-  const elQuotaDetail = document.getElementById('vcard-quota-detail');
-  if (elQuotaDetail) {
-    elQuotaDetail.textContent = `Terpakai: ${vStats.used} dari ${vStats.quota} voucher bulanan`;
-  }
-
-  const elTotalRp = document.getElementById('vcard-total-rp');
-  if (elTotalRp) {
-    elTotalRp.textContent = `Rp ${formatRupiah(totalRp)}`;
-  }
-
-  const elNominalUnit = document.getElementById('vcard-nominal-per-unit');
-  if (elNominalUnit) {
-    elNominalUnit.textContent = `@Rp ${formatRupiah(rpNominal)} / lembar voucher`;
-  }
-
-  const btnSendWa = document.getElementById('btn-vcard-send-wa');
-  if (btnSendWa) {
-    btnSendWa.style.display = c.telepon ? 'inline-flex' : 'none';
-  }
+  }, 50);
 
   modal.classList.add('active');
   modal.style.display = 'flex';
+}
+
+// Kompatibilitas fungsi lama
+function openCustomerVoucherDetail(customerId) {
+  openCustomerIdCard(customerId);
 }
 
 function closeCustomerVoucherCardModal() {
@@ -14247,23 +14259,21 @@ function closeCustomerVoucherCardModal() {
   }
 }
 
-function printCustomerVoucherCard() {
+// Cetak ID Card Anggota Ukuran Standar ID Card (85.6mm x 54mm)
+function printCustomerIdCard() {
   const c = customers.find(x => x.id === activeVoucherCardCustomerId);
   if (!c) {
-    alert("Pelanggan tidak ditemukan!");
+    alert("Data anggota tidak ditemukan!");
     return;
   }
-  const curMonth = getCurrentMonthKey();
-  const vStats = getCustomerMonthlyVoucherStats(c, curMonth);
-  const rpNominal = loyaltySettings.voucherRpValue || 10000;
-  const totalRp = vStats.remaining * rpNominal;
+  const memberCode = c.kode_anggota || c.id || 'ANGGOTA';
   const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO KAMI';
   const storeAddress = (receiptSettings && receiptSettings.address) ? receiptSettings.address : '';
   const storePhone = (receiptSettings && receiptSettings.phone) ? receiptSettings.phone : '';
 
-  const printWindow = window.open('', '_blank', 'width=650,height=750');
+  const printWindow = window.open('', '_blank', 'width=600,height=500');
   if (!printWindow) {
-    alert("Popup browser terblokir! Izinkan popup untuk mencetak kartu voucher.");
+    alert("Popup browser terblokir! Izinkan popup untuk mencetak ID Card.");
     return;
   }
 
@@ -14272,144 +14282,133 @@ function printCustomerVoucherCard() {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Voucher Member - ${c.nama}</title>
+      <title>ID Card Anggota - ${c.nama}</title>
+      <script src="lib/JsBarcode.all.min.js"><\/script>
       <style>
         body {
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
           background: #f8fafc;
           margin: 0;
-          padding: 30px;
+          padding: 20px;
           display: flex;
           justify-content: center;
           align-items: center;
           min-height: 90vh;
         }
-        .voucher-card {
-          width: 500px;
-          border-radius: 20px;
+        .id-card {
+          width: 85.6mm;
+          height: 54mm;
+          border-radius: 12px;
           background: linear-gradient(135deg, #b45309 0%, #d97706 40%, #ea580c 100%);
           color: #ffffff;
-          padding: 30px;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-          border: 2px dashed rgba(255,255,255,0.5);
+          padding: 3.5mm 4mm;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+          box-sizing: border-box;
           position: relative;
           overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
         }
-        .top-row {
+        .header-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 20px;
         }
-        .store-name {
-          font-size: 1.1rem;
+        .store-title {
+          font-size: 9pt;
           font-weight: 800;
-          letter-spacing: 1px;
+          letter-spacing: 0.5px;
           text-transform: uppercase;
         }
-        .period-badge {
+        .badge-type {
           background: rgba(255,255,255,0.25);
-          padding: 4px 12px;
+          padding: 1.5px 6px;
           border-radius: 999px;
-          font-size: 0.8rem;
-          font-weight: 700;
+          font-size: 6.5pt;
+          font-weight: 800;
+          border: 0.5px solid rgba(255,255,255,0.4);
         }
-        .cust-section {
-          margin-bottom: 20px;
-        }
-        .cust-label {
-          font-size: 0.75rem;
-          text-transform: uppercase;
-          letter-spacing: 1.5px;
-          color: rgba(255,255,255,0.85);
-        }
-        .cust-name {
-          font-size: 2rem;
+        .member-name {
+          font-size: 11.5pt;
           font-weight: 900;
+          line-height: 1.1;
+          margin: 1.5mm 0 1mm 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .details-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1mm 2mm;
+          font-size: 6.8pt;
           line-height: 1.2;
-          margin: 4px 0;
         }
-        .cust-phone {
-          font-size: 0.9rem;
-          opacity: 0.9;
-          font-family: monospace;
-        }
-        .divider {
-          border-top: 2px dashed rgba(255,255,255,0.45);
-          margin: 20px 0;
-        }
-        .bottom-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
-        }
-        .status-title {
-          font-size: 0.75rem;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-          color: rgba(255,255,255,0.85);
-        }
-        .quota-status {
-          font-size: 1.3rem;
-          font-weight: 900;
-          margin: 3px 0;
-        }
-        .total-rp {
-          font-size: 1.8rem;
-          font-weight: 900;
+        .detail-item strong {
           color: #fef08a;
-          text-align: right;
         }
-        .nominal-unit {
-          font-size: 0.8rem;
-          text-align: right;
-          opacity: 0.9;
-        }
-        .voucher-footer {
-          margin-top: 20px;
-          padding-top: 15px;
-          border-top: 1px solid rgba(255,255,255,0.25);
-          font-size: 0.75rem;
+        .barcode-box {
+          background: #ffffff;
+          border-radius: 6px;
+          padding: 1.5mm;
           text-align: center;
-          opacity: 0.85;
+          margin-top: 1.5mm;
+        }
+        .barcode-box svg {
+          width: 100%;
+          height: 11mm;
+          display: block;
+          margin: 0 auto;
         }
         @media print {
           body { background: none; padding: 0; }
-          .voucher-card { box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .id-card { box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       </style>
     </head>
     <body>
-      <div class="voucher-card">
-        <div class="top-row">
-          <div class="store-name">✨ ${storeName}</div>
-          <div class="period-badge">Periode ${curMonth}</div>
+      <div class="id-card">
+        <div class="header-row">
+          <div class="store-title">🏪 ${storeName}</div>
+          <div class="badge-type">KARTU ANGGOTA</div>
         </div>
-        <div class="cust-section">
-          <div class="cust-label">MEMBER PENERIMA:</div>
-          <div class="cust-name">${c.nama}</div>
-          <div class="cust-phone">No. HP: ${c.telepon || '-'}</div>
-        </div>
-        <div class="divider"></div>
-        <div class="bottom-row">
-          <div>
-            <div class="status-title">STATUS KUOTA VOUCHER:</div>
-            <div class="quota-status">${vStats.remaining > 0 ? 'Tersedia: ' + vStats.remaining + ' Lembar' : '⚠️ Kuota Habis (0 Voucher)'}</div>
-            <div style="font-size:0.75rem; opacity:0.85;">Terpakai: ${vStats.used} dari ${vStats.quota} kuota bulanan</div>
-          </div>
-          <div>
-            <div class="status-title" style="text-align:right;">TOTAL NILAI VOUCHER:</div>
-            <div class="total-rp">Rp ${formatRupiah(totalRp)}</div>
-            <div class="nominal-unit">@Rp ${formatRupiah(rpNominal)} / voucher</div>
+        
+        <div>
+          <div style="font-size: 6pt; text-transform: uppercase; opacity: 0.85; font-weight: 700;">NAMA ANGGOTA:</div>
+          <div class="member-name">${c.nama}</div>
+          
+          <div class="details-grid">
+            <div class="detail-item">ID: <strong>${memberCode}</strong></div>
+            <div class="detail-item">Instansi: <strong>${c.instansi || '-'}</strong></div>
+            <div class="detail-item">Telp: <strong>${c.telepon || '-'}</strong></div>
+            <div class="detail-item">Alamat: <strong>${c.domisili || '-'}</strong></div>
           </div>
         </div>
-        <div class="voucher-footer">
-          💡 Berlaku tanpa kadaluarsa. Tunjukkan kartu voucher ini saat pembayaran di kasir ${storeName}.<br>
-          ${storeAddress ? storeAddress + ' | ' : ''}${storePhone ? 'Telp: ' + storePhone : ''}
+
+        <div class="barcode-box">
+          <svg id="print-barcode"></svg>
         </div>
       </div>
+
       <script>
         window.onload = function() {
+          try {
+            if (typeof JsBarcode !== 'undefined') {
+              JsBarcode('#print-barcode', '${memberCode}', {
+                format: "CODE128",
+                width: 1.6,
+                height: 32,
+                displayValue: true,
+                fontSize: 10,
+                fontOptions: "bold",
+                font: "monospace",
+                lineColor: "#000",
+                background: "#fff",
+                margin: 0
+              });
+            }
+          } catch(e) {}
           setTimeout(function() {
             window.print();
           }, 350);
@@ -14865,21 +14864,69 @@ function toggleCustomVoucherExpiryInput(type) {
   }
 }
 
-function renderCustomVoucherMembersList(keyword = '') {
+function populateCustomVoucherFilterDropdowns() {
+  const instansiSel = document.getElementById('cv-filter-instansi');
+  const alamatSel = document.getElementById('cv-filter-alamat');
+  if (!instansiSel || !alamatSel) return;
+
+  const currentInst = instansiSel.value;
+  const currentAlamat = alamatSel.value;
+
+  const instansiSet = new Set();
+  const alamatSet = new Set();
+
+  customers.forEach(c => {
+    if (c.instansi && String(c.instansi).trim()) instansiSet.add(String(c.instansi).trim());
+    if (c.domisili && String(c.domisili).trim()) alamatSet.add(String(c.domisili).trim());
+  });
+
+  let instOpts = '<option value="">Semua Instansi</option>';
+  Array.from(instansiSet).sort().forEach(inst => {
+    instOpts += `<option value="${escapeJsQuotes(inst)}" ${inst === currentInst ? 'selected' : ''}>🏢 ${inst}</option>`;
+  });
+  instansiSel.innerHTML = instOpts;
+
+  let alamatOpts = '<option value="">Semua Alamat</option>';
+  Array.from(alamatSet).sort().forEach(alm => {
+    alamatOpts += `<option value="${escapeJsQuotes(alm)}" ${alm === currentAlamat ? 'selected' : ''}>📍 ${alm}</option>`;
+  });
+  alamatSel.innerHTML = alamatOpts;
+}
+
+function onCustomVoucherFilterChange() {
+  const search = document.getElementById('cv-search-member')?.value || '';
+  const filterInst = document.getElementById('cv-filter-instansi')?.value || '';
+  const filterAlm = document.getElementById('cv-filter-alamat')?.value || '';
+  renderCustomVoucherMembersList(search, filterInst, filterAlm);
+}
+
+function renderCustomVoucherMembersList(keyword = '', filterInstansi = '', filterAlamat = '') {
   const tbody = document.getElementById('cv-members-table-body');
   if (!tbody) return;
 
+  populateCustomVoucherFilterDropdowns();
+
   const search = (keyword || '').toLowerCase().trim();
-  const filtered = customers.filter(c =>
-    (c.nama && c.nama.toLowerCase().includes(search)) ||
-    (c.kode_anggota && c.kode_anggota.toLowerCase().includes(search)) ||
-    (c.instansi && c.instansi.toLowerCase().includes(search)) ||
-    (c.telepon && c.telepon.toLowerCase().includes(search))
-  );
+  const targetInstansi = (filterInstansi || (document.getElementById('cv-filter-instansi')?.value || '')).trim().toLowerCase();
+  const targetAlamat = (filterAlamat || (document.getElementById('cv-filter-alamat')?.value || '')).trim().toLowerCase();
+
+  let filtered = customers.filter(c => {
+    const matchSearch = !search || (
+      (c.nama && c.nama.toLowerCase().includes(search)) ||
+      (c.kode_anggota && c.kode_anggota.toLowerCase().includes(search)) ||
+      (c.instansi && c.instansi.toLowerCase().includes(search)) ||
+      (c.telepon && c.telepon.toLowerCase().includes(search)) ||
+      (c.domisili && c.domisili.toLowerCase().includes(search))
+    );
+    const matchInstansi = !targetInstansi || (c.instansi && c.instansi.toLowerCase() === targetInstansi);
+    const matchAlamat = !targetAlamat || (c.domisili && c.domisili.toLowerCase() === targetAlamat);
+
+    return matchSearch && matchInstansi && matchAlamat;
+  });
 
   tbody.innerHTML = '';
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 1rem; color: var(--text-muted);">Tidak ada anggota ditemukan.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 1rem; color: var(--text-muted);">Tidak ada anggota ditemukan dengan kriteria filter.</td></tr>`;
     return;
   }
 
@@ -14894,7 +14941,7 @@ function renderCustomVoucherMembersList(keyword = '') {
       </td>
       <td style="padding: 0.45rem;">
         <div style="font-weight: 700; color: var(--text-main);">${c.nama}</div>
-        <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">${kode}</div>
+        <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">${kode} ${c.domisili ? '&bull; 📍 ' + c.domisili : ''}</div>
       </td>
       <td style="padding: 0.45rem; color: var(--text-muted); font-size: 0.78rem;">
         ${c.instansi || '-'}
@@ -14908,7 +14955,7 @@ function renderCustomVoucherMembersList(keyword = '') {
 }
 
 function filterCustomVoucherMemberList(val) {
-  renderCustomVoucherMembersList(val);
+  onCustomVoucherFilterChange();
 }
 
 function toggleSelectAllMembersVoucher(select) {
@@ -15028,6 +15075,25 @@ function openSavingsAccountModal(customerId) {
   document.getElementById('savings-member-info').textContent = `[${kode}] ${c.nama} ${c.instansi ? ' - ' + c.instansi : ''}`;
   document.getElementById('savings-amount').value = '';
   document.getElementById('savings-notes').value = '';
+  const pinTrxInp = document.getElementById('savings-trx-pin');
+  if (pinTrxInp) pinTrxInp.value = '';
+
+  // Update Status Tabungan & PIN Box
+  const statusBadge = document.getElementById('savings-status-badge');
+  const toggleBtn = document.getElementById('btn-toggle-savings-status');
+  const pinSetupBox = document.getElementById('savings-pin-setup-box');
+  const isAktif = !!c.tabungan_aktif;
+
+  if (statusBadge) {
+    statusBadge.textContent = isAktif ? '✓ Tabungan Aktif' : 'Tabungan Nonaktif';
+    statusBadge.style.background = isAktif ? '#dcfce7' : '#fee2e2';
+    statusBadge.style.color = isAktif ? '#15803d' : '#dc2626';
+  }
+  if (toggleBtn) {
+    toggleBtn.textContent = isAktif ? 'Ubah PIN Tabungan' : 'Aktifkan Tabungan';
+    toggleBtn.style.background = isAktif ? '#475569' : '#0284c7';
+  }
+  if (pinSetupBox) pinSetupBox.style.display = 'none';
 
   // Reset radio to setor
   const setorRadio = document.querySelector('input[name="savings-type"][value="setor"]');
@@ -15037,6 +15103,66 @@ function openSavingsAccountModal(customerId) {
 
   modal.style.display = 'flex';
   modal.classList.add('active');
+}
+
+function toggleSavingsActivationPrompt() {
+  const pinSetupBox = document.getElementById('savings-pin-setup-box');
+  const pinInp = document.getElementById('savings-new-pin');
+  if (!pinSetupBox) return;
+
+  if (pinSetupBox.style.display === 'none' || !pinSetupBox.style.display) {
+    pinSetupBox.style.display = 'block';
+    if (pinInp) {
+      pinInp.value = '';
+      pinInp.focus();
+    }
+  } else {
+    pinSetupBox.style.display = 'none';
+  }
+}
+
+function cancelSavingsPinSetup() {
+  const pinSetupBox = document.getElementById('savings-pin-setup-box');
+  if (pinSetupBox) pinSetupBox.style.display = 'none';
+}
+
+function saveSavingsPin() {
+  const custId = document.getElementById('savings-cust-id').value;
+  const c = customers.find(x => x.id === custId);
+  if (!c) return;
+
+  const pinInp = document.getElementById('savings-new-pin');
+  const pinVal = (pinInp ? pinInp.value : '').trim();
+
+  if (!/^\d{6}$/.test(pinVal)) {
+    alert("PIN tabungan harus terdiri dari tepat 6 digit angka!");
+    if (pinInp) pinInp.focus();
+    return;
+  }
+
+  c.tabungan_aktif = true;
+  c.pin_tabungan = pinVal;
+
+  saveCustomersLocally();
+  saveCustomerCloud(c);
+  renderCustomersTable();
+
+  alert(`✅ Berhasil! Fitur tabungan untuk ${c.nama} telah diaktifkan dengan PIN 6 digit.\nHarap jaga kerahasiaan PIN ini.`);
+
+  const statusBadge = document.getElementById('savings-status-badge');
+  const toggleBtn = document.getElementById('btn-toggle-savings-status');
+  const pinSetupBox = document.getElementById('savings-pin-setup-box');
+
+  if (statusBadge) {
+    statusBadge.textContent = '✓ Tabungan Aktif';
+    statusBadge.style.background = '#dcfce7';
+    statusBadge.style.color = '#15803d';
+  }
+  if (toggleBtn) {
+    toggleBtn.textContent = 'Ubah PIN Tabungan';
+    toggleBtn.style.background = '#475569';
+  }
+  if (pinSetupBox) pinSetupBox.style.display = 'none';
 }
 
 function closeSavingsAccountModal() {
@@ -15128,6 +15254,26 @@ function submitSavingsTransaction(event) {
     return;
   }
 
+  // Validasi tabungan aktif dan verifikasi PIN
+  if (!c.tabungan_aktif || !c.pin_tabungan) {
+    alert("Fitur tabungan untuk anggota ini belum diaktifkan!\nHarap klik tombol 'Aktifkan Tabungan' dan buat PIN 6 digit terlebih dahulu.");
+    toggleSavingsActivationPrompt();
+    return;
+  }
+
+  const enteredPin = (document.getElementById('savings-trx-pin')?.value || '').trim();
+  if (!enteredPin) {
+    alert("Wajib memasukkan PIN anggota untuk otorisasi transaksi tabungan!");
+    document.getElementById('savings-trx-pin')?.focus();
+    return;
+  }
+
+  if (enteredPin !== c.pin_tabungan) {
+    alert("⛔ PIN Anggota Salah! Transaksi tabungan dibatalkan demi keamanan.");
+    document.getElementById('savings-trx-pin')?.focus();
+    return;
+  }
+
   const typeRadio = document.querySelector('input[name="savings-type"]:checked');
   const type = typeRadio ? typeRadio.value : 'setor';
   const amountStr = document.getElementById('savings-amount')?.value || '';
@@ -15172,6 +15318,8 @@ function submitSavingsTransaction(event) {
   document.getElementById('savings-current-balance').textContent = `Rp ${formatRupiah(newBal)}`;
   document.getElementById('savings-amount').value = '';
   document.getElementById('savings-notes').value = '';
+  const pinTrxInp = document.getElementById('savings-trx-pin');
+  if (pinTrxInp) pinTrxInp.value = '';
   renderSavingsHistory(c);
 
   const actionMsg = type === 'setor' ? 'Penyetoran' : 'Penarikan mandiri';
@@ -15420,58 +15568,122 @@ function selectCustomerFromDropdown(customerId) {
   }, 100);
 }
 
+let selectedCustomVoucherKeys = new Set(); // Set of "voucherId_nominal_index" yang dicentang kasir
+
+function toggleCheckoutCustomVoucher(key) {
+  if (selectedCustomVoucherKeys.has(key)) {
+    selectedCustomVoucherKeys.delete(key);
+  } else {
+    selectedCustomVoucherKeys.add(key);
+  }
+  updateSelectedVouchersCountLabel();
+  calculateChange();
+}
+
+function updateSelectedVouchersCountLabel() {
+  const lbl = document.getElementById('selected-vouchers-count-label');
+  if (lbl) lbl.textContent = selectedCustomVoucherKeys.size;
+}
+
+function selectAllEligibleVouchers(selectAll) {
+  const checkboxes = document.querySelectorAll('.checkout-voucher-checkbox');
+  checkboxes.forEach(cb => {
+    cb.checked = selectAll;
+    const key = cb.getAttribute('data-key');
+    if (selectAll) {
+      if (key) selectedCustomVoucherKeys.add(key);
+    } else {
+      if (key) selectedCustomVoucherKeys.delete(key);
+    }
+  });
+  updateSelectedVouchersCountLabel();
+  calculateChange();
+}
+
 function renderCustomerCustomVouchersInPaymentModal(customer) {
   const container = document.getElementById('customer-vouchers-detail-list');
   if (!container) return;
 
   if (!customer) {
     container.innerHTML = '';
+    selectedCustomVoucherKeys.clear();
+    updateSelectedVouchersCountLabel();
     return;
   }
 
-  const userVouchers = getCustomerCustomVouchers(customer.id);
-  if (userVouchers.length === 0) {
+  // Ambil semua voucher custom milik anggota ini
+  const custVouchers = getCustomerCustomVouchers(customer);
+  const availableVouchers = custVouchers.filter(v => v.status === 'belum_diambil' && !v.isExpired);
+  const claimedOrExpiredVouchers = custVouchers.filter(v => v.status === 'sudah_diambil' || v.isExpired);
+
+  if (availableVouchers.length === 0 && claimedOrExpiredVouchers.length === 0) {
     container.innerHTML = `
-      <div style="font-size: 0.74rem; color: var(--text-muted); font-style: italic; padding: 0.2rem 0;">
-        Tidak ada voucher custom untuk anggota ini.
+      <div style="background: rgba(255,255,255,0.7); border: 1px dashed #f59e0b; border-radius: 8px; padding: 0.75rem; text-align: center; color: #92400e; font-size: 0.78rem;">
+        Belum ada voucher untuk anggota ini.
       </div>
     `;
+    selectedCustomVoucherKeys.clear();
+    updateSelectedVouchersCountLabel();
     return;
   }
 
   let html = '';
-  userVouchers.forEach(item => {
-    const v = item.voucher;
-    const a = item.allocation;
-    const isTaken = a.status === 'sudah_diambil';
-    const isActive = isCustomVoucherActive(v);
 
-    let statusBadge = '';
-    if (isTaken) {
-      statusBadge = `<span style="background: #e2e8f0; color: #475569; font-weight: 700; font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px;">Sudah Diambil</span>`;
-    } else if (!isActive) {
-      statusBadge = `<span style="background: #fee2e2; color: #dc2626; font-weight: 700; font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px;">Kadaluarsa</span>`;
-    } else {
-      statusBadge = `<span style="background: #dcfce7; color: #15803d; font-weight: 700; font-size: 0.7rem; padding: 0.15rem 0.4rem; border-radius: 4px;">Belum Diambil (Tersedia)</span>`;
+  // Render voucher yang aktif dan belum diambil (dapat dipilih untuk membayar)
+  availableVouchers.forEach((v, idx) => {
+    const key = `${v.voucherId}_${v.nominal}_${idx}`;
+    // Default terpilih semua agar praktis untuk kasir
+    if (!selectedCustomVoucherKeys.has(key) && selectedCustomVoucherKeys.size === 0) {
+      selectedCustomVoucherKeys.add(key);
     }
-
-    const expiryText = v.tipeKadaluarsa === 'tanggal' && v.tanggalKadaluarsa ? `s/d ${v.tanggalKadaluarsa}` : 'Tanpa Kadaluarsa';
+    const isChecked = selectedCustomVoucherKeys.has(key);
+    const expText = v.tipeKadaluarsa === 'tanggal' && v.tanggalKadaluarsa ? `Exp: ${v.tanggalKadaluarsa}` : 'Tanpa Kadaluarsa';
 
     html += `
-      <div style="background: #fff; border: 1px solid #fde68a; border-radius: 6px; padding: 0.35rem 0.55rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.76rem;">
-        <div>
-          <div style="font-weight: 700; color: #92400e;">🎟️ ${v.namaVoucher} <small style="color:#78350f;">[${v.kategori || 'Umum'}]</small></div>
-          <div style="font-size: 0.7rem; color: #b45309;">${expiryText}</div>
+      <label style="background: #ffffff; border: 1.5px solid ${isChecked ? '#ea580c' : '#fde68a'}; border-radius: 10px; padding: 0.55rem 0.75rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 0.1rem;" onmouseover="this.style.borderColor='#ea580c';" onmouseout="if(!this.querySelector('input').checked) this.style.borderColor='#fde68a';">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <input type="checkbox" class="checkout-voucher-checkbox" data-key="${key}" data-nominal="${v.nominal}" data-vid="${v.voucherId}" ${isChecked ? 'checked' : ''} onchange="toggleCheckoutCustomVoucher('${key}')" style="width: 17px; height: 17px; accent-color: #ea580c; cursor: pointer;">
+          <div>
+            <div style="font-weight: 800; font-size: 0.85rem; color: #78350f;">
+              🎟️ ${v.namaVoucher}
+              <span style="font-size: 0.7rem; font-weight: 700; background: #fff7ed; color: #c2410c; padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid #ffedd5; margin-left: 0.3rem;">${v.kategori}</span>
+            </div>
+            <div style="font-size: 0.72rem; color: #b45309; margin-top: 2px;">
+              ⏳ ${expText}
+            </div>
+          </div>
         </div>
-        <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
-          <strong style="color: #ea580c; font-size: 0.82rem;">Rp ${formatRupiah(a.nominal)}</strong>
-          ${statusBadge}
+        <div style="text-align: right;">
+          <div style="font-size: 0.7rem; color: #92400e; font-weight: 700; text-transform: uppercase;">Nilai Voucher:</div>
+          <strong style="color: #ea580c; font-size: 1.05rem; font-weight: 900;">Rp ${formatRupiah(v.nominal)}</strong>
+        </div>
+      </label>
+    `;
+  });
+
+  // Render voucher yang sudah pernah dipakai / kadaluarsa sebagai informasi (disabled)
+  claimedOrExpiredVouchers.forEach(v => {
+    const isClaimed = v.status === 'sudah_diambil';
+    const badgeText = isClaimed ? '✓ Sudah Digunakan' : '⚠️ Kadaluarsa';
+    const badgeBg = isClaimed ? '#f1f5f9' : '#fee2e2';
+    const badgeColor = isClaimed ? '#64748b' : '#dc2626';
+
+    html += `
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.45rem 0.65rem; display: flex; justify-content: space-between; align-items: center; opacity: 0.75; font-size: 0.76rem;">
+        <div>
+          <div style="font-weight: 700; color: #64748b;">🎟️ ${v.namaVoucher}</div>
+          <div style="font-size: 0.7rem; color: #94a3b8;">${v.kategori}</div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-weight: 800; color: #64748b;">Rp ${formatRupiah(v.nominal)}</div>
+          <span style="font-size: 0.68rem; font-weight: 700; background: ${badgeBg}; color: ${badgeColor}; padding: 0.1rem 0.35rem; border-radius: 4px;">${badgeText}</span>
         </div>
       </div>
     `;
   });
 
   container.innerHTML = html;
+  updateSelectedVouchersCountLabel();
 }
 
 function applySelectedCustomer(customer) {
@@ -15490,17 +15702,19 @@ function applySelectedCustomer(customer) {
     }
   }
 
-  // 1. Tabungan Anggota
+  // 1. Tabungan Anggota & PIN Otorisasi
   const savingsBox = document.getElementById('customer-savings-info');
   const savingsBalLabel = document.getElementById('customer-savings-balance-label');
   const chkUseSavings = document.getElementById('chk-use-savings-payment');
+  const pinGroup = document.getElementById('savings-pin-checkout-group');
 
-  if (customer && Number(customer.saldo_tabungan) > 0) {
+  if (customer && Number(customer.saldo_tabungan) > 0 && customer.tabungan_aktif) {
     if (savingsBox) savingsBox.style.display = 'block';
     if (savingsBalLabel) savingsBalLabel.textContent = `Rp ${formatRupiah(customer.saldo_tabungan || 0)}`;
   } else {
     if (savingsBox) savingsBox.style.display = 'none';
     if (chkUseSavings) chkUseSavings.checked = false;
+    if (pinGroup) pinGroup.style.display = 'none';
   }
 
   const ptsInfo = document.getElementById('customer-points-info');
@@ -15512,38 +15726,10 @@ function applySelectedCustomer(customer) {
     if (vchInfo) {
       if (customer) {
         vchInfo.style.display = 'block';
-        const curMonth = getCurrentMonthKey();
-        const vStats = getCustomerMonthlyVoucherStats(customer, curMonth);
-        const rpNominal = loyaltySettings.voucherRpValue || 10000;
-        const totalRp = vStats.remaining * rpNominal;
-
-        const balEl = document.getElementById('customer-voucher-balance');
-        const rpEl = document.getElementById('customer-voucher-rp');
-        const badgeEl = document.getElementById('customer-voucher-eligibility-badge');
-        const actionRow = document.getElementById('customer-voucher-action-row');
-
-        if (balEl) balEl.textContent = vStats.remaining;
-        if (rpEl) rpEl.textContent = `Rp ${formatRupiah(totalRp)}`;
-        if (badgeEl) {
-          if (!vStats.eligible) {
-            badgeEl.textContent = 'Tidak Berhak Voucher';
-            badgeEl.style.background = '#f1f5f9';
-            badgeEl.style.color = '#64748b';
-            if (actionRow) actionRow.style.display = 'none';
-          } else {
-            badgeEl.textContent = `Kuota: ${vStats.used}/${vStats.quota} Digunakan`;
-            badgeEl.style.background = '#fef3c7';
-            badgeEl.style.color = '#b45309';
-            if (actionRow) actionRow.style.display = 'flex';
-          }
-        }
-
-        // Render Rincian Voucher Custom Anggota
+        // Render rincian kartu voucher custom anggota yang mewah dan interaktif
         renderCustomerCustomVouchersInPaymentModal(customer);
       } else {
         vchInfo.style.display = 'none';
-        const vInput = document.getElementById('redeem-voucher-count');
-        if (vInput) vInput.value = '0';
         renderCustomerCustomVouchersInPaymentModal(null);
       }
     }
@@ -15570,6 +15756,15 @@ function applySelectedCustomer(customer) {
 }
 
 function toggleUseSavingsPayment(checked) {
+  const pinGroup = document.getElementById('savings-pin-checkout-group');
+  const pinInp = document.getElementById('checkout-savings-pin');
+  if (pinGroup) {
+    pinGroup.style.display = checked ? 'flex' : 'none';
+    if (checked && pinInp) {
+      pinInp.value = '';
+      pinInp.focus();
+    }
+  }
   calculateChange();
 }
 
