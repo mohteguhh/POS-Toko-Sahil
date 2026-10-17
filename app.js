@@ -7566,7 +7566,7 @@ function generatePlainTextReceipt(tx, items) {
       if (matchedCust) memberId = matchedCust.kode_anggota || matchedCust.id;
     }
     if (memberId) {
-      text += formatLine("ID Anggota", memberId, width) + "\n";
+      text += formatLine("ID", memberId, width) + "\n";
     }
     
     if (tx.reward_mode === 'voucher' || tx.diskon_voucher > 0 || typeof tx.sisa_voucher_bulan_ini !== 'undefined') {
@@ -14090,26 +14090,51 @@ function renderCustomersTable() {
     const totalVoucherRp = activeVouchers.reduce((sum, v) => sum + v.nominal, 0);
 
     if (isVoucher) {
-      let statusBadgesHtml = '';
       if (activeVouchers.length > 0) {
-        statusBadgesHtml += `<span style="font-size: 0.72rem; color: #059669; background: #ecfdf5; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid #a7f3d0;">${activeVouchers.length} Belum Diambil</span>`;
-      }
-      if (claimedVouchers.length > 0) {
-        statusBadgesHtml += ` <span style="font-size: 0.72rem; color: #64748b; background: #f1f5f9; font-weight: 600; padding: 0.15rem 0.45rem; border-radius: 999px;">${claimedVouchers.length} Sudah Diambil</span>`;
-      }
-      if (cVouchers.length === 0) {
-        statusBadgesHtml = `<span style="font-size: 0.72rem; color: var(--text-muted); font-style: italic;">Belum ada voucher</span>`;
-      }
+        // Kelompokkan voucher berdasarkan nama voucher
+        const groupMap = {};
+        activeVouchers.forEach(v => {
+          const name = v.namaVoucher || 'Voucher Belanja';
+          const nominal = Number(v.nominal) || 0;
+          const key = `${name}_${nominal}`;
+          if (!groupMap[key]) {
+            groupMap[key] = { name, nominal, count: 0 };
+          }
+          groupMap[key].count++;
+        });
 
-      rewardColHtml = `
-        <div>
-          <div style="display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(245, 158, 11, 0.1); padding: 0.25rem 0.6rem; border-radius: 999px; border: 1px solid rgba(245, 158, 11, 0.3);">
-            <span style="font-weight: 800; color: #d97706; font-size: 0.88rem;">${activeVouchers.length} Tersedia</span>
-            <span style="font-size: 0.72rem; color: var(--text-muted);">(Rp ${formatRupiah(totalVoucherRp)})</span>
+        const itemsList = Object.values(groupMap).map(g => {
+          return `
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; background: #fffbeb; border: 1px solid #fde68a; padding: 0.2rem 0.45rem; border-radius: 6px; margin-bottom: 2px; font-size: 0.73rem;">
+              <span style="font-weight: 700; color: #92400e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;" title="${escapeJsQuotes(g.name)}">
+                🎟️ ${g.name}
+              </span>
+              <span style="color: #ea580c; font-weight: 800; white-space: nowrap;">
+                ${g.count}x @Rp ${formatRupiah(g.nominal)}
+              </span>
+            </div>
+          `;
+        }).join('');
+
+        rewardColHtml = `
+          <div style="min-width: 170px;">
+            <div style="margin-bottom: 0.25rem;">${itemsList}</div>
+            <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.7rem; color: #64748b; padding-top: 2px; border-top: 1px dashed #e2e8f0;">
+              <span>Total (${activeVouchers.length} vcr):</span>
+              <strong style="color: #d97706; font-size: 0.78rem;">Rp ${formatRupiah(totalVoucherRp)}</strong>
+            </div>
+            ${claimedVouchers.length > 0 ? `<div style="font-size: 0.67rem; color: #94a3b8; margin-top: 2px;">${claimedVouchers.length} sudah digunakan</div>` : ''}
           </div>
-          <div style="margin-top: 4px;">${statusBadgesHtml}</div>
-        </div>
-      `;
+        `;
+      } else if (claimedVouchers.length > 0) {
+        rewardColHtml = `
+          <div style="font-size: 0.73rem; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; padding: 0.25rem 0.5rem; border-radius: 6px;">
+            <span>${claimedVouchers.length} voucher sudah terpakai</span>
+          </div>
+        `;
+      } else {
+        rewardColHtml = `<span style="font-size: 0.73rem; color: var(--text-muted); font-style: italic;">Belum ada voucher</span>`;
+      }
     } else {
       const points = c.poin || 0;
       const rpValue = points * (loyaltySettings.rpPerPoint || 100);
@@ -14828,16 +14853,22 @@ function openCreateCustomVoucherModal() {
   const modal = document.getElementById('create-custom-voucher-modal');
   if (!modal) return;
 
+  // Tampilkan modal secara instan tanpa delay
+  modal.style.display = 'flex';
+  modal.classList.add('active');
+
   const form = document.getElementById('create-custom-voucher-form');
   if (form) form.reset();
 
   const expContainer = document.getElementById('cv-expiry-date-container');
   if (expContainer) expContainer.style.display = 'none';
 
-  renderCustomVoucherMembersList();
-
-  modal.style.display = 'flex';
-  modal.classList.add('active');
+  // Render dropdown filter & list anggota di frame berikutnya agar UI tidak macet/freeze
+  requestAnimationFrame(() => {
+    renderCustomVoucherMembersList();
+    const firstInput = document.getElementById('cv-name');
+    if (firstInput) firstInput.focus();
+  });
 }
 
 function closeCreateCustomVoucherModal() {
@@ -15640,22 +15671,21 @@ function renderCustomerCustomVouchersInPaymentModal(customer) {
     const expText = v.tipeKadaluarsa === 'tanggal' && v.tanggalKadaluarsa ? `Exp: ${v.tanggalKadaluarsa}` : 'Tanpa Kadaluarsa';
 
     html += `
-      <label style="background: #ffffff; border: 1.5px solid ${isChecked ? '#ea580c' : '#fde68a'}; border-radius: 10px; padding: 0.55rem 0.75rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 0.1rem;" onmouseover="this.style.borderColor='#ea580c';" onmouseout="if(!this.querySelector('input').checked) this.style.borderColor='#fde68a';">
-        <div style="display: flex; align-items: center; gap: 0.65rem;">
-          <input type="checkbox" class="checkout-voucher-checkbox" data-key="${key}" data-nominal="${v.nominal}" data-vid="${v.voucherId}" ${isChecked ? 'checked' : ''} onchange="toggleCheckoutCustomVoucher('${key}')" style="width: 17px; height: 17px; accent-color: #ea580c; cursor: pointer;">
+      <label style="background: #ffffff; border: 1.5px solid ${isChecked ? '#ea580c' : '#fde68a'}; border-radius: 8px; padding: 0.4rem 0.65rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.15s ease; box-shadow: 0 1px 4px rgba(0,0,0,0.03); margin-bottom: 0.05rem;" onmouseover="this.style.borderColor='#ea580c';" onmouseout="if(!this.querySelector('input').checked) this.style.borderColor='#fde68a';">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="checkbox" class="checkout-voucher-checkbox" data-key="${key}" data-nominal="${v.nominal}" data-vid="${v.voucherId}" ${isChecked ? 'checked' : ''} onchange="toggleCheckoutCustomVoucher('${key}')" style="width: 16px; height: 16px; accent-color: #ea580c; cursor: pointer;">
           <div>
-            <div style="font-weight: 800; font-size: 0.85rem; color: #78350f;">
-              🎟️ ${v.namaVoucher}
-              <span style="font-size: 0.7rem; font-weight: 700; background: #fff7ed; color: #c2410c; padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid #ffedd5; margin-left: 0.3rem;">${v.kategori}</span>
+            <div style="font-weight: 800; font-size: 0.82rem; color: #78350f; display: flex; align-items: center; gap: 0.3rem;">
+              <span>🎟️ ${v.namaVoucher}</span>
+              <span style="font-size: 0.68rem; font-weight: 700; background: #fff7ed; color: #c2410c; padding: 0.05rem 0.35rem; border-radius: 4px; border: 1px solid #ffedd5;">${v.kategori}</span>
             </div>
-            <div style="font-size: 0.72rem; color: #b45309; margin-top: 2px;">
+            <div style="font-size: 0.7rem; color: #b45309; margin-top: 1px;">
               ⏳ ${expText}
             </div>
           </div>
         </div>
         <div style="text-align: right;">
-          <div style="font-size: 0.7rem; color: #92400e; font-weight: 700; text-transform: uppercase;">Nilai Voucher:</div>
-          <strong style="color: #ea580c; font-size: 1.05rem; font-weight: 900;">Rp ${formatRupiah(v.nominal)}</strong>
+          <strong style="color: #ea580c; font-size: 0.95rem; font-weight: 900;">Rp ${formatRupiah(v.nominal)}</strong>
         </div>
       </label>
     `;
@@ -15664,19 +15694,19 @@ function renderCustomerCustomVouchersInPaymentModal(customer) {
   // Render voucher yang sudah pernah dipakai / kadaluarsa sebagai informasi (disabled)
   claimedOrExpiredVouchers.forEach(v => {
     const isClaimed = v.status === 'sudah_diambil';
-    const badgeText = isClaimed ? '✓ Sudah Digunakan' : '⚠️ Kadaluarsa';
+    const badgeText = isClaimed ? '✓ Terpakai' : '⚠️ Kadaluarsa';
     const badgeBg = isClaimed ? '#f1f5f9' : '#fee2e2';
     const badgeColor = isClaimed ? '#64748b' : '#dc2626';
 
     html += `
-      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.45rem 0.65rem; display: flex; justify-content: space-between; align-items: center; opacity: 0.75; font-size: 0.76rem;">
-        <div>
-          <div style="font-weight: 700; color: #64748b;">🎟️ ${v.namaVoucher}</div>
-          <div style="font-size: 0.7rem; color: #94a3b8;">${v.kategori}</div>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.3rem 0.55rem; display: flex; justify-content: space-between; align-items: center; opacity: 0.7; font-size: 0.72rem;">
+        <div style="display: flex; align-items: center; gap: 0.35rem;">
+          <span style="font-weight: 700; color: #64748b;">🎟️ ${v.namaVoucher}</span>
+          <span style="font-size: 0.65rem; color: #94a3b8;">(${v.kategori})</span>
         </div>
-        <div style="text-align: right;">
-          <div style="font-weight: 800; color: #64748b;">Rp ${formatRupiah(v.nominal)}</div>
-          <span style="font-size: 0.68rem; font-weight: 700; background: ${badgeBg}; color: ${badgeColor}; padding: 0.1rem 0.35rem; border-radius: 4px;">${badgeText}</span>
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+          <strong style="font-weight: 700; color: #64748b;">Rp ${formatRupiah(v.nominal)}</strong>
+          <span style="font-size: 0.65rem; font-weight: 700; background: ${badgeBg}; color: ${badgeColor}; padding: 0.05rem 0.3rem; border-radius: 4px;">${badgeText}</span>
         </div>
       </div>
     `;
@@ -20152,8 +20182,8 @@ function sendCustomVoucherWaMessage() {
 // ============================================================
 
 /**
- * Download file template Excel untuk import pelanggan massal.
- * Kolom: Nama Pelanggan, No Telepon, Domisili, Poin Awal
+ * Download file template Excel untuk import anggota massal.
+ * Kolom: ID Anggota, Nama Anggota *, Instansi, Alamat, No Telepon
  */
 function downloadCustomerExcelTemplate() {
   if (typeof XLSX === 'undefined') {
@@ -20162,26 +20192,27 @@ function downloadCustomerExcelTemplate() {
   }
 
   const wsData = [
-    ['TEMPLATE IMPORT DATA PELANGGAN MASSAL - TOKO KASIR'],
-    ['Petunjuk: Isi data mulai baris ke-4. Jangan ubah nama kolom pada baris ke-3.'],
-    ['Nama Pelanggan *', 'No Telepon', 'Domisili / Alamat', 'Poin Awal'],
-    ['Budi Santoso', '08123456789', 'Surabaya', 100],
-    ['Siti Rahayu', '08987654321', 'Malang', 250],
-    ['Ahmad Fauzi', '085678901234', 'Sidoarjo', 0],
-    ['Dewi Kusuma', '', 'Gresik', 50],
+    ['TEMPLATE IMPORT BIODATA ANGGOTA - TOKO KASIR'],
+    ['Petunjuk: Isi data mulai baris ke-4. Kolom ID boleh dikosongkan (akan otomatis dibuatkan ID jika kosong).'],
+    ['ID Anggota', 'Nama Anggota *', 'Instansi', 'Alamat', 'No Telepon'],
+    ['CUST-1001', 'Budi Santoso', 'Dinas Pendidikan', 'Jl. Merdeka No. 10 Surabaya', '08123456789'],
+    ['CUST-1002', 'Siti Rahayu', 'Koperasi Sejahtera', 'Jl. Sudirman No. 45 Malang', '08987654321'],
+    ['', 'Ahmad Fauzi', 'RSUD Kota', 'Perumahan Asri Blok C Sidoarjo', '085678901234'],
+    ['', 'Dewi Kusuma', 'Kecamatan', 'Jl. Kartini No. 12 Gresik', '082198765432'],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 25 }, { wch: 12 }];
-  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
+  ws['!cols'] = [{ wch: 18 }, { wch: 28 }, { wch: 24 }, { wch: 35 }, { wch: 18 }];
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Data Pelanggan');
-  XLSX.writeFile(wb, 'template_import_pelanggan.xlsx');
+  XLSX.utils.book_append_sheet(wb, ws, 'Biodata Anggota');
+  XLSX.writeFile(wb, 'template_import_anggota.xlsx');
 }
 
 /**
- * Import pelanggan dari file Excel / CSV yang dipilih user.
+ * Import anggota dari file Excel / CSV yang dipilih user.
+ * Kolom: ID, Nama Anggota, Instansi, Alamat, No Telepon
  */
 function importCustomersFromExcel(event) {
   const file = event.target.files[0];
@@ -20206,7 +20237,7 @@ function importCustomersFromExcel(event) {
       let headerRowIdx = 0;
       for (let i = 0; i < Math.min(rows.length, 10); i++) {
         const rowStr = rows[i].join('|').toLowerCase();
-        if (rowStr.includes('nama pelanggan') || rowStr.includes('nama')) {
+        if (rowStr.includes('nama anggota') || rowStr.includes('nama pelanggan') || rowStr.includes('nama')) {
           headerRowIdx = i;
           break;
         }
@@ -20215,13 +20246,14 @@ function importCustomersFromExcel(event) {
       const headerRow = rows[headerRowIdx].map(h => String(h).trim().toLowerCase());
       const dataRows = rows.slice(headerRowIdx + 1);
 
-      const colNama     = findColIdx(headerRow, ['nama pelanggan', 'nama', 'name', 'pelanggan']);
-      const colTelepon  = findColIdx(headerRow, ['no telepon', 'telepon', 'hp', 'no hp', 'phone', 'no. telepon']);
-      const colDomisili = findColIdx(headerRow, ['domisili', 'alamat', 'address', 'kota']);
-      const colPoin     = findColIdx(headerRow, ['poin awal', 'poin', 'points', 'point']);
+      const colId       = findColIdx(headerRow, ['id anggota', 'kode anggota', 'id member', 'kode member', 'id']);
+      const colNama     = findColIdx(headerRow, ['nama anggota', 'nama pelanggan', 'nama', 'name', 'pelanggan', 'anggota']);
+      const colInstansi = findColIdx(headerRow, ['instansi', 'perusahaan', 'lembaga', 'kantor', 'organisasi']);
+      const colAlamat   = findColIdx(headerRow, ['alamat', 'domisili', 'address', 'kota', 'tempat tinggal']);
+      const colTelepon  = findColIdx(headerRow, ['no telepon', 'telepon', 'no telp', 'no hp', 'hp', 'phone', 'no. telepon', 'no. hp']);
 
       if (colNama === -1) {
-        alert('Kolom "Nama Pelanggan" tidak ditemukan.\nUnduh file contoh terlebih dahulu dengan klik "Contoh Excel".');
+        alert('Kolom "Nama Anggota" tidak ditemukan.\nUnduh file contoh terlebih dahulu dengan klik "Contoh Excel".');
         return;
       }
 
@@ -20232,21 +20264,46 @@ function importCustomersFromExcel(event) {
         const nama = String(row[colNama] || '').trim();
         if (!nama) return;
 
+        let inputId    = colId !== -1 ? String(row[colId] || '').trim() : '';
+        const instansi = colInstansi !== -1 ? String(row[colInstansi] || '').trim() : '';
+        const domisili = colAlamat   !== -1 ? String(row[colAlamat]   || '').trim() : '';
         const telepon  = colTelepon  !== -1 ? String(row[colTelepon]  || '').trim() : '';
-        const domisili = colDomisili !== -1 ? String(row[colDomisili] || '').trim() : '';
-        const poin     = colPoin     !== -1 ? (parseInt(row[colPoin]) || 0) : 0;
 
-        const existing = customers.find(c => c.nama.toLowerCase() === nama.toLowerCase());
-        if (existing) { skipped++; skippedNames.push(nama); return; }
+        // Cek duplikasi berdasarkan ID (jika ada) atau Nama
+        const existing = customers.find(c => {
+          if (inputId && ((c.kode_anggota && c.kode_anggota.toLowerCase() === inputId.toLowerCase()) || (c.id && c.id.toLowerCase() === inputId.toLowerCase()))) {
+            return true;
+          }
+          return c.nama && c.nama.toLowerCase() === nama.toLowerCase();
+        });
+
+        if (existing) {
+          skipped++;
+          skippedNames.push(`${nama} ${inputId ? '(' + inputId + ')' : ''}`);
+          return;
+        }
+
+        const uniqueId = inputId || ('CUST-' + Date.now().toString().slice(-8) + Math.floor(Math.random() * 1000));
 
         const newCust = {
-          id: 'CUST-IMPORT-' + Date.now() + '-' + i,
-          nama, telepon, domisili, poin,
+          id: uniqueId,
+          kode_anggota: uniqueId,
+          nama: nama,
+          instansi: instansi,
+          domisili: domisili,
+          alamat: domisili,
+          telepon: telepon,
+          poin: 0,
+          saldo_tabungan: 0,
+          tabungan_aktif: false,
+          pin_tabungan: '',
           isVoucherEligible: true,
-          voucherUsage: {}
+          voucherUsage: {},
+          customVouchers: []
         };
+
         customers.push(newCust);
-        addedNames.push(nama);
+        addedNames.push(`${nama} [${uniqueId}]`);
         added++;
         saveCustomerCloud(newCust);
       });
@@ -20640,20 +20697,20 @@ function exportCustomersToExcel() {
   }
 
   const exportRows = [
-    ['DAFTAR DATA MEMBER & PELANGGAN - ' + ((receiptSettings && receiptSettings.name) || 'KASIR POS')],
+    ['DAFTAR BIODATA ANGGOTA & MEMBER - ' + ((receiptSettings && receiptSettings.name) || 'KASIR POS')],
     ['Waktu Export: ' + new Date().toLocaleString('id-ID')],
-    ['No', 'ID Member', 'Nama Pelanggan', 'No Telepon', 'Domisili / Alamat', 'Total Poin', 'Jumlah Transaksi', 'Total Belanja (Rp)']
+    ['No', 'ID Anggota', 'Nama Anggota', 'Instansi', 'Alamat', 'No Telepon', 'Saldo Tabungan (Rp)', 'Total Belanja (Rp)']
   ];
 
   customers.forEach((c, idx) => {
     exportRows.push([
       idx + 1,
-      c.id || '-',
+      c.kode_anggota || c.id || '-',
       c.nama || '-',
-      c.telepon || '-',
+      c.instansi || '-',
       c.domisili || c.alamat || '-',
-      Number(c.poin) || 0,
-      Number(c.total_transaksi) || 0,
+      c.telepon || '-',
+      Number(c.saldo_tabungan) || 0,
       Number(c.total_belanja) || 0
     ]);
   });
@@ -20663,10 +20720,10 @@ function exportCustomersToExcel() {
     { wch: 6 },
     { wch: 18 },
     { wch: 28 },
+    { wch: 22 },
+    { wch: 32 },
     { wch: 18 },
-    { wch: 28 },
-    { wch: 14 },
-    { wch: 18 },
+    { wch: 20 },
     { wch: 20 }
   ];
   ws['!merges'] = [
