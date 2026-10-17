@@ -12390,10 +12390,12 @@ function printDailyReport() {
         printStockListEl.appendChild(tr);
       });
 
-      // Ringkasan Total Semua Harga Jual Produk × Semua Stok Ada pada Tanggal Tertentu
+      // Ringkasan Total Harga Beli & Harga Jual Produk × Semua Stok Ada pada Tanggal Tertentu
       let totalSemuaStokAda = 0;
-      let totalNilaiNominalJual = 0;
-      let totalNilaiNominalBeli = 0;
+      let totalSumHargaBeli = 0;
+      let totalSumHargaJual = 0;
+      let totalNilaiNominalBeli = 0; // sum(harga_beli * stok)
+      let totalNilaiNominalJual = 0; // sum(harga_jual * stok)
 
       historicalProducts.forEach(prod => {
         const qtyStok = Math.max(0, Number(prod.stok) || 0);
@@ -12401,29 +12403,70 @@ function printDailyReport() {
         const pBeli = Number(prod.harga_beli !== undefined ? prod.harga_beli : 0);
 
         totalSemuaStokAda += qtyStok;
-        totalNilaiNominalJual += (pJual * qtyStok);
+        totalSumHargaBeli += pBeli;
+        totalSumHargaJual += pJual;
         totalNilaiNominalBeli += (pBeli * qtyStok);
+        totalNilaiNominalJual += (pJual * qtyStok);
       });
 
-      const summaryTr = document.createElement('tr');
-      summaryTr.style.borderTop = '2px solid #000';
-      summaryTr.style.borderBottom = '2px solid #000';
-      summaryTr.style.background = '#f8fafc';
-      summaryTr.innerHTML = `
-        <td colspan="4" style="padding: 0.5rem 0; font-weight: 800; font-size: 0.85rem; text-align: left;">
-          TOTAL SEMUA HARGA JUAL × SEMUA STOK RIIL (TGL ${targetDateForStock}):
-          <div style="font-weight: normal; font-size: 0.75rem; color: #64748b; margin-top: 2px;">
-            Total Nilai Modal/Beli Stok: Rp ${formatRupiah(totalNilaiNominalBeli)}
-          </div>
+      // 1. Baris Subtotal Akumulasi Satuan dan Stok
+      const subtotalTr = document.createElement('tr');
+      subtotalTr.style.borderTop = '2px solid #000';
+      subtotalTr.style.background = '#f1f5f9';
+      subtotalTr.style.fontWeight = 'bold';
+      subtotalTr.innerHTML = `
+        <td colspan="3" style="padding: 0.45rem 0; font-weight: 800; font-size: 0.85rem; text-align: left;">
+          TOTAL AKUMULASI (SEMUA PRODUK):
         </td>
-        <td colspan="2" style="text-align: right; padding: 0.5rem 0; font-weight: 900; font-size: 0.95rem; color: #000;">
-          = Rp ${formatRupiah(totalNilaiNominalJual)}
+        <td style="text-align: right; padding: 0.45rem 0; font-family: monospace; font-size: 0.82rem; color: #475569;">
+          Rp ${formatRupiah(totalSumHargaBeli)}
         </td>
-        <td style="text-align: right; padding: 0.5rem 0; font-weight: 800; font-size: 0.85rem;">
+        <td style="text-align: right; padding: 0.45rem 0; font-family: monospace; font-size: 0.85rem; color: #000;">
+          Rp ${formatRupiah(totalSumHargaJual)}
+        </td>
+        <td style="text-align: center; padding: 0.45rem 0; font-size: 0.8rem; color: #64748b;">
+          -
+        </td>
+        <td style="text-align: right; padding: 0.45rem 0; font-weight: 900; font-size: 0.88rem; color: #000;">
           ${totalSemuaStokAda} pcs
         </td>
-        <td style="text-align: center; padding: 0.5rem 0; font-weight: 700; font-size: 0.75rem; color: #059669;">
-          RIIL
+        <td style="text-align: center; padding: 0.45rem 0; font-size: 0.75rem; color: #64748b;">
+          TOTAL
+        </td>
+      `;
+      printStockListEl.appendChild(subtotalTr);
+
+      // 2. Baris Rincian Perkalian Nilai Modal Beli Stok
+      const beliSummaryTr = document.createElement('tr');
+      beliSummaryTr.style.borderTop = '1px dashed #cbd5e1';
+      beliSummaryTr.style.background = '#f8fafc';
+      beliSummaryTr.innerHTML = `
+        <td colspan="3" style="padding: 0.35rem 0; font-size: 0.82rem; color: #475569; text-align: left;">
+          • Total Nilai Modal (Harga Beli × Stok Riil):
+        </td>
+        <td colspan="3" style="padding: 0.35rem 0; font-size: 0.8rem; color: #64748b; font-family: monospace;">
+          (Rata-rata @Rp ${formatRupiah(totalSemuaStokAda > 0 ? Math.round(totalNilaiNominalBeli / totalSemuaStokAda) : 0)} × ${totalSemuaStokAda} pcs)
+        </td>
+        <td colspan="2" style="text-align: right; padding: 0.35rem 0; font-weight: 800; font-size: 0.88rem; font-family: monospace; color: #334155;">
+          Rp ${formatRupiah(totalNilaiNominalBeli)}
+        </td>
+      `;
+      printStockListEl.appendChild(beliSummaryTr);
+
+      // 3. Baris Rincian Perkalian Nilai Jual Stok (Grand Total Nilai Riil)
+      const summaryTr = document.createElement('tr');
+      summaryTr.style.borderTop = '1px solid #94a3b8';
+      summaryTr.style.borderBottom = '3px double #000';
+      summaryTr.style.background = '#fff7ed';
+      summaryTr.innerHTML = `
+        <td colspan="3" style="padding: 0.55rem 0; font-weight: 900; font-size: 0.88rem; text-align: left; color: #9a3412;">
+          TOTAL SEMUA HARGA JUAL × SEMUA STOK (TGL ${targetDateForStock}):
+        </td>
+        <td colspan="3" style="padding: 0.55rem 0; font-size: 0.82rem; color: #c2410c; font-weight: 700;">
+          Total Stok: <b>${totalSemuaStokAda} pcs</b> (Total Nilai Beli: Rp ${formatRupiah(totalNilaiNominalBeli)})
+        </td>
+        <td colspan="2" style="text-align: right; padding: 0.55rem 0; font-weight: 900; font-size: 1.05rem; color: #c2410c; font-family: monospace;">
+          = Rp ${formatRupiah(totalNilaiNominalJual)}
         </td>
       `;
       printStockListEl.appendChild(summaryTr);
