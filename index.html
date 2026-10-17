@@ -94,6 +94,11 @@
           <i data-lucide="settings" class="icon"></i>
           <span>Pengaturan</span>
         </button>
+        <!-- Tombol Portal Mandiri Anggota -->
+        <button class="tab-btn" id="tab-member-portal" onclick="openMemberPortalModal()" title="Portal Mandiri Anggota: Cek Saldo, Voucher, Riwayat & Ajukan Bon" style="background: linear-gradient(135deg, rgba(234,88,12,0.15) 0%, rgba(249,115,22,0.2) 100%); color: #ea580c; border: 1.5px solid rgba(234,88,12,0.3); font-weight: 800;">
+          <i data-lucide="shield-check" class="icon" style="color: #ea580c;"></i>
+          <span>Portal Anggota</span>
+        </button>
       </nav>
       
       <!-- System Indicators -->
@@ -1416,6 +1421,11 @@
             <button type="button" onclick="openCreateCustomVoucherModal()" style="background: rgba(255,255,255,0.22); color: #fff; border: 1.5px solid rgba(255,255,255,0.45); padding: 0.55rem 0.95rem; border-radius: 11px; font-weight: 800; font-size: 0.84rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; backdrop-filter: blur(10px); transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.06);" onmouseover="this.style.background='rgba(255,255,255,0.32)';this.style.transform='translateY(-1px)';" onmouseout="this.style.background='rgba(255,255,255,0.22)';this.style.transform='';">
               <i data-lucide="ticket" style="width: 15px; height: 15px;"></i>
               Buat Voucher Custom
+            </button>
+            <!-- Tombol Cetak Massal ID Card -->
+            <button type="button" onclick="openBulkIdCardModal()" title="Cetak ID Card untuk semua atau beberapa anggota sekaligus" style="background: rgba(255,255,255,0.22); color: #fff; border: 1.5px solid rgba(255,255,255,0.45); padding: 0.55rem 0.95rem; border-radius: 11px; font-weight: 800; font-size: 0.84rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; backdrop-filter: blur(10px); transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.06);" onmouseover="this.style.background='rgba(255,255,255,0.32)';this.style.transform='translateY(-1px)';" onmouseout="this.style.background='rgba(255,255,255,0.22)';this.style.transform='';">
+              <i data-lucide="printer" style="width: 15px; height: 15px;"></i>
+              🪪 Cetak Massal ID Card
             </button>
             <!-- Tombol Tambah Anggota -->
             <button type="button" onclick="openAddCustomerModal()" style="background: #fff; color: #c2410c; border: none; padding: 0.6rem 1.15rem; border-radius: 11px; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem; box-shadow: 0 4px 14px rgba(0,0,0,0.16); transition: all 0.2s ease;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(0,0,0,0.22)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(0,0,0,0.16)'">
@@ -6033,8 +6043,8 @@
              MODAL: TABUNGAN ANGGOTA (SETOR / TARIK SALDO MANDIRI)
         ═══════════════════════════════════════════════════════════ -->
         <div id="savings-account-modal" class="modal-overlay" style="display: none; z-index: 2950;">
-          <div class="modal-card" style="max-width: 580px; border-radius: 20px; overflow: hidden; padding: 0;">
-            <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+          <div class="modal-card" style="max-width: 580px; width: 95vw; max-height: 90vh; border-radius: 20px; overflow: hidden; padding: 0; display: flex; flex-direction: column;">
+            <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
               <div style="display: flex; align-items: center; gap: 0.65rem;">
                 <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">🏦</div>
                 <div>
@@ -6045,7 +6055,7 @@
               <button onclick="closeSavingsAccountModal()" style="background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 8px; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
             </div>
             
-            <div style="padding: 1.5rem; background: var(--bg-surface);">
+            <div style="padding: 1.5rem; background: var(--bg-surface); overflow-y: auto; flex: 1;">
               <!-- Card Saldo Sekarang & Status Tabungan -->
               <div style="background: linear-gradient(135deg, rgba(2,132,199,0.08) 0%, rgba(3,105,161,0.14) 100%); border: 1.5px solid rgba(2,132,199,0.25); border-radius: 14px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; flex-wrap: wrap;">
@@ -6058,9 +6068,12 @@
                     <div id="savings-status-badge" style="display: inline-block; font-size: 0.75rem; background: #fee2e2; color: #dc2626; font-weight: 800; padding: 0.25rem 0.65rem; border-radius: 999px;">
                       Tabungan Nonaktif
                     </div>
-                    <div style="margin-top: 0.35rem;">
+                    <div style="margin-top: 0.35rem; display: flex; gap: 0.35rem; justify-content: flex-end;">
                       <button type="button" id="btn-toggle-savings-status" onclick="toggleSavingsActivationPrompt()" style="font-size: 0.74rem; font-weight: 700; padding: 0.25rem 0.55rem; border-radius: 6px; cursor: pointer; background: #0284c7; color: #fff; border: none;">
                         Aktifkan Tabungan
+                      </button>
+                      <button type="button" onclick="adminResetCustomerPin()" style="font-size: 0.74rem; font-weight: 700; padding: 0.25rem 0.55rem; border-radius: 6px; cursor: pointer; background: rgba(220,38,38,0.12); color: #dc2626; border: 1px solid rgba(220,38,38,0.25);" title="Reset PIN Anggota jika anggota lupa PIN">
+                        🔑 Reset PIN
                       </button>
                     </div>
                   </div>
@@ -6071,7 +6084,7 @@
                   <div style="font-size: 0.78rem; font-weight: 800; color: #0369a1; margin-bottom: 0.4rem;">
                     🔐 Setel / Ubah PIN Tabungan Anggota (6 Digit Angka):
                   </div>
-                  <div style="display: flex; gap: 0.4rem; align-items: center;">
+                  <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
                     <input type="password" id="savings-new-pin" maxlength="6" pattern="[0-9]*" inputmode="numeric" placeholder="6 digit angka" style="font-size: 0.95rem; font-weight: 800; width: 140px; padding: 0.35rem 0.6rem; border-radius: 8px; border: 1.5px solid #0284c7; text-align: center; letter-spacing: 2px;">
                     <button type="button" onclick="saveSavingsPin()" style="background: #0284c7; color: white; border: none; font-weight: 700; font-size: 0.78rem; padding: 0.4rem 0.75rem; border-radius: 8px; cursor: pointer;">
                       Simpan PIN
@@ -6081,7 +6094,7 @@
                     </button>
                   </div>
                   <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.3rem;">
-                    PIN ini digunakan anggota saat setor, tarik saldo mandiri, dan bayar belanja di kasir.
+                    PIN ini digunakan anggota saat setor, tarik saldo mandiri, bayar belanja di kasir, dan login Portal Anggota.
                   </div>
                 </div>
               </div>
@@ -6094,8 +6107,8 @@
                   <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1.5px solid #0284c7; border-radius: 10px; cursor: pointer; background: rgba(2,132,199,0.05);">
                     <input type="radio" name="savings-type" value="setor" checked style="accent-color: #0284c7;">
                     <div>
-                      <strong style="color: #0369a1; font-size: 0.9rem;">📥 Setor Tabungan</strong>
-                      <div style="font-size: 0.74rem; color: var(--text-muted);">Menambah saldo simpanan</div>
+                      <strong style="color: #0284c7; font-size: 0.9rem;">📥 Setor Tabungan</strong>
+                      <div style="font-size: 0.74rem; color: var(--text-muted);">Tambah saldo simpanan</div>
                     </div>
                   </label>
                   <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1.5px solid var(--border-color); border-radius: 10px; cursor: pointer; background: var(--bg-card);">
@@ -6119,9 +6132,14 @@
 
                 <!-- Input PIN Otorisasi Anggota untuk Setor / Tarik -->
                 <div class="form-group" style="margin-bottom: 1rem; background: rgba(2,132,199,0.06); padding: 0.75rem; border-radius: 10px; border: 1px solid rgba(2,132,199,0.25);">
-                  <label for="savings-trx-pin" style="font-size: 0.85rem; font-weight: 800; color: #0369a1; display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.3rem;">
-                    <span>🔒 Masukkan PIN Anggota *</span>
-                  </label>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                    <label for="savings-trx-pin" style="font-size: 0.85rem; font-weight: 800; color: #0369a1; display: flex; align-items: center; gap: 0.35rem; margin: 0;">
+                      <span>🔒 Masukkan PIN Anggota *</span>
+                    </label>
+                    <a href="javascript:void(0)" onclick="adminResetCustomerPin()" style="font-size: 0.75rem; color: #ea580c; font-weight: 700; text-decoration: underline;">
+                      Lupa PIN?
+                    </a>
+                  </div>
                   <input type="password" id="savings-trx-pin" class="form-control" placeholder="Masukkan 6 digit PIN anggota" maxlength="6" pattern="[0-9]*" inputmode="numeric" required autocomplete="off" style="font-size: 1.1rem; font-weight: 800; letter-spacing: 3px; border-radius: 8px; text-align: center;">
                   <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">
                     Wajib memasukkan PIN anggota agar saldo tidak disalahgunakan orang lain.
@@ -6251,6 +6269,290 @@
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             MODAL: CETAK MASSAL ID CARD ANGGOTA
+        ═══════════════════════════════════════════════════════════ -->
+        <div id="bulk-id-card-modal" class="modal-overlay" style="display: none; z-index: 3100;">
+          <div class="modal-card" style="max-width: 780px; width: 95vw; max-height: 90vh; border-radius: 20px; overflow: hidden; padding: 0; display: flex; flex-direction: column;">
+            <div style="background: linear-gradient(135deg, #b45309 0%, #ea580c 100%); padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+              <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">🪪</div>
+                <div>
+                  <h3 style="margin: 0; font-size: 1.1rem; font-weight: 900; color: #fff;">Cetak Massal ID Card Anggota</h3>
+                  <div style="font-size: 0.8rem; color: rgba(255,255,255,0.85); margin-top: 2px;">Cetak kartu anggota sekaligus dengan barcode scanner standar ID Card (85.6mm x 54mm)</div>
+                </div>
+              </div>
+              <button onclick="closeBulkIdCardModal()" style="background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 8px; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+            </div>
+
+            <div style="padding: 1.25rem 1.5rem; background: var(--bg-surface); overflow-y: auto; flex: 1;">
+              <!-- Filter & Kontrol Pilihan -->
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; background: var(--bg-card); padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; flex: 1;">
+                  <div style="position: relative; flex: 1; min-width: 200px;">
+                    <input type="text" id="bulk-id-card-search" placeholder="🔍 Cari nama / instansi..." oninput="filterBulkIdCardList()" style="width: 100%; padding: 0.45rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 0.85rem;">
+                  </div>
+                  <select id="bulk-id-card-instansi-filter" onchange="filterBulkIdCardList()" style="padding: 0.45rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 0.85rem;">
+                    <option value="">Semua Instansi</option>
+                  </select>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSelectAllBulkIdCards(true)" style="font-size: 0.78rem; font-weight: 700;">Pilih Semua</button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSelectAllBulkIdCards(false)" style="font-size: 0.78rem; font-weight: 700;">Hapus Pilihan</button>
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <span id="bulk-id-card-selected-count" style="font-size: 0.82rem; font-weight: 700; color: #ea580c;">0 Anggota Dipilih untuk Dicetak</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Layout rapi 2 kartu per baris ukuran standar kartu</span>
+              </div>
+
+              <!-- Daftar Anggota Checkbox -->
+              <div style="border: 1px solid var(--border-color); border-radius: 12px; max-height: 380px; overflow-y: auto; background: var(--bg-card);">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                  <thead style="background: var(--bg-surface-elevated); position: sticky; top: 0; z-index: 5;">
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                      <th style="width: 45px; text-align: center; padding: 0.6rem 0.5rem;">
+                        <input type="checkbox" id="chk-bulk-id-card-all" onchange="toggleSelectAllBulkIdCards(this.checked)" style="width: 16px; height: 16px; accent-color: #ea580c; cursor: pointer;">
+                      </th>
+                      <th style="text-align: left; padding: 0.6rem 0.5rem;">ID &amp; Nama Anggota</th>
+                      <th style="text-align: left; padding: 0.6rem 0.5rem;">Instansi</th>
+                      <th style="text-align: left; padding: 0.6rem 0.5rem;">No. Telp</th>
+                      <th style="text-align: left; padding: 0.6rem 0.5rem;">Alamat</th>
+                    </tr>
+                  </thead>
+                  <tbody id="bulk-id-card-tbody">
+                    <!-- Diisi dinamis -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style="padding: 1rem 1.5rem; background: var(--bg-surface-elevated); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+              <button type="button" class="btn btn-secondary" onclick="closeBulkIdCardModal()">Batal</button>
+              <button type="button" class="btn btn-primary" onclick="executePrintBulkIdCards()" style="background: linear-gradient(135deg, #b45309 0%, #ea580c 100%); border: none; font-weight: 800; padding: 0.65rem 1.5rem; display: inline-flex; align-items: center; gap: 0.45rem;">
+                <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
+                <span>Cetak ID Card Terpilih</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             MODAL: PORTAL MANDIRI ANGGOTA (MEMBER SELF-SERVICE DASHBOARD)
+        ═══════════════════════════════════════════════════════════ -->
+        <div id="member-portal-modal" class="modal-overlay" style="display: none; z-index: 3150;">
+          <div class="modal-card" style="max-width: 820px; width: 96vw; max-height: 92vh; border-radius: 20px; overflow: hidden; padding: 0; display: flex; flex-direction: column;">
+            
+            <!-- Header Portal Anggota -->
+            <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #fff; padding: 1.15rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; border-bottom: 2px solid #ea580c;">
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="width: 42px; height: 42px; background: rgba(234,88,12,0.25); border: 1.5px solid #ea580c; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+                  🛡️
+                </div>
+                <div>
+                  <h3 style="margin: 0; font-size: 1.15rem; font-weight: 900; color: #fff; letter-spacing: 0.3px;">Portal Mandiri Anggota</h3>
+                  <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 2px;">Cek Saldo Tabungan, Voucher, Riwayat Belanja, &amp; Ajukan Hutang</div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <button type="button" id="btn-member-portal-logout" onclick="logoutMemberPortal()" style="display: none; background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); color: #fca5a5; font-size: 0.8rem; font-weight: 700; padding: 0.35rem 0.75rem; border-radius: 8px; cursor: pointer;">
+                  Keluar Akun
+                </button>
+                <button onclick="closeMemberPortalModal()" style="background: rgba(255,255,255,0.15); border: none; color: #fff; width: 32px; height: 32px; border-radius: 8px; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+              </div>
+            </div>
+
+            <!-- VIEW A: LOGIN SCREEN PORTAL ANGGOTA -->
+            <div id="member-portal-login-view" style="padding: 2.5rem 1.5rem; background: var(--bg-surface); overflow-y: auto; flex: 1; display: flex; justify-content: center; align-items: center;">
+              <div style="max-width: 400px; width: 100%; background: var(--bg-card); border: 1.5px solid var(--border-color); border-radius: 16px; padding: 1.75rem; box-shadow: 0 10px 30px rgba(0,0,0,0.06);">
+                <div style="text-align: center; margin-bottom: 1.5rem;">
+                  <div style="width: 56px; height: 56px; margin: 0 auto 0.75rem auto; background: rgba(234,88,12,0.1); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: #ea580c;">
+                    👤
+                  </div>
+                  <h4 style="margin: 0; font-size: 1.15rem; font-weight: 900; color: var(--text-main);">Masuk ke Akun Anggota</h4>
+                  <p style="margin: 0.3rem 0 0 0; font-size: 0.82rem; color: var(--text-muted);">Masukkan ID Anggota dan PIN Anda</p>
+                </div>
+
+                <form onsubmit="handleMemberPortalLogin(event)">
+                  <div class="form-group" style="margin-bottom: 0.95rem;">
+                    <label for="mp-login-identifier" style="font-size: 0.84rem; font-weight: 700; color: var(--text-main);">ID Anggota atau No. Telepon *</label>
+                    <input type="text" id="mp-login-identifier" class="form-control" placeholder="Contoh: CUST-12345 / 08123456789" required autocomplete="off" style="font-weight: 700; border-radius: 9px; padding: 0.65rem 0.85rem;">
+                  </div>
+
+                  <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                      <label for="mp-login-pin" style="font-size: 0.84rem; font-weight: 700; color: var(--text-main); margin: 0;">PIN Tabungan / Password (6 Digit) *</label>
+                      <a href="javascript:void(0)" onclick="memberPortalForgotPinHint()" style="font-size: 0.75rem; color: #ea580c; font-weight: 700; text-decoration: underline;">
+                        Lupa PIN?
+                      </a>
+                    </div>
+                    <input type="password" id="mp-login-pin" class="form-control" placeholder="6 digit angka PIN" maxlength="6" pattern="[0-9]*" inputmode="numeric" required autocomplete="off" style="font-size: 1.1rem; font-weight: 800; letter-spacing: 3px; text-align: center; border-radius: 9px; padding: 0.65rem 0.85rem;">
+                    <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 0.35rem;">
+                      *Belum punya PIN? Hubungi kasir/admin untuk mengaktifkan tabungan dan membuat 6 digit PIN awal.
+                    </small>
+                  </div>
+
+                  <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem; font-weight: 800; font-size: 0.95rem; border-radius: 10px; background: linear-gradient(135deg, #ea580c, #f97316); border: none; box-shadow: 0 4px 12px rgba(234,88,12,0.25);">
+                    Masuk ke Portal
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- VIEW B: DASHBOARD PORTAL ANGGOTA (SETELAH LOGIN) -->
+            <div id="member-portal-dashboard-view" style="display: none; padding: 1.25rem 1.5rem; background: var(--bg-surface); overflow-y: auto; flex: 1;">
+              
+              <!-- Profil Anggota & Info Kartu -->
+              <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff; border-radius: 16px; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 25px rgba(0,0,0,0.12);">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <h3 id="mp-profile-name" style="margin: 0; font-size: 1.2rem; font-weight: 900; color: #fff;">Nama Anggota</h3>
+                    <span id="mp-profile-instansi" style="background: rgba(234,88,12,0.25); color: #fb923c; border: 1px solid rgba(234,88,12,0.4); font-size: 0.75rem; font-weight: 800; padding: 0.15rem 0.55rem; border-radius: 999px;">Koperasi</span>
+                  </div>
+                  <div style="font-size: 0.82rem; color: #94a3b8; margin-top: 0.35rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <span>ID: <b id="mp-profile-id" style="color: #fff; font-family: monospace;">-</b></span>
+                    <span>No. HP: <b id="mp-profile-phone" style="color: #fff;">-</b></span>
+                    <span>Alamat: <b id="mp-profile-address" style="color: #fff;">-</b></span>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <button type="button" onclick="printCustomerIdCardById(activePortalCustomerId)" class="btn btn-sm" style="background: #ea580c; color: #fff; border: none; font-weight: 800; font-size: 0.8rem; border-radius: 8px; padding: 0.45rem 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <span>🪪 Cetak ID Card Saya</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Stat Cards Saldo & Hutang -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+                <!-- Saldo Tabungan -->
+                <div style="background: linear-gradient(135deg, rgba(2,132,199,0.08) 0%, rgba(3,105,161,0.14) 100%); border: 1.5px solid rgba(2,132,199,0.3); border-radius: 14px; padding: 1.1rem 1.25rem;">
+                  <div style="font-size: 0.78rem; font-weight: 800; color: #0284c7; text-transform: uppercase;">🏦 Saldo Tabungan Anda</div>
+                  <div id="mp-stat-savings" style="font-size: 1.6rem; font-weight: 900; color: #0284c7; margin-top: 4px;">Rp 0</div>
+                  <div id="mp-stat-savings-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Tabungan Aktif</div>
+                </div>
+
+                <!-- Total Sisa Hutang / Bon -->
+                <div style="background: linear-gradient(135deg, rgba(220,38,38,0.08) 0%, rgba(185,28,28,0.14) 100%); border: 1.5px solid rgba(220,38,38,0.3); border-radius: 14px; padding: 1.1rem 1.25rem;">
+                  <div style="font-size: 0.78rem; font-weight: 800; color: #dc2626; text-transform: uppercase;">💳 Sisa Hutang / Bon Belanja</div>
+                  <div id="mp-stat-debt" style="font-size: 1.6rem; font-weight: 900; color: #dc2626; margin-top: 4px;">Rp 0</div>
+                  <div id="mp-stat-debt-info" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">0 Transaksi Belum Lunas</div>
+                </div>
+
+                <!-- Total Voucher Aktif -->
+                <div style="background: linear-gradient(135deg, rgba(234,88,12,0.08) 0%, rgba(194,65,12,0.14) 100%); border: 1.5px solid rgba(234,88,12,0.3); border-radius: 14px; padding: 1.1rem 1.25rem;">
+                  <div style="font-size: 0.78rem; font-weight: 800; color: #ea580c; text-transform: uppercase;">🎟️ Voucher Belanja Aktif</div>
+                  <div id="mp-stat-voucher" style="font-size: 1.6rem; font-weight: 900; color: #ea580c; margin-top: 4px;">0 Voucher</div>
+                  <div id="mp-stat-voucher-info" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Bisa dipakai checkout di kasir</div>
+                </div>
+              </div>
+
+              <!-- Nav Tabs Portal: [ Tabungan & Mutasi ] | [ Voucher Saya ] | [ Riwayat Belanja ] | [ Hutang & Pengajuan ] -->
+              <div style="display: flex; gap: 0.4rem; border-bottom: 2px solid var(--border-color); margin-bottom: 1rem; overflow-x: auto; padding-bottom: 2px;">
+                <button type="button" class="btn btn-sm mp-tab-btn active" id="mp-tab-btn-vouchers" onclick="switchMemberPortalTab('vouchers')" style="border-radius: 8px 8px 0 0; font-weight: 800; font-size: 0.85rem; padding: 0.5rem 1rem; background: #ea580c; color: #fff; border: none;">
+                  🎟️ Voucher Saya
+                </button>
+                <button type="button" class="btn btn-sm mp-tab-btn" id="mp-tab-btn-savings" onclick="switchMemberPortalTab('savings')" style="border-radius: 8px 8px 0 0; font-weight: 800; font-size: 0.85rem; padding: 0.5rem 1rem; background: transparent; color: var(--text-muted); border: none;">
+                  🏦 Mutasi Tabungan
+                </button>
+                <button type="button" class="btn btn-sm mp-tab-btn" id="mp-tab-btn-history" onclick="switchMemberPortalTab('history')" style="border-radius: 8px 8px 0 0; font-weight: 800; font-size: 0.85rem; padding: 0.5rem 1rem; background: transparent; color: var(--text-muted); border: none;">
+                  🛍️ Riwayat Belanja
+                </button>
+                <button type="button" class="btn btn-sm mp-tab-btn" id="mp-tab-btn-debt" onclick="switchMemberPortalTab('debt')" style="border-radius: 8px 8px 0 0; font-weight: 800; font-size: 0.85rem; padding: 0.5rem 1rem; background: transparent; color: var(--text-muted); border: none;">
+                  💳 Hutang &amp; Ajukan Hutang
+                </button>
+              </div>
+
+              <!-- TAB 1: VOUCHER SAYA -->
+              <div id="mp-tab-content-vouchers" class="mp-tab-pane">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                  <h4 style="margin: 0; font-size: 0.95rem; font-weight: 800; color: var(--text-main);">Daftar Voucher Belanja Anda</h4>
+                  <span style="font-size: 0.75rem; color: var(--text-muted);">Tunjukkan nama voucher atau scan ID Card saat membayar di kasir</span>
+                </div>
+                <div id="mp-voucher-list-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.85rem;">
+                  <!-- Diisi dinamis -->
+                </div>
+              </div>
+
+              <!-- TAB 2: MUTASI TABUNGAN -->
+              <div id="mp-tab-content-savings" class="mp-tab-pane" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                  <h4 style="margin: 0; font-size: 0.95rem; font-weight: 800; color: var(--text-main);">Riwayat Setor, Tarik, &amp; Pembayaran Saldo</h4>
+                  <span id="mp-savings-history-count" style="font-size: 0.75rem; color: var(--text-muted);">0 Mutasi</span>
+                </div>
+                <div id="mp-savings-history-container" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 380px; overflow-y: auto;">
+                  <!-- Diisi dinamis -->
+                </div>
+              </div>
+
+              <!-- TAB 3: RIWAYAT BELANJA -->
+              <div id="mp-tab-content-history" class="mp-tab-pane" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                  <h4 style="margin: 0; font-size: 0.95rem; font-weight: 800; color: var(--text-main);">Daftar Transaksi &amp; Produk yang Pernah Dibeli</h4>
+                  <span id="mp-tx-history-count" style="font-size: 0.75rem; color: var(--text-muted);">0 Transaksi</span>
+                </div>
+                <div id="mp-tx-history-container" style="display: flex; flex-direction: column; gap: 0.65rem; max-height: 400px; overflow-y: auto;">
+                  <!-- Diisi dinamis -->
+                </div>
+              </div>
+
+              <!-- TAB 4: STATUS HUTANG & FORM PENGAJUAN HUTANG -->
+              <div id="mp-tab-content-debt" class="mp-tab-pane" style="display: none;">
+                <div style="display: grid; grid-template-columns: 1.1fr 1fr; gap: 1.25rem;">
+                  <!-- Kolom Kiri: Status Hutang Aktif -->
+                  <div>
+                    <h4 style="margin: 0 0 0.65rem 0; font-size: 0.95rem; font-weight: 800; color: var(--text-main);">Rincian Tagihan Hutang / Bon</h4>
+                    <div id="mp-debt-list-container" style="display: flex; flex-direction: column; gap: 0.6rem; max-height: 360px; overflow-y: auto;">
+                      <!-- Diisi dinamis -->
+                    </div>
+                  </div>
+
+                  <!-- Kolom Kanan: Form Pengajuan Hutang Baru -->
+                  <div style="background: var(--bg-card); border: 1.5px solid var(--border-color); border-radius: 14px; padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;">
+                      <span style="font-size: 1.2rem;">📝</span>
+                      <h4 style="margin: 0; font-size: 0.98rem; font-weight: 800; color: var(--text-main);">Form Pengajuan Hutang</h4>
+                    </div>
+                    <p style="margin: 0 0 1rem 0; font-size: 0.78rem; color: var(--text-muted);">
+                      Ajukan permohonan bon belanja atau hutang dana. Pengajuan akan tercatat dan menunggu persetujuan (approval) kasir/admin.
+                    </p>
+
+                    <form onsubmit="submitMemberDebtApplication(event)">
+                      <div class="form-group" style="margin-bottom: 0.85rem;">
+                        <label for="mp-apply-amount" style="font-size: 0.82rem; font-weight: 700;">Nominal yang Diajukan (Rp) *</label>
+                        <input type="text" id="mp-apply-amount" class="form-control" placeholder="Contoh: 150.000" required autocomplete="off" oninput="formatSavingsAmount(this)" style="font-size: 1.1rem; font-weight: 800; color: #dc2626;">
+                      </div>
+
+                      <div class="form-group" style="margin-bottom: 0.85rem;">
+                        <label for="mp-apply-reason" style="font-size: 0.82rem; font-weight: 700;">Alasan / Kebutuhan Hutang *</label>
+                        <input type="text" id="mp-apply-reason" class="form-control" placeholder="Contoh: Belanja kebutuhan dapur bulanan" required>
+                      </div>
+
+                      <div class="form-group" style="margin-bottom: 0.85rem;">
+                        <label for="mp-apply-due-date" style="font-size: 0.82rem; font-weight: 700;">Rencana Tanggal Pelunasan</label>
+                        <input type="date" id="mp-apply-due-date" class="form-control">
+                      </div>
+
+                      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.65rem; font-weight: 800; font-size: 0.88rem; border-radius: 9px; background: #dc2626; border-color: #dc2626;">
+                        Kirim Permohonan Pengajuan
+                      </button>
+                    </form>
+
+                    <!-- Daftar Pengajuan yang Sedang Diproses -->
+                    <div style="margin-top: 1rem; border-top: 1px dashed var(--border-color); padding-top: 0.75rem;">
+                      <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem;">Status Permohonan Terakhir:</div>
+                      <div id="mp-application-status-list" style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 120px; overflow-y: auto;">
+                        <!-- Diisi dinamis -->
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
