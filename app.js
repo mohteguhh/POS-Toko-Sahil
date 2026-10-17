@@ -5642,7 +5642,7 @@ function addBoxToCart(product, specificUnit = null) {
     return;
   }
   
-  const boxQtyRequired = specificUnit ? (specificUnit.ratio || 1) : (product.isi_box || 12);
+  const boxQtyRequired = specificUnit ? (specificUnit.ratio || 1) : (product.isi_box || 1);
   const boxPrice = specificUnit ? (specificUnit.price || 0) : (product.harga_box || 0);
   const boxUnitName = specificUnit ? (specificUnit.name || 'Kotak') : (product.nama_box || 'Kotak');
   const cartId = product.id + '_box_' + boxUnitName.toLowerCase().replace(/\s+/g, '_');
@@ -6087,7 +6087,7 @@ function renderCart() {
     const subLabel = freeLabel || boxLabel;
     const isBoxItem = !!item.isBox;
     const isBundleItem = !!item.isBundle;
-    const isiBoxCount = (item.isiBox || 1) * Math.max(item.qty, 1);
+    const isiBoxCount = (item.isiBox || item.ratio || 1) * Math.max(item.qty, 1);
     let unitPrice = 0;
     if (isBundleItem) {
       unitPrice = Number(item.harga) || 0;
@@ -6811,7 +6811,7 @@ async function processCheckout() {
     } else {
       const localProd = products.find(p => p.id === cartItem.id);
       if (localProd) {
-        const pcsToDeduct = cartItem.isBox ? (cartItem.qty * (cartItem.isiBox || 1)) : (cartItem.isGrosir ? (cartItem.qty * (cartItem.grosirQty || 1)) : cartItem.qty);
+        const pcsToDeduct = cartItem.isBox ? (cartItem.qty * (cartItem.isiBox || cartItem.ratio || 1)) : (cartItem.isGrosir ? (cartItem.qty * (cartItem.grosirQty || 1)) : cartItem.qty);
         localProd.stok = Math.max(0, localProd.stok - pcsToDeduct);
         if (cartItem.isPromo && !cartItem.isBonus) {
           let prevKuota = parseInt(localProd.kuota_diskon) || 0;
@@ -11624,23 +11624,50 @@ function saveEditedTransaction() {
     kembalian = cash >= total ? cash - total : 0;
   }
   
-  // Update stok produk
-  const allProductIds = new Set([
-    ...editTxOriginalItems.map(it => it.id),
-    ...editTxItems.map(it => it.id)
-  ]);
-  
-  allProductIds.forEach(id => {
-    const origQty = editTxOriginalItems.filter(it => it.id === id).reduce((sum, it) => sum + (it.isGrosir ? it.qty * (it.grosirQty || 1) : (it.isBox ? it.qty * (it.isiBox || it.ratio || 1) : it.qty)), 0);
-    const newQty = editTxItems.filter(it => it.id === id).reduce((sum, it) => sum + (it.isGrosir ? it.qty * (it.grosirQty || 1) : (it.isBox ? it.qty * (it.isiBox || it.ratio || 1) : it.qty)), 0);
-    const delta = newQty - origQty;
-    
+  // Update stok produk (termasuk komponen paket bundling)
+  const productDeltas = new Map(); // productId -> delta pcs (positif = butuh potong stok, negatif = kembalikan stok)
+
+  // 1. Hitung stok dari item original (sebelum diedit)
+  editTxOriginalItems.forEach(it => {
+    if (it.isBundle && Array.isArray(it.bundleItems)) {
+      it.bundleItems.forEach(bComp => {
+        const cId = String(bComp.productId);
+        const pcs = ((Number(bComp.qty) || 1) * (Number(it.qty) || 1));
+        productDeltas.set(cId, (productDeltas.get(cId) || 0) - pcs);
+      });
+    } else {
+      const pId = String(it.id);
+      const ratio = it.isiBox || it.ratio || 1;
+      const pcs = it.isBox ? (it.qty * ratio) : (it.isGrosir ? (it.qty * (it.grosirQty || 1)) : it.qty);
+      productDeltas.set(pId, (productDeltas.get(pId) || 0) - pcs);
+    }
+  });
+
+  // 2. Tambah stok dari item baru (setelah diedit)
+  editTxItems.forEach(it => {
+    if (it.isBundle && Array.isArray(it.bundleItems)) {
+      it.bundleItems.forEach(bComp => {
+        const cId = String(bComp.productId);
+        const pcs = ((Number(bComp.qty) || 1) * (Number(it.qty) || 1));
+        productDeltas.set(cId, (productDeltas.get(cId) || 0) + pcs);
+      });
+    } else {
+      const pId = String(it.id);
+      const ratio = it.isiBox || it.ratio || 1;
+      const pcs = it.isBox ? (it.qty * ratio) : (it.isGrosir ? (it.qty * (it.grosirQty || 1)) : it.qty);
+      productDeltas.set(pId, (productDeltas.get(pId) || 0) + pcs);
+    }
+  });
+
+  // 3. Terapkan selisih (delta) ke produk
+  const allProductIds = new Set(productDeltas.keys());
+  productDeltas.forEach((delta, id) => {
     if (delta !== 0) {
-      const product = products.find(p => p.id === id);
+      const product = products.find(p => String(p.id) === String(id));
       if (product) {
         product.stok = Math.max(0, product.stok - delta);
-        const origPromo = editTxOriginalItems.some(it => it.id === id && it.isPromo && !it.isBonus);
-        const newPromo = editTxItems.some(it => it.id === id && it.isPromo && !it.isBonus);
+        const origPromo = editTxOriginalItems.some(it => String(it.id) === String(id) && it.isPromo && !it.isBonus);
+        const newPromo = editTxItems.some(it => String(it.id) === String(id) && it.isPromo && !it.isBonus);
         if (origPromo || newPromo) {
           let prevKuota = parseInt(product.kuota_diskon) || 0;
           if (prevKuota > 0) {
@@ -12754,7 +12781,7 @@ function openShiftModal() {
           </div>
           <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.35rem;">Hitung dan masukkan seluruh uang tunai yang ada di dalam laci kasir.</p>
         </div>
-        <button class="btn btn-primary" style="width: 100%; padding: 0.9rem; font-size: 1.05rem; font-weight: 700; border-radius: var(--border-radius-md); box-shadow: var(--shadow-md); background: linear-gradient(to right, #ea580c, #c2410c); margin-top: 0.25rem;" onclick="submitCloseStaffShift('${currentStaff.name}', ${totalUangMasuk}, ${estimasiLaci}, ${kasMasukLaci}, ${kasKeluarLaci}, ${totalTransaksiCount})">🔒 Akhiri Shift &amp; Simpan Rekap</button>
+        <button class="btn btn-primary" style="width: 100%; padding: 0.9rem; font-size: 1.05rem; font-weight: 700; border-radius: var(--border-radius-md); box-shadow: var(--shadow-md); background: linear-gradient(to right, #ea580c, #c2410c); margin-top: 0.25rem;" onclick="submitCloseStaffShift('${escapeJsQuotes(currentStaff.name)}', ${totalUangMasuk}, ${estimasiLaci}, ${kasMasukLaci}, ${kasKeluarLaci}, ${totalTransaksiCount})">🔒 Akhiri Shift &amp; Simpan Rekap</button>
       </div>
     `;
   }
@@ -18162,7 +18189,27 @@ function quickPayFullDebt(txId) {
     });
 
     saveTransactionsLocally();
+
+    // Otomatis catat kas masuk ke Laci Kasir agar klop saat tutup shift
+    const debtCashExpense = {
+      id: 'EXP_' + Date.now(),
+      tanggal: new Date().toISOString(),
+      tipe: 'masuk',
+      nominal: sisa,
+      kategori: 'Pelunasan Piutang',
+      sumberDana: 'laci_kasir',
+      keterangan: `Pelunasan Bon #${tx.id} (${tx.nama_pelanggan || 'Pelanggan'})`,
+      staff: activeCashier || 'Admin'
+    };
+    if (!Array.isArray(expenses)) expenses = [];
+    expenses.unshift(debtCashExpense);
+    saveExpensesLocally();
+    if (firebaseDb && typeof getStorePath === 'function') {
+      firebaseDb.ref(getStorePath('expenses/' + debtCashExpense.id)).set(debtCashExpense);
+    }
+
     renderCustomerDebtBook();
+    renderTransactionsTable();
     updateAnalytics();
     syncSingleTransactionToCloud(tx);
     alert(`✅ Tagihan sebesar Rp ${formatRupiah(sisa)} berhasil dilunasi!`);
@@ -19480,7 +19527,7 @@ function renderExpensesTable() {
       : (e.sumberDana === 'dana_luar' ? '<span style="color:#0284c7; font-weight:600;">Dana Pribadi / Luar</span>' : '<span style="color:#7c3aed; font-weight:600;">Transfer Bank</span>');
 
     const photoBtn = e.fotoNota
-      ? `<button type="button" class="btn btn-secondary btn-sm" onclick="openProductImageLightbox('${e.fotoNota}', 'Bukti Nota: ${e.keterangan}')" style="padding:2px 6px; font-size:0.75rem;">Lihat</button>`
+      ? `<button type="button" class="btn btn-secondary btn-sm" onclick="openProductImageLightbox('${e.fotoNota}', 'Bukti Nota: ${escapeJsQuotes(e.keterangan || '')}')" style="padding:2px 6px; font-size:0.75rem;">Lihat</button>`
       : '<span style="color:var(--text-muted); font-size:0.75rem;">-</span>';
 
     return `

@@ -18,7 +18,8 @@
   },
   "devDependencies": {
     "electron": "^44.7.2",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "pptxgenjs": "^4.0.1"
   },
   "build": {
     "appId": "com.tokosahil.pos",
