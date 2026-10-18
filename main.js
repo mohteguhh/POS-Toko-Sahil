@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -147,6 +147,28 @@ function createWindow() {
 
   mainWindow.webContents.on('render-process-gone', (event, details) => {
     console.error('Render process crash/gone:', details);
+  });
+
+  // Dukung cetak struk/laporan popup (window.open) dan link eksternal (WhatsApp, Browser)
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Jika URL WhatsApp atau link web eksternal, buka di browser default pengguna
+    if (url.startsWith('https://wa.me') || url.startsWith('https://api.whatsapp.com') || url.startsWith('http://') || url.startsWith('https://')) {
+      if (!url.includes('localhost') && !url.includes('127.0.0.1')) {
+        shell.openExternal(url);
+        return { action: 'deny' };
+      }
+    }
+    // Izinkan popup window untuk Cetak Nota, Cetak Laporan, Price Checker, dan ID Card
+    return {
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        autoHideMenuBar: true,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true
+        }
+      }
+    };
   });
 
   const entryFile = getAppEntryPath();

@@ -15,6 +15,17 @@ function safeJsonParse(key, fallback) {
   }
 }
 
+// Helper escape HTML global untuk sanitasi XSS dan pencegahan error parsing string
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // --- State Aplikasi ---
 let products = [];
 let shifts = [];
@@ -932,6 +943,69 @@ function setupDatabaseListeners() {
   bundlesRef.on('value', bundlesCallback, err => console.error('❌ RTDB Bundles Error:', err.message));
   fbUnsubscribes.push(() => bundlesRef.off('value', bundlesCallback));
 
+  // ─── LISTENER PENGATURAN KEAMANAN & LOGIN / PIN KASIR ─────────────────────────
+  const secRef = firebaseDb.ref(getStorePath('settings/security'));
+  const secCallback = snapshot => {
+    const data = snapshot.val();
+    if (data && typeof data === 'object') {
+      if (typeof data.isStaffLoginEnabled !== 'undefined') {
+        isStaffLoginEnabled = !!data.isStaffLoginEnabled;
+        localStorage.setItem('kasir_staff_login_enabled', JSON.stringify(isStaffLoginEnabled));
+      }
+      if (data.ownerPin) {
+        ownerPin = data.ownerPin;
+        localStorage.setItem('kasir_owner_pin', ownerPin);
+      }
+      if (data.masterShiftSchedule && typeof data.masterShiftSchedule === 'object') {
+        masterShiftSchedule = { ...masterShiftSchedule, ...data.masterShiftSchedule };
+        localStorage.setItem('kasir_master_shift_schedule', JSON.stringify(masterShiftSchedule));
+        if (typeof renderMasterShiftOptions === 'function') renderMasterShiftOptions();
+      }
+      if (typeof updateCashierAuthUI === 'function') updateCashierAuthUI();
+      if (typeof loadMasterShiftSettingsUI === 'function') loadMasterShiftSettingsUI();
+    }
+  };
+  secRef.on('value', secCallback, err => console.error('❌ RTDB Security Settings Error:', err.message));
+  fbUnsubscribes.push(() => secRef.off('value', secCallback));
+
+  // ─── LISTENER AKUN KARYAWAN & HAK AKSES ──────────────────────────────────────
+  const staffRef = firebaseDb.ref(getStorePath('staffAccounts'));
+  const staffCallback = snapshot => {
+    const data = snapshot.val();
+    if (data && Array.isArray(data)) {
+      staffAccounts = data;
+      localStorage.setItem('kasir_staff_accounts', JSON.stringify(staffAccounts));
+      if (typeof renderCashierSettingsList === 'function') renderCashierSettingsList();
+      if (typeof updateCashierAuthUI === 'function') updateCashierAuthUI();
+    }
+  };
+  staffRef.on('value', staffCallback, err => console.error('❌ RTDB Staff Accounts Error:', err.message));
+  fbUnsubscribes.push(() => staffRef.off('value', staffCallback));
+
+  // ─── LISTENER PENGATURAN LABEL RAK & PRODUK ──────────────────────────────────
+  const labelsRef = firebaseDb.ref(getStorePath('settings/labels'));
+  const labelsCallback = snapshot => {
+    const data = snapshot.val();
+    if (data && typeof data === 'object') {
+      if (data.shelf && typeof data.shelf === 'object') {
+        labelSettings = { ...labelSettings, ...data.shelf };
+        localStorage.setItem('kasir_label_settings', JSON.stringify(labelSettings));
+        if (typeof loadLabelSettings === 'function') {
+          try { loadLabelSettings(); } catch(e) {}
+        }
+      }
+      if (data.product && typeof data.product === 'object') {
+        productLabelSettings = { ...productLabelSettings, ...data.product };
+        localStorage.setItem('kasir_product_label_settings', JSON.stringify(productLabelSettings));
+        if (typeof loadProductLabelSettings === 'function') {
+          try { loadProductLabelSettings(); } catch(e) {}
+        }
+      }
+    }
+  };
+  labelsRef.on('value', labelsCallback, err => console.error('❌ RTDB Label Settings Error:', err.message));
+  fbUnsubscribes.push(() => labelsRef.off('value', labelsCallback));
+
   console.log(`✅ Semua listener Realtime Database aktif untuk toko: ${currentLicenseKey}`);
 }
 
@@ -1079,7 +1153,58 @@ async function executeSyncWithOptions() {
         saveCustomersLocally();
         if (typeof renderCustomersTable === 'function') renderCustomersTable();
       }
-      summaryMsgs.push(`⚙️ Pengaturan & Pelanggan CRM`);
+
+      // Pengaturan Keamanan & Wajib Login PIN
+      const secSnap = await firebaseDb.ref(getStorePath('settings/security')).once('value');
+      const sData = secSnap.val();
+      if (sData) {
+        if (typeof sData.isStaffLoginEnabled !== 'undefined') {
+          isStaffLoginEnabled = !!sData.isStaffLoginEnabled;
+          localStorage.setItem('kasir_staff_login_enabled', JSON.stringify(isStaffLoginEnabled));
+        }
+        if (sData.ownerPin) {
+          ownerPin = sData.ownerPin;
+          localStorage.setItem('kasir_owner_pin', ownerPin);
+        }
+        if (sData.masterShiftSchedule && typeof sData.masterShiftSchedule === 'object') {
+          masterShiftSchedule = { ...masterShiftSchedule, ...sData.masterShiftSchedule };
+          localStorage.setItem('kasir_master_shift_schedule', JSON.stringify(masterShiftSchedule));
+          if (typeof renderMasterShiftOptions === 'function') renderMasterShiftOptions();
+        }
+        if (typeof updateCashierAuthUI === 'function') updateCashierAuthUI();
+        if (typeof loadMasterShiftSettingsUI === 'function') loadMasterShiftSettingsUI();
+      }
+
+      // Akun Karyawan & Hak Akses
+      const staffSnap = await firebaseDb.ref(getStorePath('staffAccounts')).once('value');
+      const stData = staffSnap.val();
+      if (stData && Array.isArray(stData)) {
+        staffAccounts = stData;
+        localStorage.setItem('kasir_staff_accounts', JSON.stringify(staffAccounts));
+        if (typeof renderCashierSettingsList === 'function') renderCashierSettingsList();
+        if (typeof updateCashierAuthUI === 'function') updateCashierAuthUI();
+      }
+
+      // Pengaturan Cetak Label
+      const labelSnap = await firebaseDb.ref(getStorePath('settings/labels')).once('value');
+      const lblData = labelSnap.val();
+      if (lblData) {
+        if (lblData.shelf && typeof lblData.shelf === 'object') {
+          labelSettings = { ...labelSettings, ...lblData.shelf };
+          localStorage.setItem('kasir_label_settings', JSON.stringify(labelSettings));
+          if (typeof loadLabelSettings === 'function') {
+            try { loadLabelSettings(); } catch(e) {}
+          }
+        }
+        if (lblData.product && typeof lblData.product === 'object') {
+          productLabelSettings = { ...productLabelSettings, ...lblData.product };
+          localStorage.setItem('kasir_product_label_settings', JSON.stringify(productLabelSettings));
+          if (typeof loadProductLabelSettings === 'function') {
+            try { loadProductLabelSettings(); } catch(e) {}
+          }
+        }
+      }
+      summaryMsgs.push(`⚙️ Pengaturan, Keamanan Login & Pelanggan CRM`);
     }
 
     // Aktifkan listener realtime
@@ -1393,7 +1518,13 @@ function exportFullDatabaseJSON(silent = false) {
       customCategories: (typeof customCategories !== 'undefined' ? customCategories : safeJsonParse('kasir_custom_categories', [])),
       customRacks: (typeof customRacks !== 'undefined' ? customRacks : safeJsonParse('kasir_custom_racks', [])),
       staffAccounts: (typeof staffAccounts !== 'undefined' ? staffAccounts : safeJsonParse('kasir_staff_accounts', [])),
-      ownerPin: localStorage.getItem('kasir_owner_pin') || ''
+      ownerPin: localStorage.getItem('kasir_owner_pin') || '',
+      isStaffLoginEnabled: (typeof isStaffLoginEnabled !== 'undefined' ? isStaffLoginEnabled : safeJsonParse('kasir_staff_login_enabled', false)),
+      masterShiftSchedule: (typeof masterShiftSchedule !== 'undefined' ? masterShiftSchedule : safeJsonParse('kasir_master_shift_schedule', {})),
+      isMultiPosEnabled: (typeof isMultiPosEnabled !== 'undefined' ? isMultiPosEnabled : safeJsonParse('kasir_multi_pos_enabled', false)),
+      posTerminalName: localStorage.getItem('kasir_pos_terminal_name') || 'Kasir 1',
+      labelSettings: (typeof labelSettings !== 'undefined' ? labelSettings : safeJsonParse('kasir_label_settings', {})),
+      productLabelSettings: (typeof productLabelSettings !== 'undefined' ? productLabelSettings : safeJsonParse('kasir_product_label_settings', {}))
     }
   };
 
@@ -1817,6 +1948,31 @@ function importFullDatabaseJSON(event) {
       }
       if (d.ownerPin) {
         localStorage.setItem('kasir_owner_pin', d.ownerPin);
+        ownerPin = d.ownerPin;
+      }
+      if (typeof d.isStaffLoginEnabled !== 'undefined') {
+        isStaffLoginEnabled = !!d.isStaffLoginEnabled;
+        localStorage.setItem('kasir_staff_login_enabled', JSON.stringify(isStaffLoginEnabled));
+      }
+      if (d.masterShiftSchedule && typeof d.masterShiftSchedule === 'object') {
+        masterShiftSchedule = d.masterShiftSchedule;
+        localStorage.setItem('kasir_master_shift_schedule', JSON.stringify(masterShiftSchedule));
+      }
+      if (typeof d.isMultiPosEnabled !== 'undefined') {
+        isMultiPosEnabled = !!d.isMultiPosEnabled;
+        localStorage.setItem('kasir_multi_pos_enabled', JSON.stringify(isMultiPosEnabled));
+      }
+      if (d.posTerminalName) {
+        posTerminalName = d.posTerminalName;
+        localStorage.setItem('kasir_pos_terminal_name', posTerminalName);
+      }
+      if (d.labelSettings && typeof d.labelSettings === 'object') {
+        labelSettings = { ...labelSettings, ...d.labelSettings };
+        localStorage.setItem('kasir_label_settings', JSON.stringify(labelSettings));
+      }
+      if (d.productLabelSettings && typeof d.productLabelSettings === 'object') {
+        productLabelSettings = { ...productLabelSettings, ...d.productLabelSettings };
+        localStorage.setItem('kasir_product_label_settings', JSON.stringify(productLabelSettings));
       }
       if (d.receiptSettings) {
         receiptSettings = d.receiptSettings;
@@ -1837,6 +1993,22 @@ function importFullDatabaseJSON(event) {
           if (Array.isArray(customers)) customers.forEach(c => { if (c && (c.id || c.no_hp)) updates[getStorePath('customers/' + (c.id || c.no_hp))] = c; });
           if (Array.isArray(bundles)) bundles.forEach(b => { if (b && b.id) updates[getStorePath('bundles/' + b.id)] = b; });
           if (Array.isArray(expenses)) updates[getStorePath('expenses')] = expenses;
+          if (Array.isArray(staffAccounts)) updates[getStorePath('staffAccounts')] = staffAccounts;
+          if (Array.isArray(customCategories)) updates[getStorePath('categories')] = customCategories;
+          if (Array.isArray(customRacks)) updates[getStorePath('racks')] = customRacks;
+          updates[getStorePath('settings/security')] = {
+            isStaffLoginEnabled: !!isStaffLoginEnabled,
+            ownerPin: ownerPin || '1234',
+            masterShiftSchedule: masterShiftSchedule || {},
+            isMultiPosEnabled: !!isMultiPosEnabled,
+            updatedAt: new Date().toISOString()
+          };
+          updates[getStorePath('settings/labels')] = {
+            shelf: labelSettings,
+            product: productLabelSettings
+          };
+          updates[getStorePath('settings/receipt')] = receiptSettings;
+          updates[getStorePath('settings/appConfig')] = appConfig;
           if (Array.isArray(shifts)) {
             shifts.forEach(s => {
               const sId = s.id_shift || ('SH-' + Date.now());
@@ -2209,14 +2381,20 @@ function loadData() {
   }
 
   
-  const cachedShifts = localStorage.getItem('kasir_shifts');
-  if (cachedShifts) shifts = JSON.parse(cachedShifts);
+  try {
+    const cachedShifts = localStorage.getItem('kasir_shifts');
+    if (cachedShifts) shifts = JSON.parse(cachedShifts);
+  } catch(e) { shifts = []; }
   
-  const cachedActiveShift = localStorage.getItem('kasir_active_shift');
-  if (cachedActiveShift) activeShift = JSON.parse(cachedActiveShift);
+  try {
+    const cachedActiveShift = localStorage.getItem('kasir_active_shift');
+    if (cachedActiveShift) activeShift = JSON.parse(cachedActiveShift);
+  } catch(e) { activeShift = null; }
   
-  const cachedCustomers = localStorage.getItem('kasir_customers');
-  if (cachedCustomers) customers = JSON.parse(cachedCustomers);
+  try {
+    const cachedCustomers = localStorage.getItem('kasir_customers');
+    if (cachedCustomers) customers = JSON.parse(cachedCustomers);
+  } catch(e) { customers = []; }
   
   updateCategoriesList();
   updateRacksList();
@@ -3122,7 +3300,8 @@ function saveLabelSettings() {
   labelSettings.nameFontWeight = parseInt(document.getElementById('setting-label-name-fontweight').value) || 900;
   
   localStorage.setItem('kasir_label_settings', JSON.stringify(labelSettings));
-  alert('Pengaturan Cetak Label Rak berhasil disimpan!');
+  if (typeof saveLabelSettingsCloud === 'function') saveLabelSettingsCloud();
+  alert('Pengaturan Cetak Label Rak berhasil disimpan ke Database!');
 }
 
 function loadProductLabelSettings() {
@@ -3151,7 +3330,8 @@ function saveProductLabelSettings() {
   productLabelSettings.barcodeHeight = parseInt(document.getElementById('setting-prodlabel-barcode-height').value) || 32;
   
   localStorage.setItem('kasir_product_label_settings', JSON.stringify(productLabelSettings));
-  alert('Pengaturan Cetak Label Produk berhasil disimpan!');
+  if (typeof saveLabelSettingsCloud === 'function') saveLabelSettingsCloud();
+  alert('Pengaturan Cetak Label Produk berhasil disimpan ke Database!');
 }
 
 function toggleSidebar() {
@@ -3769,6 +3949,93 @@ function getHistoricalProductStock(targetDateStr) {
   return result;
 }
 
+// Helper untuk menghitung saldo kas tunai laci/penjualan kasir yang tersedia saat ini
+function getCurrentCashierAvailableCash() {
+  const todayStr = getLocalISODate(new Date()).slice(0, 10);
+  let cashIn = 0;
+  let cashOut = 0;
+
+  // 1. Penerimaan kas dari transaksi penjualan hari ini
+  transactions.forEach(tx => {
+    if (tx.waktu && parseTxDateStr(tx.waktu) === todayStr) {
+      if (tx.is_manual_debt) {
+        // Hutang manual: hanya DP awal (jika ada) yang masuk sebagai kas fisik ke laci
+        const dpAwal = Math.max(0, Number(tx.bayar) || 0);
+        if (dpAwal > 0) {
+          cashIn += dpAwal;
+        }
+      } else if (tx.status_pembayaran === 'Bon' || tx.metode_pembayaran === 'Bon') {
+        // Belanja Bon/Hutang: Hanya DP Tunai awal yang masuk ke laci kasir
+        const dpAwal = Math.max(0, (Number(tx.bayar) || 0) - (Number(tx.kembalian) || 0));
+        if (dpAwal > 0) {
+          cashIn += dpAwal;
+        }
+      } else if (tx.metode_pembayaran === 'Tabungan') {
+        // Pembayaran Tabungan: Hanya masuk kas laci jika diganti uang cash fisik ke laci
+        if (tx.diganti_cash === true) {
+          cashIn += (Number(tx.total) || 0);
+        }
+      } else if (tx.metode_pembayaran === 'Tunai' || tx.diganti_cash === true) {
+        const cashRec = (Number(tx.bayar) || 0) - (Number(tx.kembalian) || 0);
+        cashIn += Math.max(0, cashRec > 0 ? cashRec : (Number(tx.total) || 0));
+      }
+    }
+    // 2. Pelunasan hutang pelanggan hari ini (tunai/laci)
+    if (Array.isArray(tx.riwayat_pelunasan)) {
+      tx.riwayat_pelunasan.forEach(p => {
+        if (p.waktu && parseTxDateStr(p.waktu) === todayStr) {
+          if (p.metode === 'Tunai' || p.diganti_cash === true || !p.metode) {
+            cashIn += (Number(p.bayar) || 0);
+          }
+        }
+      });
+    }
+  });
+
+  // 3. Mutasi kas kecil (expenses) hari ini yang bersumber dari laci kasir
+  if (Array.isArray(expenses)) {
+    expenses.forEach(e => {
+      if (e.tanggal && parseTxDateStr(e.tanggal) === todayStr && e.sumberDana === 'laci_kasir') {
+        const nom = Number(e.nominal) || 0;
+        if (e.tipe === 'masuk') {
+          // Jangan hitung ganda pelunasan hutang karena sudah dihitung dari tx.riwayat_pelunasan di atas
+          const isDebtPayment = e.is_debt_payment === true || 
+            (e.kategori && e.kategori.toLowerCase().includes('pelunasan piutang')) ||
+            (e.id && String(e.id).startsWith('EXP_') && e.kategori === 'Pelunasan Piutang');
+          if (!isDebtPayment) {
+            cashIn += nom;
+          }
+        } else {
+          cashOut += nom;
+        }
+      }
+    });
+  }
+
+  // 4. Pembayaran nota sales hari ini yang dipotong dari saldo penjualan kasir
+  if (Array.isArray(salesDeliveries)) {
+    salesDeliveries.forEach(d => {
+      if (Array.isArray(d.riwayatBayar)) {
+        d.riwayatBayar.forEach(b => {
+          if (b.tanggal && parseTxDateStr(b.tanggal) === todayStr && b.sumberDana === 'saldo_penjualan') {
+            cashOut += (Number(b.nominal) || 0);
+          }
+        });
+      }
+    });
+  }
+
+  // 5. Hutang manual anggota yang dipotong dari saldo penjualan kasir hari ini
+  transactions.forEach(tx => {
+    if (tx.is_manual_debt && tx.sumber_dana === 'saldo_penjualan' && tx.waktu && parseTxDateStr(tx.waktu) === todayStr) {
+      const netCashDisbursed = Math.max(0, (Number(tx.total) || 0) - (Number(tx.bayar) || 0));
+      cashOut += netCashDisbursed;
+    }
+  });
+
+  return Math.max(0, cashIn - cashOut);
+}
+
 function updateAnalytics() {
   const now = new Date();
   
@@ -3801,20 +4068,36 @@ function updateAnalytics() {
     'Tunai': 0,
     'QRIS': 0,
     'Debit': 0,
-    'Transfer': 0
+    'Transfer': 0,
+    'Tabungan': 0,
+    'Bon': 0
   };
   
-  // Metode non-tunai: uang tidak langsung masuk laci (hanya laba bersih dihitung ke stat revenue)
+  // Metode non-tunai: uang tidak langsung masuk laci (hanya laba bersih dihitung ke stat revenue jika tidak diganti cash)
   const nonCashMethods = ['QRIS', 'Transfer', 'Debit'];
   
   todayTxs.forEach(tx => {
+    // Transaksi hutang manual (pinjaman dana) BUKAN penjualan barang dagangan
+    if (tx.is_manual_debt) {
+      // Jika ada DP tunai awal yang diserahkan debitur ke laci, masukkan DP ke penerimaan tunai
+      const dpAwal = Math.max(0, Number(tx.bayar) || 0);
+      if (dpAwal > 0) {
+        revenue += dpAwal;
+        methodsBreakdown['Tunai'] = (methodsBreakdown['Tunai'] || 0) + dpAwal;
+      }
+      return;
+    }
+
     const metode = tx.metode_pembayaran || 'Tunai';
     const isNonCash = nonCashMethods.includes(metode);
+    const isBon = (tx.status_pembayaran === 'Bon' || metode === 'Bon');
+    const isTabungan = (metode === 'Tabungan');
     
     // Hitung Laba Bersih sebelum diskon transaksi
     let txSubtotal = 0;
     let txNetProfitBeforeDiscount = 0;
-    tx.items.forEach(item => {
+    const itemsList = Array.isArray(tx.items) ? tx.items : [];
+    itemsList.forEach(item => {
       let buyPrice = Number(item.harga_beli) || 0;
       // Fallback jika item adalah bundle dan belum memiliki harga_beli tercatat
       if (item.isBundle && buyPrice === 0 && Array.isArray(item.bundleItems)) {
@@ -3834,16 +4117,33 @@ function updateAnalytics() {
     netProfit += txNetProfit;
     
     // Perhitungan Penghasilan Tunai / Penjualan Kas Masuk:
-    // Jika Tunai atau non-tunai yang diganti uang cash: seluruh nominal transaksi dihitung penuh ke penjualan kas
-    // Jika non-tunai tidak diganti uang cash: hanya laba bersihnya saja yang masuk ke penerimaan kas toko
-    if (!isNonCash || tx.diganti_cash === true) {
+    // 1. Transaksi Hutang / Bon:
+    //    Hanya DP Tunai awal yang menambah kas toko hari ini (sisa_piutang belum diterima)
+    if (isBon) {
+      const dpAwal = Math.max(0, (Number(tx.bayar) || 0) - (Number(tx.kembalian) || 0));
+      if (dpAwal > 0) {
+        revenue += dpAwal;
+        methodsBreakdown['Tunai'] = (methodsBreakdown['Tunai'] || 0) + dpAwal;
+      }
+      methodsBreakdown['Bon'] = (methodsBreakdown['Bon'] || 0) + tx.total;
+    } else if (isTabungan) {
+      // 2. Transaksi Tabungan Anggota:
+      //    Jika kotak 'Ganti uang cash ke laci' dicentang (tx.diganti_cash === true),
+      //    uang dari tabungan dimasukkan ke laci toko sehingga menambah Cash Revenue.
+      //    Jika TIDAK dicentang, tidak menambah kas laci tunai toko.
+      if (tx.diganti_cash === true) {
+        revenue += tx.total;
+      }
+      methodsBreakdown['Tabungan'] = (methodsBreakdown['Tabungan'] || 0) + tx.total;
+    } else if (!isNonCash || tx.diganti_cash === true) {
+      // 3. Tunai atau Non-Tunai yang diganti uang cash fisik ke laci
       revenue += tx.total;
+      methodsBreakdown[metode] = (methodsBreakdown[metode] || 0) + tx.total;
     } else {
+      // 4. Non-Tunai biasa (QRIS/Transfer/Debit) yang tidak diganti kas: hanya margin laba bersih
       revenue += txNetProfit;
+      methodsBreakdown[metode] = (methodsBreakdown[metode] || 0) + tx.total;
     }
-    
-    // Akumulasi metode pembayaran
-    methodsBreakdown[metode] = (methodsBreakdown[metode] || 0) + tx.total;
   });
   
   // Hitung total piutang aktif secara kumulatif (semua transaksi belum lunas)
@@ -3951,10 +4251,13 @@ function updateAnalytics() {
       voucherTxs.forEach(tx => {
         const custName = tx.nama_pelanggan || 'Pelanggan Umum';
         const vCount = Number(tx.voucher_ditukar) || 1;
-        const vDisc = Number(tx.diskon_voucher) || 0;
+        const rawDisc = Number(tx.diskon_voucher) || 0;
+        const excess = Number(tx.kelebihan_voucher_tunai) || 0;
+        const effectiveDisc = Math.max(0, rawDisc - excess);
         const itemNames = Array.isArray(tx.items) ? tx.items.slice(0, 2).map(it => it.nama).join(', ') : '-';
         const moreItems = Array.isArray(tx.items) && tx.items.length > 2 ? ` +${tx.items.length - 2} lainnya` : '';
         const txTime = tx.waktu ? new Date(tx.waktu).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
+        const excessBadge = excess > 0 ? `<br><small style="color: #b45309; font-size: 0.68rem;">(Kembali Rp ${formatRupiah(excess)})</small>` : '';
 
         const div = document.createElement('div');
         div.className = 'widget-item';
@@ -3973,7 +4276,7 @@ function updateAnalytics() {
           </div>
           <div style="text-align: right;">
             <div style="font-weight: 800; font-size: 0.9rem; color: #d97706;">🎟️ ${vCount} Vch</div>
-            <div style="font-size: 0.72rem; color: #059669; font-weight: 600;">-Rp ${formatRupiah(vDisc)}</div>
+            <div style="font-size: 0.72rem; color: #059669; font-weight: 600;">-Rp ${formatRupiah(effectiveDisc)}${excessBadge}</div>
           </div>
         `;
         vouchersListEl.appendChild(div);
@@ -4009,11 +4312,105 @@ function updateAnalytics() {
     }
   });
 
+  // Hitung Kas Masuk, Kas Keluar (Laci Kasir), dan Pembayaran Sales (Potong Saldo Kasir) pada periode ini
+  let totalKasMasukLaci = 0;
+  let totalKasKeluarLaci = 0;
+  if (Array.isArray(expenses)) {
+    expenses.forEach(e => {
+      if (!e.tanggal) return;
+      const eDateStr = parseTxDateStr(e.tanggal);
+      let match = false;
+      if (filterType === 'hari') {
+        const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
+        match = (eDateStr === d);
+      } else if (filterType === 'bulan') {
+        const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
+        match = (eDateStr.slice(0, 7) === m);
+      } else if (filterType === 'tahun') {
+        const y = document.getElementById('analytics-filter-year')?.value || String(new Date().getFullYear());
+        match = (eDateStr.slice(0, 4) === y);
+      } else {
+        match = true;
+      }
+      if (match && e.sumberDana === 'laci_kasir') {
+        const nom = Number(e.nominal) || 0;
+        if (e.tipe === 'masuk') {
+          // Jangan hitung ganda pelunasan piutang/hutang (karena sudah dihitung tersendiri lewat totalDebtRepaid)
+          const isDebtPayment = e.is_debt_payment === true || 
+            (e.kategori && e.kategori.toLowerCase().includes('pelunasan piutang')) ||
+            (e.id && String(e.id).startsWith('EXP_') && e.kategori === 'Pelunasan Piutang');
+          if (!isDebtPayment) {
+            totalKasMasukLaci += nom;
+          }
+        } else {
+          totalKasKeluarLaci += nom;
+        }
+      }
+    });
+  }
+
+  let totalSalesPaidFromCash = 0;
+  if (Array.isArray(salesDeliveries)) {
+    salesDeliveries.forEach(d => {
+      if (Array.isArray(d.riwayatBayar)) {
+        d.riwayatBayar.forEach(b => {
+          if (!b.tanggal) return;
+          const bDateStr = parseTxDateStr(b.tanggal);
+          let match = false;
+          if (filterType === 'hari') {
+            const dateVal = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
+            match = (bDateStr === dateVal);
+          } else if (filterType === 'bulan') {
+            const monthVal = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
+            match = (bDateStr.slice(0, 7) === monthVal);
+          } else if (filterType === 'tahun') {
+            const yearVal = document.getElementById('analytics-filter-year')?.value || String(new Date().getFullYear());
+            match = (bDateStr.slice(0, 4) === yearVal);
+          } else {
+            match = true;
+          }
+          if (match && b.sumberDana === 'saldo_penjualan') {
+            totalSalesPaidFromCash += (Number(b.nominal) || 0);
+          }
+        });
+      }
+    });
+  }
+
+  // Hitung Hutang Manual Anggota yang dicairkan/dipotong dari Saldo Penjualan Kasir pada periode ini
+  let totalManualDebtFromCash = 0;
+  allTxsSource.forEach(tx => {
+    if (tx.is_manual_debt && tx.sumber_dana === 'saldo_penjualan' && tx.waktu) {
+      const txDateStr = parseTxDateStr(tx.waktu);
+      let match = false;
+      if (filterType === 'hari') {
+        const dateVal = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
+        match = (txDateStr === dateVal);
+      } else if (filterType === 'bulan') {
+        const monthVal = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
+        match = (txDateStr.slice(0, 7) === monthVal);
+      } else if (filterType === 'tahun') {
+        const yearVal = document.getElementById('analytics-filter-year')?.value || String(new Date().getFullYear());
+        match = (txDateStr.slice(0, 4) === yearVal);
+      } else {
+        match = true;
+      }
+      if (match) {
+        // Uang tunai bersih yang diserahkan ke anggota (total hutang dikurangi DP awal jika ada)
+        totalManualDebtFromCash += Math.max(0, (Number(tx.total) || 0) - (Number(tx.bayar) || 0));
+      }
+    }
+  });
+
+  // Integrasi Cash Revenue Nyata Laci Kasir:
+  // Revenue Bersih Kas = Penjualan Kas + Bayar Hutang + Kas Masuk Laci - Biaya Keluar Laci - Pembayaran Sales Laci - Hutang Manual Keluar dari Kasir
+  const effectiveCashRevenue = Math.max(0, revenue + totalDebtRepaid + totalKasMasukLaci - totalKasKeluarLaci - totalSalesPaidFromCash - totalManualDebtFromCash);
+
   // Total Modal HPP = Total Omset - Laba Bersih (selalu >= 0)
   const totalPenjualan = Math.max(0, revenue - netProfit);
   
   // Update Metrik Hari Ini di UI
-  document.getElementById('stat-revenue').textContent = `Rp ${formatRupiah(revenue)}`;
+  document.getElementById('stat-revenue').textContent = `Rp ${formatRupiah(effectiveCashRevenue)}`;
   document.getElementById('stat-gross-profit').textContent = `Rp ${formatRupiah(totalPenjualan)}`;
   document.getElementById('stat-net-profit').textContent = `Rp ${formatRupiah(netProfit)}`;
   
@@ -4082,6 +4479,90 @@ function updateAnalytics() {
       </span>
     `;
     breakdownContainer.appendChild(debtRepaidDiv);
+
+    // Kas Masuk Tambahan ke Laci
+    if (totalKasMasukLaci > 0) {
+      const masukDiv = document.createElement('div');
+      masukDiv.className = 'widget-item active-border';
+      masukDiv.innerHTML = `
+        <div class="widget-item-left">
+          <div class="widget-icon-box" style="background: rgba(16, 185, 129, 0.12); color: #10b981;">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          </div>
+          <div>
+            <span class="widget-item-title" style="font-weight: 700; color: #047857;">Kas Masuk (Laci)</span>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">Setoran modal / kas masuk</div>
+          </div>
+        </div>
+        <span class="widget-item-amount font-bold-main" style="color: #047857; font-weight: 800;">
+          +Rp ${formatRupiah(totalKasMasukLaci)}
+        </span>
+      `;
+      breakdownContainer.appendChild(masukDiv);
+    }
+
+    // Biaya Keluar Memotong Laci Kasir
+    if (totalKasKeluarLaci > 0) {
+      const keluarDiv = document.createElement('div');
+      keluarDiv.className = 'widget-item active-border';
+      keluarDiv.innerHTML = `
+        <div class="widget-item-left">
+          <div class="widget-icon-box" style="background: rgba(239, 68, 68, 0.12); color: #ef4444;">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          </div>
+          <div>
+            <span class="widget-item-title" style="font-weight: 700; color: #b91c1c;">Biaya Keluar (Laci)</span>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">Pengeluaran operasional toko</div>
+          </div>
+        </div>
+        <span class="widget-item-amount font-bold-main" style="color: #dc2626; font-weight: 800;">
+          -Rp ${formatRupiah(totalKasKeluarLaci)}
+        </span>
+      `;
+      breakdownContainer.appendChild(keluarDiv);
+    }
+
+    // Pembayaran Nota Sales (Potong Saldo Kasir)
+    if (totalSalesPaidFromCash > 0) {
+      const salesDiv = document.createElement('div');
+      salesDiv.className = 'widget-item active-border';
+      salesDiv.innerHTML = `
+        <div class="widget-item-left">
+          <div class="widget-icon-box" style="background: rgba(245, 158, 11, 0.12); color: #f59e0b;">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <div>
+            <span class="widget-item-title" style="font-weight: 700; color: #b45309;">Bayar Sales (Laci)</span>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">Kulak barang dari kasir</div>
+          </div>
+        </div>
+        <span class="widget-item-amount font-bold-main" style="color: #d97706; font-weight: 800;">
+          -Rp ${formatRupiah(totalSalesPaidFromCash)}
+        </span>
+      `;
+      breakdownContainer.appendChild(salesDiv);
+    }
+
+    // Hutang Manual Anggota (Dicairkan dari Saldo Kasir)
+    if (totalManualDebtFromCash > 0) {
+      const manualDebtDiv = document.createElement('div');
+      manualDebtDiv.className = 'widget-item active-border';
+      manualDebtDiv.innerHTML = `
+        <div class="widget-item-left">
+          <div class="widget-icon-box" style="background: rgba(220, 38, 38, 0.12); color: #dc2626;">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8l-8 8M8 8l8 8"/></svg>
+          </div>
+          <div>
+            <span class="widget-item-title" style="font-weight: 700; color: #b91c1c;">Pinjaman Anggota (Laci)</span>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">Hutang manual dicairkan kasir</div>
+          </div>
+        </div>
+        <span class="widget-item-amount font-bold-main" style="color: #dc2626; font-weight: 800;">
+          -Rp ${formatRupiah(totalManualDebtFromCash)}
+        </span>
+      `;
+      breakdownContainer.appendChild(manualDebtDiv);
+    }
   }
   
   // 1. Hitung Stok pada tanggal/periode yang difilter
@@ -4184,10 +4665,12 @@ function updateAnalytics() {
   const sellRevenue = {};
   
   todayTxs.forEach(tx => {
-    tx.items.forEach(item => {
-      sellCounts[item.nama] = (sellCounts[item.nama] || 0) + item.qty;
-      sellRevenue[item.nama] = (sellRevenue[item.nama] || 0) + (item.harga * item.qty);
-    });
+    if (Array.isArray(tx.items)) {
+      tx.items.forEach(item => {
+        sellCounts[item.nama] = (sellCounts[item.nama] || 0) + item.qty;
+        sellRevenue[item.nama] = (sellRevenue[item.nama] || 0) + (item.harga * item.qty);
+      });
+    }
   });
   
   const bestSellersBody = document.getElementById('best-sellers-body');
@@ -4565,7 +5048,12 @@ function renderVoucherAnalyticsTable() {
   const voucherTxs = filteredTxs.filter(tx => (tx.voucher_ditukar && Number(tx.voucher_ditukar) > 0) || (tx.diskon_voucher && Number(tx.diskon_voucher) > 0));
 
   const totalCount = voucherTxs.reduce((sum, tx) => sum + (Number(tx.voucher_ditukar) || 1), 0);
-  const totalDiscount = voucherTxs.reduce((sum, tx) => sum + (Number(tx.diskon_voucher) || 0), 0);
+  // Hitung diskon riil voucher setelah dikurangi kelebihan kembalian tunai yang sudah dikasihkan ke anggota
+  const totalDiscount = voucherTxs.reduce((sum, tx) => {
+    const rawDisc = Number(tx.diskon_voucher) || 0;
+    const excess = Number(tx.kelebihan_voucher_tunai) || 0;
+    return sum + Math.max(0, rawDisc - excess);
+  }, 0);
 
   const totalCountEl = document.getElementById('modal-voucher-total-count');
   const totalDiscEl = document.getElementById('modal-voucher-total-discount');
@@ -4591,7 +5079,7 @@ function renderVoucherAnalyticsTable() {
             <th style="width: 140px;">Waktu &amp; No. Nota</th>
             <th style="width: 170px;">Nama Pelanggan</th>
             <th style="width: 110px; text-align: center;">Voucher Diambil</th>
-            <th style="width: 130px; text-align: right;">Potongan Diskon</th>
+            <th style="width: 150px; text-align: right;">Potongan Diskon Riil</th>
             <th>Barang Belanjaan</th>
             <th style="width: 120px; text-align: right;">Total Bayar</th>
           </tr>
@@ -4602,7 +5090,9 @@ function renderVoucherAnalyticsTable() {
   voucherTxs.forEach((tx, idx) => {
     const custName = tx.nama_pelanggan || 'Pelanggan Umum';
     const vCount = Number(tx.voucher_ditukar) || 1;
-    const vDisc = Number(tx.diskon_voucher) || 0;
+    const rawDisc = Number(tx.diskon_voucher) || 0;
+    const excess = Number(tx.kelebihan_voucher_tunai) || 0;
+    const effectiveDisc = Math.max(0, rawDisc - excess);
     const waktuStr = tx.waktu ? new Date(tx.waktu).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : '-';
 
     let itemsHtml = '<span style="color:var(--text-muted);">-</span>';
@@ -4614,6 +5104,8 @@ function renderVoucherAnalyticsTable() {
         return `<div style="font-size: 0.82rem; margin-bottom: 2px;">• <b>${it.nama}</b> &times; ${it.qty}${boxLabel} <span style="color:var(--text-muted); font-size:0.75rem;">(Rp ${formatRupiah(sub)})</span></div>`;
       }).join('');
     }
+
+    const excessInfo = excess > 0 ? `<div style="font-size: 0.72rem; color: #b45309;">(Voucher Rp ${formatRupiah(rawDisc)}, kembali Rp ${formatRupiah(excess)})</div>` : '';
 
     html += `
       <tr style="border-bottom: 1px solid var(--border-color);">
@@ -4630,7 +5122,8 @@ function renderVoucherAnalyticsTable() {
           <span style="background: rgba(217, 119, 6, 0.15); color: #d97706; padding: 0.25rem 0.55rem; border-radius: 999px; font-weight: 800; font-size: 0.82rem;">🎟️ ${vCount} Vch</span>
         </td>
         <td style="text-align: right; font-weight: 700; color: #059669; font-family: monospace;">
-          -Rp ${formatRupiah(vDisc)}
+          -Rp ${formatRupiah(effectiveDisc)}
+          ${excessInfo}
         </td>
         <td style="max-width: 260px; line-height: 1.35;">
           ${itemsHtml}
@@ -4649,6 +5142,175 @@ function renderVoucherAnalyticsTable() {
   `;
 
   container.innerHTML = html;
+}
+
+// Fungsi Cetak Dokumen Rincian Voucher & Belanjaan Pelanggan dengan Toolbar Preview
+function printVoucherAnalyticsReport() {
+  const filteredTxs = getAnalyticsFilteredTxs();
+  const voucherTxs = filteredTxs.filter(tx => (tx.voucher_ditukar && Number(tx.voucher_ditukar) > 0) || (tx.diskon_voucher && Number(tx.diskon_voucher) > 0));
+
+  if (voucherTxs.length === 0) {
+    alert("Tidak ada data voucher yang ditukarkan pada periode ini untuk dicetak.");
+    return;
+  }
+
+  const filterType = document.getElementById('analytics-filter-type')?.value || 'hari';
+  let periodLabel = '';
+  if (filterType === 'hari') {
+    const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
+    periodLabel = `Tanggal: ${d}`;
+  } else if (filterType === 'bulan') {
+    const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
+    periodLabel = `Bulan: ${m}`;
+  } else if (filterType === 'tahun') {
+    const y = document.getElementById('analytics-filter-year')?.value || String(new Date().getFullYear());
+    periodLabel = `Tahun: ${y}`;
+  } else {
+    periodLabel = 'Semua Periode';
+  }
+
+  const totalCount = voucherTxs.reduce((sum, tx) => sum + (Number(tx.voucher_ditukar) || 1), 0);
+  const totalDiscount = voucherTxs.reduce((sum, tx) => {
+    const rawDisc = Number(tx.diskon_voucher) || 0;
+    const excess = Number(tx.kelebihan_voucher_tunai) || 0;
+    return sum + Math.max(0, rawDisc - excess);
+  }, 0);
+
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO SAHIL';
+  const storeAddress = (receiptSettings && receiptSettings.address) ? receiptSettings.address : '';
+  const printTime = new Date().toLocaleString('id-ID');
+
+  let rowsHtml = '';
+  voucherTxs.forEach((tx, idx) => {
+    const custName = tx.nama_pelanggan || 'Pelanggan Umum';
+    const vCount = Number(tx.voucher_ditukar) || 1;
+    const rawDisc = Number(tx.diskon_voucher) || 0;
+    const excess = Number(tx.kelebihan_voucher_tunai) || 0;
+    const effectiveDisc = Math.max(0, rawDisc - excess);
+    const waktuStr = tx.waktu ? new Date(tx.waktu).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+
+    let itemsText = '-';
+    if (Array.isArray(tx.items) && tx.items.length > 0) {
+      itemsText = tx.items.map(it => {
+        const sub = it.subtotal !== undefined ? it.subtotal : (it.harga * it.qty);
+        return `• ${it.nama} (${it.qty} pcs @${formatRupiah(it.harga)}) = Rp ${formatRupiah(sub)}`;
+      }).join('<br>');
+    }
+
+    const excessText = excess > 0 ? `<br><small style="color:#b45309;">(Voucher Rp ${formatRupiah(rawDisc)}, kembali Rp ${formatRupiah(excess)})</small>` : '';
+
+    rowsHtml += `
+      <tr style="border-bottom: 1px solid #cbd5e1; font-size: 11px;">
+        <td style="padding: 6px 8px; text-align: center; color: #64748b;">${idx + 1}</td>
+        <td style="padding: 6px 8px; font-family: monospace;">
+          <strong>#${tx.id}</strong><br>
+          <span style="color: #64748b;">${waktuStr}</span>
+        </td>
+        <td style="padding: 6px 8px;">
+          <strong>${custName}</strong>
+          ${tx.id_pelanggan ? `<br><small style="color: #64748b;">ID: ${tx.id_pelanggan}</small>` : ''}
+        </td>
+        <td style="padding: 6px 8px; text-align: center; font-weight: 700; color: #d97706;">
+          🎟️ ${vCount} Vch
+        </td>
+        <td style="padding: 6px 8px; text-align: right; font-family: monospace; font-weight: 700; color: #059669;">
+          -Rp ${formatRupiah(effectiveDisc)}
+          ${excessText}
+        </td>
+        <td style="padding: 6px 8px; line-height: 1.4;">
+          ${itemsText}
+        </td>
+        <td style="padding: 6px 8px; text-align: right; font-family: monospace; font-weight: 800;">
+          Rp ${formatRupiah(tx.total || 0)}
+        </td>
+      </tr>
+    `;
+  });
+
+  const printWindow = window.open('', '_blank', 'width=950,height=750');
+  if (!printWindow) {
+    alert("Popup browser terblokir! Harap izinkan popup untuk mencetak laporan.");
+    return;
+  }
+
+  const printHtml = `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>Laporan Rincian Penukaran Voucher - ${storeName}</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 20px; color: #0f172a; font-size: 12px; line-height: 1.4; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 16px; }
+        .header h2 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .header p { margin: 2px 0; color: #475569; font-size: 12px; }
+        .summary-banner { display: flex; justify-content: space-between; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; padding: 12px 16px; margin-bottom: 18px; font-size: 12px; flex-wrap: wrap; gap: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
+        th { background: #f8fafc; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; color: #475569; }
+        @media print {
+          body { padding: 0; }
+          .no-print { display: none !important; }
+          @page { size: landscape; margin: 10mm; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="no-print" style="margin-bottom: 15px; text-align: right;">
+        <button onclick="window.print()" style="padding: 8px 16px; background: #d97706; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
+      </div>
+
+      <div class="header">
+        <h2>${escapeHtml(storeName)}</h2>
+        ${storeAddress ? `<p>${escapeHtml(storeAddress)}</p>` : ''}
+        <h3 style="margin: 8px 0 2px 0; font-size: 16px; color: #b45309;">LAPORAN RINCIAN PENUKARAN VOUCHER &amp; BELANJAAN</h3>
+        <p style="font-weight: 700; color: #334155; margin: 2px 0;">${periodLabel}</p>
+        <p style="font-size: 11px; color: #64748b; margin: 2px 0;">Dicetak pada: ${printTime}</p>
+      </div>
+
+      <div class="summary-banner">
+        <div>
+          <span style="color: #92400e;">Total Voucher Ditukar:</span>
+          <strong style="color: #b45309; font-size: 14px; margin-left: 4px;">${totalCount} Voucher</strong>
+        </div>
+        <div>
+          <span style="color: #92400e;">Total Potongan Diskon Riil:</span>
+          <strong style="color: #059669; font-size: 14px; margin-left: 4px;">Rp ${formatRupiah(totalDiscount)}</strong>
+        </div>
+        <div>
+          <span style="color: #92400e;">Total Transaksi Pakai Voucher:</span>
+          <strong style="color: #0f172a; font-size: 14px; margin-left: 4px;">${voucherTxs.length} Nota</strong>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 40px; text-align: center;">No</th>
+            <th style="width: 140px; text-align: left;">Waktu &amp; No. Nota</th>
+            <th style="width: 150px; text-align: left;">Nama Pelanggan</th>
+            <th style="width: 90px; text-align: center;">Voucher</th>
+            <th style="width: 140px; text-align: right;">Diskon Riil</th>
+            <th style="text-align: left;">Rincian Barang Belanjaan</th>
+            <th style="width: 110px; text-align: right;">Total Bayar</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+
+      <div style="margin-top: 25px; display: flex; justify-content: space-between; font-size: 11px; text-align: center;">
+        <div>Petugas Kasir:<br><br><br><br>( ${escapeHtml(activeCashier || 'Kasir')} )</div>
+        <div>Mengetahui Pemilik / Pengelola Toko:<br><br><br><br>( .................................................... )</div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
 }
 
 function toggleShoppingItemDone(checkbox) {
@@ -6409,6 +7071,24 @@ function renderCart() {
     div.className = 'cart-item';
     const tierBadgeHtml = item.tierSummary ? `<div style="margin-top:0.25rem;"><span class="qty-box-label" style="font-size:0.75rem; padding:0.15rem 0.45rem;">${item.tierSummary}</span></div>` : '';
 
+    // Deteksi tanggal kadaluarsa produk untuk peringatan FEFO di kasir
+    let expBadgeHtml = '';
+    const cartProd = products.find(p => p.id === item.id);
+    const expDate = item.tanggal_kadaluarsa || (cartProd && cartProd.tanggal_kadaluarsa);
+    if (expDate && typeof getProductExpiryStatus === 'function') {
+      const expInfo = getProductExpiryStatus(expDate);
+      if (expInfo.status === 'PASSED') {
+        // Sudah lewat kadaluarsa: Badge Hitam Pekat dengan Teks Kuning Terang Neon & Border Putih (Sangat Mencolok & Kontras di atas background orange)
+        expBadgeHtml = `<div style="margin-top:0.25rem;"><span style="background:#1e1b4b; color:#fef08a; border:1.5px solid #ffffff; font-size:0.75rem; font-weight:900; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.4); letter-spacing:0.3px;"><span style="color:#f87171; font-size:0.9rem;">⛔</span> <span>KADALUARSA (${expDate})</span></span></div>`;
+      } else if (expInfo.status === 'H14') {
+        // Kritis <= 14 hari: Badge Biru Dongker Gelap dengan Teks Putih Bersih & Aksen Kuning
+        expBadgeHtml = `<div style="margin-top:0.25rem;"><span style="background:#0f172a; color:#ffffff; border:1.5px solid #38bdf8; font-size:0.75rem; font-weight:800; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.35);"><span style="color:#facc15;">⚠️</span> <span>Exp Kritis: <strong style="color:#38bdf8;">${expInfo.label}</strong> (${expDate})</span></span></div>`;
+      } else if (expInfo.status === 'H30') {
+        // Mendekati <= 30 hari: Badge Ungu Gelap dengan Teks Putih & Cyan
+        expBadgeHtml = `<div style="margin-top:0.25rem;"><span style="background:#312e81; color:#ffffff; border:1.5px solid #a5b4fc; font-size:0.73rem; font-weight:800; padding:2px 7px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 5px rgba(0,0,0,0.3);"><span style="color:#fbbf24;">⏰</span> <span>Exp &le; 1 Bln: <strong style="color:#c7d2fe;">${expInfo.label}</strong></span></span></div>`;
+      }
+    }
+
     div.innerHTML = `
       <div class="cart-item-info">
         <div class="cart-item-name">${item.nama}</div>
@@ -6417,6 +7097,7 @@ function renderCart() {
           ${priceSubDetailHtml}
         </div>
         ${tierBadgeHtml}
+        ${expBadgeHtml}
         ${bundleCartDetailHtml}
       </div>
       <div class="cart-item-controls">
@@ -6539,6 +7220,9 @@ function calculateTotal() {
   document.getElementById('btn-proceed').disabled = cart.length === 0;
 }
 
+// State Voucher Custom yang dicentang saat checkout POS
+let selectedCustomVoucherKeys = new Set(); // Set of "voucherId_nominal_index" yang dicentang kasir
+
 // --- MODAL PEMBAYARAN (STEP 2) ---
 function openPaymentModal() {
   if (cart.length === 0) return;
@@ -6650,8 +7334,24 @@ function onPaymentStatusChange(val) {
   const quickCashGrid = document.getElementById('quick-cash-grid-container');
   const debtContainer = document.getElementById('debt-details-container');
   const dueDateInput = document.getElementById('debt-due-date-input');
+  const voucherInfoContainer = document.getElementById('customer-voucher-info');
+  const pointsInfoContainer = document.getElementById('customer-points-info');
   
   if (val === 'Bon') {
+    // Jika Bon/Hutang dipilih, voucher atau poin tidak boleh digunakan (harus salah satu)
+    if (selectedCustomVoucherKeys && selectedCustomVoucherKeys.size > 0) {
+      selectedCustomVoucherKeys.clear();
+      const checkboxes = document.querySelectorAll('.checkout-voucher-checkbox');
+      checkboxes.forEach(cb => { cb.checked = false; });
+      updateSelectedVouchersCountLabel();
+    }
+    const redeemPtsInput = document.getElementById('redeem-points-input');
+    if (redeemPtsInput) redeemPtsInput.value = '';
+
+    // Sembunyikan panel voucher/poin agar tidak membingungkan
+    if (voucherInfoContainer) voucherInfoContainer.style.display = 'none';
+    if (pointsInfoContainer) pointsInfoContainer.style.display = 'none';
+
     cashLabel.textContent = "Uang Muka / DP dibayarkan (Rp)";
     cashInput.placeholder = "Bisa dikosongkan (Rp 0)...";
     cashInput.value = '';
@@ -6664,6 +7364,17 @@ function onPaymentStatusChange(val) {
       dueDateInput.value = getLocalISODate(d).slice(0, 10);
     }
   } else {
+    // Jika kembali ke Lunas, munculkan kembali panel voucher jika mode voucher
+    const custName = (document.getElementById('customer-name-input')?.value || '').trim();
+    const cust = customers.find(c => c.nama && c.nama.toLowerCase() === custName.toLowerCase());
+    if (cust) {
+      if (loyaltySettings.rewardMode === 'voucher') {
+        if (voucherInfoContainer) voucherInfoContainer.style.display = 'block';
+      } else {
+        if (pointsInfoContainer) pointsInfoContainer.style.display = 'block';
+      }
+    }
+
     cashLabel.textContent = "Uang Diterima dari Konsumen (Rp)*";
     cashInput.placeholder = "Masukkan jumlah uang...";
     cashInput.value = '';
@@ -6702,7 +7413,7 @@ function calculateChange() {
 
   const isVoucherMode = (loyaltySettings.rewardMode === 'voucher');
   const selectedCustomerName = document.getElementById('customer-name-input').value.trim();
-  const customer = customers.find(c => c.nama === selectedCustomerName);
+  const customer = customers.find(c => c.nama && c.nama.toLowerCase() === selectedCustomerName.toLowerCase());
 
   let pointDiscount = 0;
   let voucherDiscount = 0;
@@ -6929,6 +7640,26 @@ async function processCheckout() {
     }
   }
   
+  if (status === 'Bon') {
+    // Pastikan tidak ada voucher yang dicentang saat checkout hutang/bon
+    const selectedVoucherCheckboxes = document.querySelectorAll('.checkout-voucher-checkbox:checked');
+    const redeemPtsInput = document.getElementById('redeem-points-input');
+    const redeemPts = parseInt(redeemPtsInput ? redeemPtsInput.value : 0) || 0;
+
+    if (selectedVoucherCheckboxes.length > 0 || (selectedCustomVoucherKeys && selectedCustomVoucherKeys.size > 0)) {
+      alert("⚠️ Pembayaran Bon (Hutang) TIDAK DAPAT digabungkan dengan Voucher!\nHarap batalkan voucher atau ubah status pembayaran menjadi 'Lunas'.");
+      if (btnSubmit) btnSubmit.disabled = false;
+      isCheckingOut = false;
+      return;
+    }
+    if (redeemPts > 0) {
+      alert("⚠️ Pembayaran Bon (Hutang) TIDAK DAPAT digabungkan dengan Tukar Poin!\nHarap kosongkan tukar poin atau ubah status pembayaran menjadi 'Lunas'.");
+      if (btnSubmit) btnSubmit.disabled = false;
+      isCheckingOut = false;
+      return;
+    }
+  }
+
   // Ambil data pelanggan (jika ada)
   const customer = customers.find(c => c.nama.toLowerCase() === customerName.toLowerCase());
   const isVoucherMode = (loyaltySettings.rewardMode === 'voucher');
@@ -6940,7 +7671,7 @@ async function processCheckout() {
   const currentMonth = getCurrentMonthKey();
 
   if (isVoucherMode) {
-    const selectedVoucherCheckboxes = document.querySelectorAll('.checkout-voucher-checkbox:checked');
+    const selectedVoucherCheckboxes = status === 'Bon' ? [] : document.querySelectorAll('.checkout-voucher-checkbox:checked');
     let totalSelectedVoucherNominal = 0;
     selectedVoucherCheckboxes.forEach(cb => {
       const nom = parseInt(cb.getAttribute('data-nominal')) || 0;
@@ -7046,12 +7777,12 @@ async function processCheckout() {
     catatanBon = (document.getElementById('debt-note-input')?.value || '').trim();
   }
 
-  // Cek apakah pembayaran non-tunai ini diganti dengan uang cash ke laci
+  // Cek apakah pembayaran non-tunai ini atau potongan tabungan diganti dengan uang cash ke laci
   const nonCashMethodsList = ['QRIS', 'Transfer', 'Debit'];
   const isNonCashMethod = nonCashMethodsList.includes(method);
-  const replaceWithCash = isNonCashMethod 
-    ? (document.getElementById('chk-replace-with-cash')?.checked === true) 
-    : false;
+  const replaceNonCash = isNonCashMethod && (document.getElementById('chk-replace-with-cash')?.checked === true);
+  const replaceSavings = (savingsDeduction > 0) && (document.getElementById('chk-replace-savings-with-cash')?.checked === true);
+  const replaceWithCash = replaceNonCash || replaceSavings;
 
   const transaction = {
     id: txId,
@@ -7535,10 +8266,21 @@ function generatePlainTextReceipt(tx, items) {
     text += formatLine("Tukar Poin", "-Rp " + formatRupiah(tx.diskon_poin), width) + "\n";
   }
   if (tx.diskon_voucher > 0) {
-    text += formatLine("Tukar Voucher", "-Rp " + formatRupiah(tx.diskon_voucher), width) + "\n";
+    const rawVDisc = Number(tx.diskon_voucher) || 0;
+    const excessV = Number(tx.kelebihan_voucher_tunai) || 0;
+    if (excessV > 0) {
+      text += formatLine("Voucher Digunakan", "Rp " + formatRupiah(rawVDisc), width) + "\n";
+      text += formatLine("Kembalian Voucher", "Rp " + formatRupiah(excessV), width) + "\n";
+      text += formatLine("Diskon Voucher Riil", "-Rp " + formatRupiah(rawVDisc - excessV), width) + "\n";
+    } else {
+      text += formatLine("Tukar Voucher", "-Rp " + formatRupiah(rawVDisc), width) + "\n";
+    }
   }
   
-  text += formatLine("Total", "Rp " + formatRupiah(tx.total), width) + "\n";
+  if (tx.bayar_tabungan > 0) {
+    text += formatLine("Bayar Tabungan", "Rp " + formatRupiah(tx.bayar_tabungan), width) + "\n";
+  }
+  
   text += formatLine("Bayar", "Rp " + formatRupiah(tx.bayar), width) + "\n";
   text += formatLine("Kembalian", "Rp " + formatRupiah(tx.kembalian), width) + "\n";
   
@@ -7560,35 +8302,41 @@ function generatePlainTextReceipt(tx, items) {
     text += formatLine("Anggota", tx.nama_pelanggan, width) + "\n";
     
     // ID Anggota tepat di bawah nama anggota
-    let memberId = tx.id_pelanggan;
-    if (!memberId && typeof customers !== 'undefined') {
-      const matchedCust = customers.find(c => c.nama === tx.nama_pelanggan);
-      if (matchedCust) memberId = matchedCust.kode_anggota || matchedCust.id;
+    let memberCust = null;
+    if (typeof customers !== 'undefined') {
+      memberCust = customers.find(c => 
+        (tx.id_pelanggan && (c.id === tx.id_pelanggan || c.kode_anggota === tx.id_pelanggan)) ||
+        (tx.nama_pelanggan && c.nama && c.nama.trim().toLowerCase() === tx.nama_pelanggan.trim().toLowerCase())
+      );
     }
+    let memberId = tx.id_pelanggan || (memberCust ? (memberCust.kode_anggota || memberCust.id) : null);
     if (memberId) {
       text += formatLine("ID", memberId, width) + "\n";
     }
     
-    if (tx.reward_mode === 'voucher' || tx.diskon_voucher > 0 || typeof tx.sisa_voucher_bulan_ini !== 'undefined') {
-      let remainingVouchers = tx.sisa_voucher_bulan_ini;
-      if (typeof remainingVouchers === 'undefined' && typeof customers !== 'undefined') {
-        const customer = customers.find(c => c.nama === tx.nama_pelanggan);
-        if (customer) {
-          const vStats = getCustomerMonthlyVoucherStats(customer);
-          remainingVouchers = vStats.remaining;
-        }
-      }
-      if (tx.voucher_ditukar > 0) {
-        text += formatLine("Voucher Dipakai", "" + tx.voucher_ditukar, width) + "\n";
-      }
-      text += formatLine("Sisa Voucher Bln Ini", "" + (remainingVouchers !== undefined ? remainingVouchers : 0), width) + "\n";
-    } else {
+    // Tampilkan sisa saldo tabungan terkini di nota jika pelanggan punya tabungan
+    if (memberCust && memberCust.tabungan_aktif) {
+      text += formatLine("Saldo Tabungan", "Rp " + formatRupiah(memberCust.saldo_tabungan || 0), width) + "\n";
+    }
+    
+    // Tampilkan voucher custom aktif milik anggota yang belum diklaim
+    const unclaimedVouchers = memberCust ? getCustomerCustomVouchers(memberCust).filter(v => v.status === 'belum_diambil' && !v.isExpired) : [];
+
+    if (tx.voucher_ditukar > 0) {
+      text += formatLine("Voucher Dipakai", "" + tx.voucher_ditukar, width) + "\n";
+    }
+
+    if (unclaimedVouchers.length > 0) {
+      text += formatLine("Voucher Belum Klaim", "" + unclaimedVouchers.length, width) + "\n";
+      unclaimedVouchers.forEach(uv => {
+        const vNominal = uv.nominal > 0 ? " (Rp " + formatRupiah(uv.nominal) + ")" : "";
+        text += formatLine(" 🎟️ " + (uv.namaVoucher || 'Voucher'), vNominal, width) + "\n";
+      });
+    } else if (tx.reward_mode === 'voucher' || tx.diskon_voucher > 0) {
+      text += formatLine("Voucher Belum Klaim", "0", width) + "\n";
+    } else if (tx.poin_didapat > 0 || (memberCust && memberCust.poin > 0)) {
       text += formatLine("Poin Didapat", "+" + (tx.poin_didapat || 0), width) + "\n";
-      let customerPoinTotal = tx.poin_didapat || 0;
-      if (typeof customers !== 'undefined') {
-        const customer = customers.find(c => c.nama === tx.nama_pelanggan);
-        if (customer) customerPoinTotal = customer.poin || 0;
-      }
+      let customerPoinTotal = memberCust ? (memberCust.poin || 0) : (tx.poin_didapat || 0);
       text += formatLine("Total Poin", "" + customerPoinTotal, width) + "\n";
     }
   }
@@ -7744,7 +8492,7 @@ function showReceipt(tx, items) {
     if (tx.nama_pelanggan) {
       crmInfo.style.display = 'block';
       const customer = customers.find(c => c.nama === tx.nama_pelanggan);
-      const isVoucherTx = (tx.reward_mode === 'voucher' || tx.diskon_voucher > 0 || typeof tx.sisa_voucher_bulan_ini !== 'undefined');
+      const isVoucherTx = (tx.reward_mode === 'voucher' || tx.diskon_voucher > 0 || (customer && getCustomerCustomVouchers(customer).length > 0));
       
       const ptsBlock = document.getElementById('rec-crm-points-block');
       const vchBlock = document.getElementById('rec-crm-voucher-block');
@@ -7753,14 +8501,21 @@ function showReceipt(tx, items) {
         if (ptsBlock) ptsBlock.style.display = 'none';
         if (vchBlock) {
           vchBlock.style.display = 'block';
-          let remainingVouchers = tx.sisa_voucher_bulan_ini;
-          if (typeof remainingVouchers === 'undefined' && customer) {
-            remainingVouchers = getCustomerMonthlyVoucherStats(customer).remaining;
-          }
+          const unclaimedList = customer ? getCustomerCustomVouchers(customer).filter(v => v.status === 'belum_diambil' && !v.isExpired) : [];
           const usedEl = document.getElementById('rec-vouchers-used');
           const remEl = document.getElementById('rec-vouchers-remaining');
           if (usedEl) usedEl.textContent = `${tx.voucher_ditukar || 0} Voucher`;
-          if (remEl) remEl.textContent = `${remainingVouchers !== undefined ? remainingVouchers : 0} Voucher`;
+          if (remEl) {
+            if (unclaimedList.length > 0) {
+              remEl.innerHTML = unclaimedList.map(uv => `
+                <div style="margin-top: 2px; color: #ea580c; font-size: 0.8rem;">
+                  🎟️ <b>${uv.namaVoucher || 'Voucher'}</b>${uv.nominal > 0 ? ` (Rp ${formatRupiah(uv.nominal)})` : ''}
+                </div>
+              `).join('');
+            } else {
+              remEl.textContent = '0 Voucher (Tidak ada voucher tersisa)';
+            }
+          }
         }
       } else {
         if (vchBlock) vchBlock.style.display = 'none';
@@ -7790,6 +8545,18 @@ function showReceipt(tx, items) {
       debtRow.style.display = 'flex';
     } else {
       debtRow.style.display = 'none';
+    }
+  }
+
+  // Rincian Pembayaran Tabungan
+  const savRow = document.getElementById('rec-savings-row');
+  const savVal = document.getElementById('rec-savings');
+  if (savRow && savVal) {
+    if (tx.bayar_tabungan > 0) {
+      savVal.textContent = `Rp ${formatRupiah(tx.bayar_tabungan)}`;
+      savRow.style.display = 'flex';
+    } else {
+      savRow.style.display = 'none';
     }
   }
   
@@ -7905,7 +8672,18 @@ function shareReceiptToWhatsApp(tx, items) {
     msg += `Tukar Poin: -Rp ${formatRupiah(tx.diskon_poin)}\n`;
   }
   if (tx.diskon_voucher > 0) {
-    msg += `Tukar Voucher: -Rp ${formatRupiah(tx.diskon_voucher)}\n`;
+    const rawVDisc = Number(tx.diskon_voucher) || 0;
+    const excessV = Number(tx.kelebihan_voucher_tunai) || 0;
+    if (excessV > 0) {
+      msg += `Voucher Dipakai: Rp ${formatRupiah(rawVDisc)}\n`;
+      msg += `Kembalian Voucher (Cash): Rp ${formatRupiah(excessV)}\n`;
+      msg += `Diskon Riil Voucher: -Rp ${formatRupiah(rawVDisc - excessV)}\n`;
+    } else {
+      msg += `Tukar Voucher: -Rp ${formatRupiah(rawVDisc)}\n`;
+    }
+  }
+  if (tx.bayar_tabungan > 0) {
+    msg += `Bayar Tabungan: Rp ${formatRupiah(tx.bayar_tabungan)}\n`;
   }
   msg += `*TOTAL*    : *Rp ${formatRupiah(tx.total)}*\n`;
   msg += `Bayar     : Rp ${formatRupiah(tx.bayar)}\n`;
@@ -7915,21 +8693,29 @@ function shareReceiptToWhatsApp(tx, items) {
   } else {
     msg += `Kembalian : Rp ${formatRupiah(tx.kembalian)}\n`;
   }
-  msg += `Metode    : ${tx.metode_pembayaran || 'Tunai'}\n`;
+  let methodStr = tx.metode_pembayaran || 'Tunai';
+  msg += `Metode    : ${methodStr}\n`;
 
-  if (tx.nama_pelanggan) {
-    if (tx.reward_mode === 'voucher' || tx.diskon_voucher > 0 || typeof tx.sisa_voucher_bulan_ini !== 'undefined') {
-      let remainingVouchers = tx.sisa_voucher_bulan_ini;
-      if (typeof remainingVouchers === 'undefined' && typeof customers !== 'undefined') {
-        const customer = customers.find(c => c.nama === tx.nama_pelanggan);
-        if (customer) {
-          remainingVouchers = getCustomerMonthlyVoucherStats(customer).remaining;
-        }
-      }
-      if (tx.voucher_ditukar > 0) {
-        msg += `Voucher Dipakai: ${tx.voucher_ditukar} Voucher\n`;
-      }
-      msg += `Sisa Voucher Bulan Ini: ${remainingVouchers !== undefined ? remainingVouchers : 0} Voucher\n`;
+  if (tx.nama_pelanggan || tx.id_pelanggan) {
+    const customer = typeof customers !== 'undefined' ? customers.find(c => 
+      (tx.id_pelanggan && (c.id === tx.id_pelanggan || c.kode_anggota === tx.id_pelanggan)) ||
+      (tx.nama_pelanggan && c.nama && c.nama.trim().toLowerCase() === tx.nama_pelanggan.trim().toLowerCase())
+    ) : null;
+    if (customer && customer.tabungan_aktif) {
+      msg += `Sisa Tabungan: Rp ${formatRupiah(customer.saldo_tabungan || 0)}\n`;
+    }
+    const unclaimedVouchers = customer ? getCustomerCustomVouchers(customer).filter(v => v.status === 'belum_diambil' && !v.isExpired) : [];
+    if (tx.voucher_ditukar > 0) {
+      msg += `Voucher Dipakai: ${tx.voucher_ditukar} Voucher\n`;
+    }
+    if (unclaimedVouchers.length > 0) {
+      msg += `Voucher Belum Klaim: ${unclaimedVouchers.length}\n`;
+      unclaimedVouchers.forEach(uv => {
+        const vNom = uv.nominal > 0 ? ` (Rp ${formatRupiah(uv.nominal)})` : '';
+        msg += ` └ 🎟️ ${uv.namaVoucher || 'Voucher'}${vNom}\n`;
+      });
+    } else if (tx.reward_mode === 'voucher' || tx.diskon_voucher > 0) {
+      msg += `Voucher Belum Klaim: 0\n`;
     } else if (tx.poin_didapat > 0) {
       msg += `Poin Baru : +${tx.poin_didapat}\n`;
     }
@@ -7971,69 +8757,103 @@ function printDeliveryNoteForTransaction(tx, items) {
 
   let itemsRows = '';
   let totalQty = 0;
+  let totalPcs = 0;
+  let totalSubtotal = 0;
+
   itemList.forEach((item, idx) => {
     const qty = Number(item.qty) || 1;
     totalQty += qty;
 
-    // Bersihkan nama produk dan tentukan satuan yang tepat
     let displayName = item.nama || 'Produk';
     let unit = 'pcs';
+    let pcsCount = qty;
+    let detailPcs = `${qty} pcs`;
 
     if (item.isBox) {
-      // Jika memang item kemasan box/dus
       unit = item.namaBox || item.boxUnitName || 'Dus';
-      // Bersihkan teks sufiks redundan jika nama sudah mencakup (1 Dus @12 pcs)
+      const ratio = Number(item.isiBox) || 1;
+      pcsCount = qty * ratio;
+      totalPcs += pcsCount;
+      detailPcs = `${qty} ${unit} (${pcsCount} pcs)`;
       displayName = displayName.replace(/\s*\(\d+\s*[^@)]+@\d+\s*pcs\)/gi, '').trim();
-      if (item.isiBox && item.isiBox > 1) {
-        displayName += ` <span style="font-size: 11px; color: #475569; font-weight: normal;">(Isi ${item.isiBox} pcs/${unit})</span>`;
-      }
+    } else if (item.isGrosir && item.grosirQty) {
+      const gQty = Number(item.grosirQty) || 1;
+      pcsCount = qty * gQty;
+      totalPcs += pcsCount;
+      detailPcs = `${qty} paket (${pcsCount} pcs)`;
     } else {
-      // Eceran biasa
       unit = 'pcs';
+      totalPcs += qty;
+      detailPcs = `${qty} pcs`;
     }
 
+    const price = Number(item.harga) || 0;
+    const subtotal = price * qty;
+    totalSubtotal += subtotal;
+
     itemsRows += `
-      <tr>
-        <td style="padding: 7px 8px; border: 1px solid #000; text-align: center;">${idx + 1}</td>
-        <td style="padding: 7px 8px; border: 1px solid #000;">
-          <strong>${displayName}</strong>
-          ${item.promoInfo ? `<div style="font-size: 10px; color: #555;">${item.promoInfo}</div>` : ''}
+      <tr style="border-bottom: 1px solid #cbd5e1;">
+        <td style="padding: 7px 8px; border: 1px solid #cbd5e1; text-align: center;">${idx + 1}</td>
+        <td style="padding: 7px 8px; border: 1px solid #cbd5e1;">
+          <strong style="color: #0f172a;">${escapeHtml(displayName)}</strong>
+          ${item.barcode ? `<div style="font-size: 10px; color: #64748b; font-family: monospace;">Barcode: ${escapeHtml(item.barcode)}</div>` : ''}
+          ${item.promoInfo ? `<div style="font-size: 10px; color: #ea580c;">${escapeHtml(item.promoInfo)}</div>` : ''}
         </td>
-        <td style="padding: 7px 8px; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 13px;">${qty} ${unit}</td>
-        <td style="padding: 7px 8px; border: 1px solid #000; font-size: 11px;">[ &nbsp; ] Baik</td>
+        <td style="padding: 7px 8px; border: 1px solid #cbd5e1; text-align: center; font-weight: bold; font-size: 12px;">
+          ${detailPcs}
+        </td>
+        <td style="padding: 7px 8px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace;">
+          Rp ${formatRupiah(price)}
+        </td>
+        <td style="padding: 7px 8px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-weight: bold; color: #0f172a;">
+          Rp ${formatRupiah(subtotal)}
+        </td>
+        <td style="padding: 7px 8px; border: 1px solid #cbd5e1; font-size: 11px; text-align: center;">
+          [ &nbsp; ] Baik
+        </td>
       </tr>
     `;
   });
 
   const printHtml = `
     <!DOCTYPE html>
-    <html>
+    <html lang="id">
     <head>
       <title>Surat Jalan Pengiriman - #${tx.id}</title>
       <meta charset="utf-8">
       <style>
-        body { font-family: Arial, Helvetica, sans-serif; max-width: 700px; margin: 0 auto; padding: 20px; color: #000; font-size: 12px; }
-        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 12px; }
-        .store-info h2 { margin: 0 0 4px 0; font-size: 18px; text-transform: uppercase; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; max-width: 820px; margin: 0 auto; padding: 20px; color: #0f172a; font-size: 12px; line-height: 1.4; background: #fff; }
+        .no-print { margin-bottom: 15px; text-align: right; }
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 14px; }
+        .store-info h2 { margin: 0 0 4px 0; font-size: 18px; text-transform: uppercase; letter-spacing: 0.5px; }
         .doc-title { text-align: right; }
         .doc-title h3 { margin: 0 0 4px 0; font-size: 18px; color: #1e293b; letter-spacing: 0.05em; }
-        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; background: #f8fafc; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 6px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
-        th { background: #f1f5f9; padding: 8px; border: 1px solid #000; font-size: 11px; text-transform: uppercase; }
-        .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; text-align: center; margin-top: 35px; font-size: 11px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; background: #f8fafc; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; border: 1px solid #cbd5e1; }
+        th { background: #f1f5f9; padding: 8px; border: 1px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; }
+        .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; text-align: center; margin-top: 35px; font-size: 11px; page-break-inside: avoid; }
         .sign-box { height: 60px; }
-        @media print { body { padding: 5px; max-width: 100%; } }
+        @media print {
+          body { padding: 5px; max-width: 100%; }
+          .no-print { display: none !important; }
+          @page { size: portrait; margin: 10mm; }
+        }
       </style>
     </head>
     <body>
+      <div class="no-print">
+        <button onclick="window.print()" style="padding: 8px 18px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
+      </div>
+
       <div class="header">
         <div class="store-info">
-          <h2>${storeName}</h2>
-          <div>${storeAddress}</div>
-          <div>Telp/WA: ${storePhone}</div>
+          <h2>${escapeHtml(storeName)}</h2>
+          <div>${escapeHtml(storeAddress)}</div>
+          <div>Telp/WA: ${escapeHtml(storePhone)}</div>
         </div>
         <div class="doc-title">
-          <h3>SURAT JALAN</h3>
+          <h3>SURAT JALAN PENGIRIMAN</h3>
           <div><b>No. DO:</b> SJ-${tx.id}</div>
           <div><b>Tanggal:</b> ${txDate}</div>
         </div>
@@ -8042,39 +8862,47 @@ function printDeliveryNoteForTransaction(tx, items) {
       <div class="info-grid">
         <div>
           <div style="font-weight: bold; margin-bottom: 3px; color: #475569;">TUJUAN PENGIRIMAN:</div>
-          <div style="font-size: 13px; font-weight: bold;">${customerName}</div>
-          <div>Telp/WA: ${customerPhone}</div>
-          <div>Status Bayar: <b>${tx.status_pembayaran || 'Tunai'}</b></div>
+          <div style="font-size: 13px; font-weight: bold; color: #0f172a;">${escapeHtml(customerName)}</div>
+          <div>Telp/WA: ${escapeHtml(customerPhone)}</div>
+          <div>Status Bayar: <b>${escapeHtml(tx.status_pembayaran || 'Tunai')}</b></div>
         </div>
         <div>
           <div style="font-weight: bold; margin-bottom: 3px; color: #475569;">REFERENSI TRANSAKSI:</div>
           <div>No. Transaksi: <b>#${tx.id}</b></div>
-          <div>Kasir: ${tx.kasir || 'Admin'}</div>
-          <div>Metode: ${tx.metode_pembayaran || 'Tunai'}</div>
+          <div>Kasir: ${escapeHtml(tx.kasir || 'Admin')}</div>
+          <div>Metode: ${escapeHtml(tx.metode_pembayaran || 'Tunai')}</div>
         </div>
       </div>
 
       <table>
         <thead>
           <tr>
-            <th style="width: 35px;">No</th>
-            <th>Nama Barang / Deskripsi</th>
-            <th style="width: 120px;">Jumlah / Kuantitas</th>
-            <th style="width: 120px;">Kondisi Barang</th>
+            <th style="width: 35px; text-align: center;">No</th>
+            <th style="text-align: left;">Nama Barang &amp; Spesifikasi</th>
+            <th style="width: 140px; text-align: center;">Qty &amp; Satuan</th>
+            <th style="width: 110px; text-align: right;">Harga Satuan</th>
+            <th style="width: 120px; text-align: right;">Total Nilai</th>
+            <th style="width: 100px; text-align: center;">Kondisi</th>
           </tr>
         </thead>
         <tbody>
           ${itemsRows}
-          <tr>
-            <td colspan="2" style="padding: 8px; border: 1px solid #000; text-align: right; font-weight: bold;">TOTAL JUMLAH FISIK BARANG:</td>
-            <td style="padding: 8px; border: 1px solid #000; text-align: center; font-weight: bold; font-size: 13px;">${totalQty} Unit</td>
-            <td style="border: 1px solid #000;"></td>
+          <tr style="background: #f8fafc; font-weight: bold;">
+            <td colspan="2" style="padding: 8px; border: 1px solid #cbd5e1; text-align: right;">TOTAL FISIK BARANG:</td>
+            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: center; font-size: 12px; color: #0284c7;">
+              ${totalQty} Unit (${totalPcs} Pcs)
+            </td>
+            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: right;">TOTAL NILAI:</td>
+            <td style="padding: 8px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; font-size: 13px; color: #059669;">
+              Rp ${formatRupiah(totalSubtotal)}
+            </td>
+            <td style="border: 1px solid #cbd5e1;"></td>
           </tr>
         </tbody>
       </table>
 
-      <div style="margin-top: 15px; font-size: 11px; color: #475569; line-height: 1.4;">
-        <b>Catatan Pengiriman:</b> Mohon periksa jumlah dan kondisi fisik barang saat diterima. Barang yang telah diterima dengan tanda tangan pada surat jalan ini dinyatakan sah dan dalam kondisi baik.
+      <div style="margin-top: 15px; font-size: 11px; color: #475569; line-height: 1.5; background: #fafafa; border: 1px dashed #cbd5e1; padding: 8px 12px; border-radius: 6px;">
+        <b>Catatan Pengiriman:</b> Mohon periksa jumlah, kondisi fisik, dan rincian barang saat diterima. Barang yang telah diterima dengan tanda tangan pada surat jalan ini dinyatakan telah diperiksa dan dalam kondisi baik serta lengkap.
       </div>
 
       <div class="signatures">
@@ -8098,7 +8926,7 @@ function printDeliveryNoteForTransaction(tx, items) {
     </html>
   `;
 
-  const printWin = window.open('', '_blank');
+  const printWin = window.open('', '_blank', 'width=950,height=800');
   if (printWin) {
     printWin.document.open();
     printWin.document.write(printHtml);
@@ -8106,8 +8934,9 @@ function printDeliveryNoteForTransaction(tx, items) {
     printWin.focus();
     setTimeout(() => {
       printWin.print();
-      printWin.close();
     }, 450);
+  } else {
+    alert("Popup browser diblokir! Izinkan pop-up untuk mencetak dokumen.");
   }
 }
 
@@ -10263,6 +11092,53 @@ function submitCashierLogin() {
   }
 }
 
+// ─── SINKRONISASI PENGATURAN KEAMANAN & STAFF KE CLOUD RTDB ─────────────────────
+function saveSecuritySettingsCloud() {
+  if (firebaseDb && typeof getStorePath === 'function') {
+    try {
+      const secData = {
+        isStaffLoginEnabled: !!isStaffLoginEnabled,
+        ownerPin: ownerPin || '1234',
+        masterShiftSchedule: masterShiftSchedule || {},
+        isMultiPosEnabled: !!isMultiPosEnabled,
+        updatedAt: new Date().toISOString()
+      };
+      firebaseDb.ref(getStorePath('settings/security')).set(secData).catch(err => {
+        console.warn('⚠️ Gagal sync pengaturan keamanan ke cloud:', err.message);
+      });
+    } catch (e) {
+      console.warn('⚠️ Gagal panggil saveSecuritySettingsCloud:', e);
+    }
+  }
+}
+
+function saveStaffAccountsCloud() {
+  if (firebaseDb && typeof getStorePath === 'function') {
+    try {
+      firebaseDb.ref(getStorePath('staffAccounts')).set(staffAccounts).catch(err => {
+        console.warn('⚠️ Gagal sync akun karyawan ke cloud:', err.message);
+      });
+    } catch (e) {
+      console.warn('⚠️ Gagal panggil saveStaffAccountsCloud:', e);
+    }
+  }
+}
+
+function saveLabelSettingsCloud() {
+  if (firebaseDb && typeof getStorePath === 'function') {
+    try {
+      firebaseDb.ref(getStorePath('settings/labels')).set({
+        shelf: labelSettings,
+        product: productLabelSettings
+      }).catch(err => {
+        console.warn('⚠️ Gagal sync pengaturan label ke cloud:', err.message);
+      });
+    } catch (e) {
+      console.warn('⚠️ Gagal panggil saveLabelSettingsCloud:', e);
+    }
+  }
+}
+
 // Toggle on/off kewajiban login PIN
 function toggleStaffLoginRequirement() {
   const chk = document.getElementById('chk-enable-staff-login');
@@ -10280,8 +11156,9 @@ function toggleStaffLoginRequirement() {
 
   isStaffLoginEnabled = enabled;
   localStorage.setItem('kasir_staff_login_enabled', JSON.stringify(isStaffLoginEnabled));
+  saveSecuritySettingsCloud();
   updateCashierAuthUI();
-  alert(`Pengaturan disimpan: Wajib Login ${isStaffLoginEnabled ? 'DIAKTIFKAN' : 'DINONAKTIFKAN'}.`);
+  alert(`Pengaturan disimpan: Wajib Login ${isStaffLoginEnabled ? 'DIAKTIFKAN' : 'DINONAKTIFKAN'}. Data tersimpan ke Database.`);
 }
 
 // Simpan PIN Owner Baru
@@ -10303,7 +11180,8 @@ function saveOwnerPin() {
 
   ownerPin = newPin;
   localStorage.setItem('kasir_owner_pin', ownerPin);
-  alert("✅ PIN Owner berhasil diperbarui!");
+  saveSecuritySettingsCloud();
+  alert("✅ PIN Owner berhasil diperbarui & disimpan ke Database!");
 }
 
 // ─── MASTER KEY PEMULIHAN PIN DEVELOPER ──────────────────────────────────────────
@@ -10346,6 +11224,7 @@ async function resetOwnerPinWithMasterKey() {
   // Update PIN Owner
   ownerPin = newPin;
   localStorage.setItem('kasir_owner_pin', ownerPin);
+  saveSecuritySettingsCloud();
 
   // Otomatis login sebagai Owner
   currentUserRole = 'owner';
@@ -10357,7 +11236,7 @@ async function resetOwnerPinWithMasterKey() {
   closeCashierLoginModal();
   updateCashierAuthUI();
 
-  alert(`🎉 SUKSES!\n\nPIN Owner Anda telah berhasil direset menjadi: "${newPin}".\nAnda sekarang telah masuk sebagai Owner Toko.`);
+  alert(`🎉 SUKSES!\n\nPIN Owner Anda telah berhasil direset menjadi: "${newPin}".\nPIN tersimpan ke Database & Anda sekarang telah masuk sebagai Owner Toko.`);
 }
 
 function contactAdminWhatsAppForPinReset() {
@@ -10389,8 +11268,9 @@ function saveMasterShiftSettings() {
   };
 
   localStorage.setItem('kasir_master_shift_schedule', JSON.stringify(masterShiftSchedule));
+  saveSecuritySettingsCloud();
   renderMasterShiftOptions();
-  alert("✅ Master Jam Operasional Shift Toko berhasil disimpan!\nKaryawan saat login akan otomatis memilih jadwal shift ini.");
+  alert("✅ Master Jam Operasional Shift Toko berhasil disimpan ke Database!\nKaryawan saat login akan otomatis memilih jadwal shift ini.");
 }
 
 // Muat UI Pengaturan Master Shift
@@ -10436,6 +11316,7 @@ function toggleMultiPosFeature() {
   
   isMultiPosEnabled = chk ? chk.checked : false;
   localStorage.setItem('kasir_multi_pos_enabled', JSON.stringify(isMultiPosEnabled));
+  saveSecuritySettingsCloud();
 
   if (panel) panel.style.display = isMultiPosEnabled ? 'block' : 'none';
   if (badge) badge.style.display = isMultiPosEnabled ? 'inline-block' : 'none';
@@ -10535,6 +11416,7 @@ function addStaffAccount() {
 
   staffAccounts.push(newStaff);
   localStorage.setItem('kasir_staff_accounts', JSON.stringify(staffAccounts));
+  saveStaffAccountsCloud();
 
   // Sinkronkan ke daftar kasir lama (kompatibilitas)
   if (!cashiers.includes(name)) {
@@ -10549,7 +11431,7 @@ function addStaffAccount() {
   if (custCont) custCont.style.display = 'none';
 
   renderCashierSettingsList();
-  alert(`✅ Karyawan "${name}" berhasil didaftarkan dengan jadwal ${assignedShift} & PIN: ${newStaff.pin}!`);
+  alert(`✅ Karyawan "${name}" berhasil didaftarkan dengan jadwal ${assignedShift} & PIN tersimpan ke Database!`);
 }
 
 // Render Tabel Daftar Karyawan & Hak Akses
@@ -10761,6 +11643,7 @@ function saveStaffPermissions() {
   };
 
   localStorage.setItem('kasir_staff_accounts', JSON.stringify(staffAccounts));
+  saveStaffAccountsCloud();
 
   // Update nama di daftar cashiers jika berubah
   const cIdx = cashiers.indexOf(origName);
@@ -10777,7 +11660,7 @@ function saveStaffPermissions() {
   closeEditStaffModal();
   renderCashierSettingsList();
   updateCashierAuthUI();
-  alert(`✅ Data karyawan "${newName}" dan jadwal ${newShift} berhasil disimpan!`);
+  alert(`✅ Data karyawan "${newName}" dan jadwal ${newShift} berhasil disimpan ke Database!`);
 }
 
 // Hapus Karyawan
@@ -10788,6 +11671,7 @@ function deleteStaffAccount(index) {
   if (confirm(`Yakin ingin menghapus karyawan "${staff.name}"?`)) {
     staffAccounts.splice(index, 1);
     localStorage.setItem('kasir_staff_accounts', JSON.stringify(staffAccounts));
+    saveStaffAccountsCloud();
 
     cashiers = cashiers.filter(c => c !== staff.name);
     localStorage.setItem('kasir_cashiers', JSON.stringify(cashiers));
@@ -11358,7 +12242,7 @@ async function deleteTransaction(txId) {
           }
         });
       } else {
-        const product = products.find(p => p.id === item.id);
+        const product = products.find(p => String(p.id) === String(item.id));
         if (product) {
           const itemRatio = item.isiBox || item.ratio || 1;
           product.stok += (item.isBox ? (item.qty * itemRatio) : (item.isGrosir ? (item.qty * (item.grosirQty || 1)) : item.qty));
@@ -11390,10 +12274,49 @@ async function deleteTransaction(txId) {
           cust.voucherUsage[txMonth].used = Math.max(0, (cust.voucherUsage[txMonth].used || 0) - Number(tx.voucher_ditukar));
         }
       }
+      // Rollback Saldo Tabungan jika transaksi sebelumnya dibayar pakai tabungan
+      if (tx.bayar_tabungan && Number(tx.bayar_tabungan) > 0) {
+        const refundBal = Number(tx.bayar_tabungan) || 0;
+        cust.saldo_tabungan = (Number(cust.saldo_tabungan) || 0) + refundBal;
+        if (!Array.isArray(cust.riwayat_tabungan)) cust.riwayat_tabungan = [];
+        cust.riwayat_tabungan.push({
+          waktu: new Date().toISOString(),
+          tipe: 'koreksi_kembali',
+          nominal: refundBal,
+          sisa_saldo: cust.saldo_tabungan,
+          catatan: `Pengembalian Saldo Transaksi Dihapus #${tx.id}`,
+          kasir: activeCashier || 'Admin'
+        });
+      }
       saveCustomersLocally();
       if (typeof saveCustomerCloud === 'function') {
         saveCustomerCloud(cust);
       }
+    }
+  }
+
+  // Hapus dari buffer analyticsTransactions jika ada
+  if (Array.isArray(analyticsTransactions)) {
+    analyticsTransactions = analyticsTransactions.filter(t => t && t.id !== txId);
+  }
+
+  // Hapus dari weeklyTrendData jika ada
+  if (Array.isArray(weeklyTrendData)) {
+    weeklyTrendData = weeklyTrendData.filter(t => t && t.id !== txId);
+  }
+
+  // Jika transaksi ini memiliki entri pelunasan hutang di expenses, hapus juga agar tidak mengendap di kas
+  if (Array.isArray(expenses)) {
+    const prevExpenseCount = expenses.length;
+    expenses = expenses.filter(e => {
+      if (!e) return false;
+      const matchKeterangan = (e.keterangan || '').includes(`Bon #${txId}`) || (e.keterangan || '').includes(txId);
+      const isLinkedDebtExpense = (e.is_debt_payment === true || (e.kategori && e.kategori.toLowerCase().includes('pelunasan piutang'))) && matchKeterangan;
+      return !isLinkedDebtExpense;
+    });
+    if (expenses.length !== prevExpenseCount) {
+      saveExpensesLocally();
+      if (typeof syncExpensesToCloud === 'function') syncExpensesToCloud();
     }
   }
 
@@ -11404,6 +12327,7 @@ async function deleteTransaction(txId) {
   // Render ulang UI
   renderTransactionsTable();
   renderProductsTable();
+  if (typeof renderCustomerDebtBook === 'function') renderCustomerDebtBook();
   updateAnalytics();
 
   // Hapus dari RTDB & update stok produk
@@ -11415,10 +12339,19 @@ async function deleteTransaction(txId) {
 
       if (Array.isArray(tx.items)) {
         tx.items.forEach(item => {
-          const p = products.find(prod => prod.id === item.id);
-          if (p) {
-            updates[getStorePath('products/' + p.id + '/stok')] = p.stok;
-            updates[getStorePath('products/' + p.id + '/kuota_diskon')] = p.kuota_diskon || 0;
+          if (item.isBundle && Array.isArray(item.bundleItems)) {
+            item.bundleItems.forEach(bComp => {
+              const compProd = products.find(prod => String(prod.id) === String(bComp.productId));
+              if (compProd) {
+                updates[getStorePath('products/' + compProd.id + '/stok')] = compProd.stok;
+              }
+            });
+          } else {
+            const p = products.find(prod => String(prod.id) === String(item.id));
+            if (p) {
+              updates[getStorePath('products/' + p.id + '/stok')] = p.stok;
+              updates[getStorePath('products/' + p.id + '/kuota_diskon')] = p.kuota_diskon || 0;
+            }
           }
         });
       }
@@ -11470,7 +12403,7 @@ async function deleteSelectedTransactions() {
               }
             });
           } else {
-            const product = products.find(p => p.id === item.id);
+            const product = products.find(p => String(p.id) === String(item.id));
             if (product) {
               const itemRatio = item.isiBox || item.ratio || 1;
               const addedStock = (item.isBox ? (item.qty * itemRatio) : (item.isGrosir ? (item.qty * (item.grosirQty || 1)) : item.qty));
@@ -11483,6 +12416,43 @@ async function deleteSelectedTransactions() {
           }
         });
       }
+
+      // Rollback Poin, Voucher & Saldo Tabungan Pelanggan
+      if (tx.id_pelanggan || tx.nama_pelanggan) {
+        const cust = customers.find(c => c.id === tx.id_pelanggan || c.nama === tx.nama_pelanggan);
+        if (cust) {
+          if (tx.poin_didapat && Number(tx.poin_didapat) > 0) {
+            cust.poin = Math.max(0, (cust.poin || 0) - Number(tx.poin_didapat));
+          }
+          if (tx.poin_ditukar && Number(tx.poin_ditukar) > 0) {
+            cust.poin = (cust.poin || 0) + Number(tx.poin_ditukar);
+          }
+          if (tx.voucher_ditukar && Number(tx.voucher_ditukar) > 0) {
+            const txMonth = (tx.waktu || '').slice(0, 7) || (new Date().toISOString().slice(0, 7));
+            if (cust.voucherUsage && cust.voucherUsage[txMonth]) {
+              cust.voucherUsage[txMonth].used = Math.max(0, (cust.voucherUsage[txMonth].used || 0) - Number(tx.voucher_ditukar));
+            }
+          }
+          if (tx.bayar_tabungan && Number(tx.bayar_tabungan) > 0) {
+            const refundBal = Number(tx.bayar_tabungan) || 0;
+            cust.saldo_tabungan = (Number(cust.saldo_tabungan) || 0) + refundBal;
+            if (!Array.isArray(cust.riwayat_tabungan)) cust.riwayat_tabungan = [];
+            cust.riwayat_tabungan.push({
+              waktu: new Date().toISOString(),
+              tipe: 'koreksi_kembali',
+              nominal: refundBal,
+              sisa_saldo: cust.saldo_tabungan,
+              catatan: `Pengembalian Saldo Hapus Massal #${tx.id}`,
+              kasir: activeCashier || 'Admin'
+            });
+          }
+          saveCustomersLocally();
+          if (typeof saveCustomerCloud === 'function') {
+            saveCustomerCloud(cust);
+          }
+        }
+      }
+
       transactions.splice(idx, 1);
       deletedCount++;
     }
@@ -11492,6 +12462,31 @@ async function deleteSelectedTransactions() {
   // Kosongkan seleksi
   selectedTransactionIds.clear();
 
+  // Hapus dari buffer analyticsTransactions jika ada
+  if (Array.isArray(analyticsTransactions)) {
+    analyticsTransactions = analyticsTransactions.filter(t => t && !idsToDelete.includes(t.id));
+  }
+
+  // Hapus dari weeklyTrendData jika ada
+  if (Array.isArray(weeklyTrendData)) {
+    weeklyTrendData = weeklyTrendData.filter(t => t && !idsToDelete.includes(t.id));
+  }
+
+  // Hapus entri pelunasan hutang terkait di expenses jika ada
+  if (Array.isArray(expenses)) {
+    const prevExpenseCount = expenses.length;
+    expenses = expenses.filter(e => {
+      if (!e) return false;
+      const isLinkedDebtExpense = (e.is_debt_payment === true || (e.kategori && e.kategori.toLowerCase().includes('pelunasan piutang'))) &&
+        idsToDelete.some(id => (e.keterangan || '').includes(`Bon #${id}`) || (e.keterangan || '').includes(id));
+      return !isLinkedDebtExpense;
+    });
+    if (expenses.length !== prevExpenseCount) {
+      saveExpensesLocally();
+      if (typeof syncExpensesToCloud === 'function') syncExpensesToCloud();
+    }
+  }
+
   // Simpan perubahan lokal
   saveProductsLocally();
   saveTransactionsLocally();
@@ -11499,6 +12494,7 @@ async function deleteSelectedTransactions() {
   // Render UI
   renderTransactionsTable();
   renderProductsTable();
+  if (typeof renderCustomerDebtBook === 'function') renderCustomerDebtBook();
   updateAnalytics();
 
   // Sinkronisasi hapus batch ke Firebase RTDB
@@ -11567,6 +12563,20 @@ function openEditTransactionModal(txId) {
   // Set metode pembayaran
   const metode = tx.metode_pembayaran || 'Tunai';
   selectEditTxPaymentMethod(metode, false);
+  
+  // Set nilai diganti_cash checkbox
+  const replaceCashCheck = document.getElementById('edit-tx-replace-cash-checkbox');
+  if (replaceCashCheck) {
+    replaceCashCheck.checked = !!tx.diganti_cash;
+  }
+
+  // Set nilai customer & rincian hutang
+  const custInput = document.getElementById('edit-tx-customer-name');
+  if (custInput) custInput.value = tx.nama_pelanggan || '';
+  const dueDateInput = document.getElementById('edit-tx-debt-due-date');
+  if (dueDateInput) dueDateInput.value = tx.jatuh_tempo || '';
+  const debtNoteInput = document.getElementById('edit-tx-debt-note');
+  if (debtNoteInput) debtNoteInput.value = tx.catatan_bon || tx.keterangan_manual || '';
   
   // Set nilai uang bayar terformat
   const cashInput = document.getElementById('edit-tx-cash-received');
@@ -11893,21 +12903,68 @@ function selectEditTxPaymentMethod(method, triggerChange = true) {
     const isThis = btn.getAttribute('data-method') === method;
     btn.classList.toggle('active', isThis);
     if (isThis) {
-      btn.style.background = 'var(--color-primary, #2563eb)';
-      btn.style.color = '#fff';
-      btn.style.borderColor = 'var(--color-primary, #2563eb)';
-      btn.style.boxShadow = '0 2px 8px rgba(37,99,235,0.3)';
+      if (method === 'Bon') {
+        btn.style.background = '#dc2626';
+        btn.style.color = '#fff';
+        btn.style.borderColor = '#dc2626';
+        btn.style.boxShadow = '0 2px 8px rgba(220,38,38,0.3)';
+        const span = btn.querySelector('span');
+        if (span) span.style.color = '#fff';
+      } else if (method === 'Tabungan') {
+        btn.style.background = '#0284c7';
+        btn.style.color = '#fff';
+        btn.style.borderColor = '#0284c7';
+        btn.style.boxShadow = '0 2px 8px rgba(2,132,199,0.3)';
+        const span = btn.querySelector('span');
+        if (span) span.style.color = '#fff';
+      } else {
+        btn.style.background = 'var(--color-primary, #2563eb)';
+        btn.style.color = '#fff';
+        btn.style.borderColor = 'var(--color-primary, #2563eb)';
+        btn.style.boxShadow = '0 2px 8px rgba(37,99,235,0.3)';
+        const span = btn.querySelector('span');
+        if (span) span.style.color = '#fff';
+      }
     } else {
       btn.style.background = 'var(--bg-surface-elevated, #f8fafc)';
       btn.style.color = 'var(--text-main, #334155)';
-      btn.style.borderColor = 'var(--border-color, #e2e8f0)';
+      if (btn.getAttribute('data-method') === 'Bon') {
+        btn.style.borderColor = '#f87171';
+      } else if (btn.getAttribute('data-method') === 'Tabungan') {
+        btn.style.borderColor = '#7dd3fc';
+      } else {
+        btn.style.borderColor = 'var(--border-color, #e2e8f0)';
+      }
       btn.style.boxShadow = 'none';
+      const span = btn.querySelector('span');
+      if (span) {
+        if (btn.getAttribute('data-method') === 'Bon') span.style.color = '#dc2626';
+        else if (btn.getAttribute('data-method') === 'Tabungan') span.style.color = '#0284c7';
+        else span.style.color = '';
+      }
     }
   });
 
-  const nonCashMethods = ['QRIS', 'Transfer', 'Debit'];
+  const nonCashMethods = ['QRIS', 'Transfer', 'Debit', 'Tabungan'];
+  const isNonCash = nonCashMethods.includes(method);
+  const isBon = method === 'Bon';
+
+  // Tampilkan/sembunyikan input uang diterima & rincian hutang
   const cashSection = document.getElementById('edit-tx-cash-section');
-  if (cashSection) cashSection.style.display = nonCashMethods.includes(method) ? 'none' : 'block';
+  if (cashSection) cashSection.style.display = isNonCash ? 'none' : 'block';
+  
+  const debtSection = document.getElementById('edit-tx-debt-details-section');
+  if (debtSection) debtSection.style.display = isBon ? 'block' : 'none';
+
+  const cashLabel = document.getElementById('edit-tx-cash-label');
+  const changeLabel = document.getElementById('edit-tx-change-label');
+  if (cashLabel) cashLabel.textContent = isBon ? 'Uang Muka / DP Awal (Rp)' : 'Uang Diterima (Rp)';
+  if (changeLabel) changeLabel.textContent = isBon ? 'Sisa Piutang / Bon:' : 'Kembalian Baru:';
+
+  const replaceCashSec = document.getElementById('edit-tx-replace-cash-section');
+  if (replaceCashSec) {
+    replaceCashSec.style.display = isNonCash ? 'block' : 'none';
+  }
   
   if (triggerChange) {
     calculateChangeEditTx();
@@ -11928,40 +12985,47 @@ function calculateChangeEditTx() {
     total += item.harga * item.qty;
   });
   
-  // Cek apakah metode non-tunai (tidak perlu hitung kembalian)
   const metode = document.getElementById('edit-tx-payment-method')?.value || 'Tunai';
-  const nonCashMethods = ['QRIS', 'Transfer', 'Debit'];
+  const nonCashMethods = ['QRIS', 'Transfer', 'Debit', 'Tabungan'];
   if (nonCashMethods.includes(metode)) {
-    // Non-cash: langsung enable tombol simpan
+    // Non-cash / Tabungan: langsung enable tombol simpan
     btnSave.disabled = false;
     return;
   }
   
+  const isBon = metode === 'Bon';
   const cashText = cashInput.value.replace(/\./g, "");
   const cash = parseFloat(cashText) || 0;
   const change = cash - total;
   
-  const tx = transactions.find(t => t.id === currentEditingTxId);
-  const isBon = tx && tx.status_pembayaran === 'Bon';
-  
+  if (isBon) {
+    if (cashInput.value === '' || cash <= 0) {
+      changeVal.textContent = `Sisa Bon Rp ${formatRupiah(total)}`;
+      changeVal.style.color = '#dc2626';
+    } else if (change >= 0) {
+      changeVal.textContent = `LUNAS (Kembalian Rp ${formatRupiah(change)})`;
+      changeVal.style.color = 'var(--color-success)';
+    } else {
+      changeVal.textContent = `Sisa Bon Rp ${formatRupiah(Math.abs(change))}`;
+      changeVal.style.color = '#dc2626';
+    }
+    btnSave.disabled = false;
+    return;
+  }
+
+  // Metode Tunai Reguler
   if (cashInput.value === '') {
     changeVal.textContent = 'Rp 0';
     changeVal.style.color = 'var(--text-muted)';
-    btnSave.disabled = false; // Enable so user can click and get the alert
+    btnSave.disabled = false;
   } else if (change >= 0) {
     changeVal.textContent = `Rp ${formatRupiah(change)}`;
     changeVal.style.color = 'var(--color-success)';
     btnSave.disabled = false;
   } else {
-    if (isBon) {
-      changeVal.textContent = `Sisa Bon Rp ${formatRupiah(Math.abs(change))}`;
-      changeVal.style.color = 'var(--text-main)';
-      btnSave.disabled = false;
-    } else {
-      changeVal.textContent = `Kurang Rp ${formatRupiah(Math.abs(change))}`;
-      changeVal.style.color = 'var(--color-danger)';
-      btnSave.disabled = false; // Enable so user can click and get the alert
-    }
+    changeVal.textContent = `Kurang Rp ${formatRupiah(Math.abs(change))}`;
+    changeVal.style.color = 'var(--color-danger)';
+    btnSave.disabled = false;
   }
 }
 
@@ -11973,8 +13037,10 @@ function saveEditedTransaction() {
   
   // Baca metode pembayaran
   const metode = document.getElementById('edit-tx-payment-method')?.value || 'Tunai';
-  const nonCashMethods = ['QRIS', 'Transfer', 'Debit'];
+  const nonCashMethods = ['QRIS', 'Transfer', 'Debit', 'Tabungan'];
   const isNonCash = nonCashMethods.includes(metode);
+  const isBon = (metode === 'Bon');
+  const isTabungan = (metode === 'Tabungan');
   
   let total = 0;
   editTxItems.forEach(item => {
@@ -11990,12 +13056,54 @@ function saveEditedTransaction() {
     return;
   }
   
-  if (!isNonCash) {
+  let customerName = (document.getElementById('edit-tx-customer-name')?.value || tx.nama_pelanggan || '').trim();
+  const dueDate = document.getElementById('edit-tx-debt-due-date')?.value || tx.jatuh_tempo || null;
+  const debtNote = (document.getElementById('edit-tx-debt-note')?.value || tx.catatan_bon || tx.keterangan_manual || '').trim();
+
+  // Cari objek customer jika ada
+  let matchedCustomer = null;
+  if (customerName || tx.id_pelanggan || tx.nama_pelanggan) {
+    const lookupName = customerName || tx.nama_pelanggan || '';
+    matchedCustomer = customers.find(c => 
+      c.id === tx.id_pelanggan || 
+      c.kode_anggota === tx.id_pelanggan || 
+      (c.nama && c.nama.trim().toLowerCase() === lookupName.trim().toLowerCase()) ||
+      c.kode_anggota === lookupName ||
+      c.id === lookupName
+    );
+  }
+
+  if (isBon) {
+    // Validasi: Hutang/Bon WAJIB ada nama pelanggan
+    if (!customerName || customerName.toLowerCase() === 'pelanggan umum') {
+      alert("⚠️ Transaksi yang diubah menjadi Hutang / Bon WAJIB memiliki Nama Pelanggan / Anggota!\n\nSilakan isi Nama Pelanggan di form Rincian Piutang.");
+      document.getElementById('edit-tx-customer-name')?.focus();
+      return;
+    }
+
+    const cashInput = document.getElementById('edit-tx-cash-received');
+    const cashText = cashInput.value.replace(/\./g, "");
+    cash = parseFloat(cashText) || 0;
+    kembalian = cash >= total ? cash - total : 0;
+  } else if (isTabungan) {
+    // Validasi: Pembayaran Tabungan WAJIB ada Anggota terdaftar
+    if (!matchedCustomer) {
+      alert("⚠️ Pembayaran menggunakan Saldo Tabungan membutuhkan Data Anggota yang terdaftar!\nHarap pastikan Nama Anggota valid.");
+      return;
+    }
+    // Hitung saldo tabungan efektif saat ini (kembalikan potongan lama transaksi ini dulu jika ada)
+    const prevSavingsDeduction = Number(tx.bayar_tabungan) || 0;
+    const availableSavings = (Number(matchedCustomer.saldo_tabungan) || 0) + prevSavingsDeduction;
+    if (availableSavings < total) {
+      alert(`⚠️ Saldo tabungan anggota tidak mencukupi!\nSaldo tersedia: Rp ${formatRupiah(availableSavings)}\nTotal tagihan: Rp ${formatRupiah(total)}`);
+      return;
+    }
+  } else if (!isNonCash) {
     const cashInput = document.getElementById('edit-tx-cash-received');
     const cashText = cashInput.value.replace(/\./g, "");
     cash = parseFloat(cashText) || 0;
     
-    if (tx.status_pembayaran !== 'Bon' && cash < total) {
+    if (cash < total) {
       alert("Pembayaran kurang! Silakan ubah Uang Diterima agar tidak kurang dari total tagihan.");
       return;
     }
@@ -12059,33 +13167,117 @@ function saveEditedTransaction() {
     }
   });
   
+  // Penanganan Saldo Tabungan Anggota saat Koreksi Transaksi:
+  const oldSavingsDeduction = Number(tx.bayar_tabungan) || 0;
+  if (matchedCustomer) {
+    if (isTabungan) {
+      // Ubah/tetap Tabungan: Kembalikan potongan lama, lalu potong dengan total baru
+      const curBal = (Number(matchedCustomer.saldo_tabungan) || 0) + oldSavingsDeduction;
+      matchedCustomer.saldo_tabungan = Math.max(0, curBal - total);
+      tx.bayar_tabungan = total;
+      if (!Array.isArray(matchedCustomer.riwayat_tabungan)) matchedCustomer.riwayat_tabungan = [];
+      matchedCustomer.riwayat_tabungan.push({
+        waktu: new Date().toISOString(),
+        tipe: 'bayar_pos',
+        nominal: total,
+        sisa_saldo: matchedCustomer.saldo_tabungan,
+        catatan: `Koreksi Transaksi #${tx.id} (Bayar Tabungan)`,
+        kasir: activeCashier || 'Kasir'
+      });
+      saveCustomersLocally();
+      if (typeof saveCustomerCloud === 'function') saveCustomerCloud(matchedCustomer);
+    } else if (oldSavingsDeduction > 0) {
+      // Berpindah dari Tabungan ke metode lain (Tunai/Bon/QRIS/Transfer/Debit):
+      // Kembalikan saldo tabungan ke anggota
+      matchedCustomer.saldo_tabungan = (Number(matchedCustomer.saldo_tabungan) || 0) + oldSavingsDeduction;
+      tx.bayar_tabungan = 0;
+      if (!Array.isArray(matchedCustomer.riwayat_tabungan)) matchedCustomer.riwayat_tabungan = [];
+      matchedCustomer.riwayat_tabungan.push({
+        waktu: new Date().toISOString(),
+        tipe: 'koreksi_kembali',
+        nominal: oldSavingsDeduction,
+        sisa_saldo: matchedCustomer.saldo_tabungan,
+        catatan: `Pengembalian Saldo Koreksi Transaksi #${tx.id} (Ubah ke ${metode})`,
+        kasir: activeCashier || 'Kasir'
+      });
+      saveCustomersLocally();
+      if (typeof saveCustomerCloud === 'function') saveCustomerCloud(matchedCustomer);
+    }
+  }
+
   tx.items = [...editTxItems];
   tx.total = total;
   tx.bayar = cash;
   tx.kembalian = kembalian;
   tx.metode_pembayaran = metode;
   
-  if (isNonCash) {
+  // Cari ID anggota jika ada pelanggan yang cocok
+  if (customerName) {
+    tx.nama_pelanggan = customerName;
+    if (matchedCustomer) {
+      tx.id_pelanggan = matchedCustomer.kode_anggota || matchedCustomer.id;
+      tx.nama_pelanggan = matchedCustomer.nama;
+      if (matchedCustomer.telepon) tx.telepon_pelanggan = matchedCustomer.telepon;
+    }
+  }
+
+  if (isBon) {
+    const sisa = Math.max(0, total - cash);
+    tx.sisa_piutang = sisa;
+    tx.status_pembayaran = sisa > 0 ? 'Bon' : 'Lunas';
+    tx.jatuh_tempo = dueDate;
+    tx.catatan_bon = debtNote;
+    tx.diganti_cash = false;
+
+    // Pastikan struktur riwayat_pelunasan ada
+    if (!Array.isArray(tx.riwayat_pelunasan)) {
+      tx.riwayat_pelunasan = [];
+    }
+    // Jika ada DP tunai awal dan belum pernah ada riwayat awal
+    if (cash > 0 && tx.riwayat_pelunasan.length === 0) {
+      tx.riwayat_pelunasan.push({
+        waktu: new Date().toISOString(),
+        bayar: Math.min(cash, total),
+        metode: 'Tunai',
+        kasir: activeCashier || 'Admin',
+        catatan: 'Uang Muka / DP awal (Koreksi)'
+      });
+    }
+  } else if (isNonCash) {
+    const replaceCashCheck = document.getElementById('edit-tx-replace-cash-checkbox');
+    tx.diganti_cash = replaceCashCheck ? replaceCashCheck.checked : false;
     tx.sisa_piutang = 0;
     tx.status_pembayaran = 'Lunas';
   } else {
-    tx.sisa_piutang = cash < total ? total - cash : 0;
-    tx.status_pembayaran = tx.sisa_piutang > 0 ? 'Bon' : 'Lunas';
+    tx.diganti_cash = false;
+    tx.sisa_piutang = 0;
+    tx.status_pembayaran = 'Lunas';
   }
+  tx.waktu_koreksi = new Date().toISOString();
+  if (activeCashier) tx.kasir_koreksi = activeCashier;
   
   saveProductsLocally();
   saveTransactionsLocally();
+
+  // Jika buffer analyticsTransactions sedang aktif, perbarui objek di dalamnya juga
+  if (Array.isArray(analyticsTransactions)) {
+    const aIdx = analyticsTransactions.findIndex(t => t.id === tx.id);
+    if (aIdx !== -1) {
+      analyticsTransactions[aIdx] = JSON.parse(JSON.stringify(tx));
+    }
+  }
   
   closeEditTransactionModal();
   renderTransactionsTable();
   renderProductsTable();
+  if (typeof renderCustomerDebtBook === 'function') renderCustomerDebtBook();
   updateAnalytics();
   
   syncSingleTransactionToCloud(tx);
   
   if (firebaseDb && allProductIds && allProductIds.size > 0) {
     allProductIds.forEach(id => {
-      const p = products.find(prod => prod.id === id);
+      const p = products.find(prod => String(prod.id) === String(id));
       if (p) saveProductCloud(p);
     });
   }
@@ -12364,11 +13556,15 @@ function printDailyReport() {
     const historicalProducts = getHistoricalProductStock(targetDateForStock);
     
     if (historicalProducts.length === 0) {
-      printStockListEl.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 0.5rem 0;">Tidak ada data produk.</td></tr>';
+      printStockListEl.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 0.5rem 0;">Tidak ada data produk.</td></tr>';
     } else {
       // Urutkan dari stok terkecil agar barang menipis/habis terlihat pertama
       historicalProducts.sort((a, b) => a.stok - b.stok);
       
+      let totalSemuaStokAda = 0;
+      let totalSumHargaBeli = 0;
+      let totalNilaiNominalBeli = 0; // Total Harga Beli x Stok semua produk
+
       historicalProducts.forEach(prod => {
         const soldQty = sellCounts[prod.nama] || 0;
         let statusBadge = 'Aman';
@@ -12382,8 +13578,14 @@ function printDailyReport() {
         }
         
         const rakName = prod.rak || '-';
-        const hargaBeli = prod.harga_beli !== undefined ? prod.harga_beli : 0;
-        const hargaJual = (prod.harga !== undefined) ? prod.harga : (prod.harga_jual || 0);
+        const hargaBeli = prod.harga_beli !== undefined ? Number(prod.harga_beli) || 0 : 0;
+        const hargaJual = (prod.harga !== undefined) ? Number(prod.harga) || 0 : (Number(prod.harga_jual) || 0);
+        const qtyStok = Math.max(0, Number(prod.stok) || 0);
+        const subtotalBeliStok = hargaBeli * qtyStok;
+
+        totalSemuaStokAda += qtyStok;
+        totalSumHargaBeli += hargaBeli;
+        totalNilaiNominalBeli += subtotalBeliStok;
 
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px dotted #eee';
@@ -12396,52 +13598,167 @@ function printDailyReport() {
           <td style="text-align: center; padding: 0.25rem 0; font-weight: ${soldQty > 0 ? 'bold' : 'normal'};">${soldQty}</td>
           <td style="text-align: right; padding: 0.25rem 0; font-weight: bold;">${prod.stok}</td>
           <td style="text-align: center; padding: 0.25rem 0; ${statusStyle}">${statusBadge}</td>
+          <td style="text-align: right; padding: 0.25rem 0; font-weight: bold; color: #0f172a;">Rp ${formatRupiah(subtotalBeliStok)}</td>
         `;
         printStockListEl.appendChild(tr);
       });
 
-      // Ringkasan Total Harga Beli & Semua Stok Ada pada Tanggal Tertentu (Format Sesuai Permintaan Kasir)
-      let totalSemuaStokAda = 0;
-      let totalSumHargaBeli = 0;
-      let totalNilaiNominalBeli = 0; // sum(harga_beli * stok)
+      // Baris total tepat di bawah baris produk yang paling bawah
+      const totalRowTr = document.createElement('tr');
+      totalRowTr.style.borderTop = '2px solid #334155';
+      totalRowTr.style.borderBottom = '2px solid #334155';
+      totalRowTr.style.background = '#f1f5f9';
+      totalRowTr.style.fontWeight = 'bold';
+      totalRowTr.innerHTML = `
+        <td colspan="6" style="padding: 0.45rem 0.25rem; text-align: right; font-size: 0.85rem; text-transform: uppercase;">Total Keseluruhan:</td>
+        <td style="text-align: right; padding: 0.45rem 0.25rem; font-size: 0.85rem;">${formatRupiah(totalSemuaStokAda)}</td>
+        <td></td>
+        <td style="text-align: right; padding: 0.45rem 0.25rem; font-size: 0.85rem; color: #0f172a;">Rp ${formatRupiah(totalNilaiNominalBeli)}</td>
+      `;
+      printStockListEl.appendChild(totalRowTr);
 
-      historicalProducts.forEach(prod => {
-        const qtyStok = Math.max(0, Number(prod.stok) || 0);
-        const pBeli = Number(prod.harga_beli !== undefined ? prod.harga_beli : 0);
-
-        totalSemuaStokAda += qtyStok;
-        totalSumHargaBeli += pBeli;
-        totalNilaiNominalBeli += (pBeli * qtyStok);
-      });
-
-      // Tampilkan ringkasan format persis sesuai instruksi:
-      // TOTAL harga beli = Rp [totalSumHargaBeli]
-      // total stok = [totalSemuaStokAda]
-      // Total semua= Rp [totalSumHargaBeli] x [totalSemuaStokAda] = Rp [totalNilaiNominalBeli]
-      const totalSemuaCalculated = totalSumHargaBeli * totalSemuaStokAda;
-
+      // Ringkasan format sesuai instruksi kasir:
+      // RINGKASAN STOK PADA TANGGAL INI:
+      // TOTAL harga beli x Stok Semua Produk = Rp [totalNilaiNominalBeli]
       const summaryTr = document.createElement('tr');
       summaryTr.style.borderTop = '2px solid #000';
       summaryTr.style.borderBottom = '3px double #000';
       summaryTr.style.background = '#f8fafc';
       summaryTr.innerHTML = `
-        <td colspan="8" style="padding: 0.85rem 0.5rem; text-align: left; font-family: monospace; font-size: 0.95rem; line-height: 1.6; color: #0f172a;">
-          <div style="font-weight: 800; font-size: 1rem; margin-bottom: 0.25rem; color: #1e293b;">
+        <td colspan="9" style="padding: 0.85rem 0.5rem; text-align: left; font-family: monospace; font-size: 0.95rem; line-height: 1.6; color: #0f172a;">
+          <div style="font-weight: 800; font-size: 1rem; margin-bottom: 0.35rem; color: #1e293b; letter-spacing: 0.5px;">
             RINGKASAN STOK PADA TANGGAL INI:
           </div>
-          <div><b>TOTAL harga beli</b> = Rp ${formatRupiah(totalSumHargaBeli)}</div>
-          <div><b>total stok</b> = ${formatRupiah(totalSemuaStokAda)}</div>
-          <div style="font-weight: 900; font-size: 1.05rem; margin-top: 0.25rem; color: #0f172a;">
-            <b>Total semua</b> = Rp ${formatRupiah(totalSumHargaBeli)} x ${formatRupiah(totalSemuaStokAda)} = Rp ${formatRupiah(totalSemuaCalculated)}
+          <div style="font-weight: 800; font-size: 1rem; color: #0f172a;">
+            <b>TOTAL harga beli x Stok Semua Produk</b> = <span style="font-size: 1.1rem; color: #047857;">Rp ${formatRupiah(totalNilaiNominalBeli)}</span>
           </div>
         </td>
       `;
       printStockListEl.appendChild(summaryTr);
     }
   }
-  
-  document.body.classList.add('printing-daily-report');
-  window.print();
+
+  const printAreaEl = document.getElementById('daily-report-print-area');
+  if (!printAreaEl) {
+    alert("Area cetak laporan tidak ditemukan!");
+    return;
+  }
+
+  const printWindow = window.open('', '_blank', 'width=1000,height=750');
+  if (!printWindow) {
+    alert("Popup browser terblokir! Harap izinkan popup di browser Anda untuk melihat pratinjau cetak laporan.");
+    return;
+  }
+
+  const storeTitle = (receiptSettings && receiptSettings.name) || 'TOKO KASIR';
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>Pratinjau Cetak Laporan Penjualan &amp; Stok - ${escapeHtml(storeTitle)}</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+          background: #f1f5f9;
+          margin: 0;
+          padding: 20px;
+          color: #0f172a;
+        }
+        .preview-toolbar {
+          position: sticky;
+          top: 0;
+          background: #ffffff;
+          padding: 12px 20px;
+          border-radius: 10px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+          z-index: 1000;
+          border: 1px solid #e2e8f0;
+        }
+        .preview-toolbar .btn {
+          padding: 8px 18px;
+          font-size: 13px;
+          font-weight: 700;
+          border-radius: 6px;
+          cursor: pointer;
+          border: none;
+          transition: 0.2s;
+        }
+        .preview-toolbar .btn-print {
+          background: #ea580c;
+          color: #ffffff;
+        }
+        .preview-toolbar .btn-print:hover {
+          background: #c2410c;
+        }
+        .preview-toolbar .btn-close {
+          background: #64748b;
+          color: #ffffff;
+          margin-left: 8px;
+        }
+        .preview-toolbar .btn-close:hover {
+          background: #475569;
+        }
+        .report-paper {
+          background: #ffffff;
+          max-width: 900px;
+          margin: 0 auto;
+          padding: 30px;
+          border-radius: 8px;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+          border: 1px solid #e2e8f0;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        @media print {
+          body {
+            background: #fff;
+            padding: 0;
+          }
+          .preview-toolbar {
+            display: none !important;
+          }
+          .report-paper {
+            box-shadow: none;
+            border: none;
+            padding: 0;
+            max-width: 100%;
+          }
+          @page {
+            margin: 10mm;
+            size: auto;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="preview-toolbar">
+        <div>
+          <strong style="font-size: 14px; color: #1e293b;">📄 Pratinjau Laporan Penjualan &amp; Stok</strong>
+          <span style="font-size: 12px; color: #64748b; margin-left: 8px;">(${periodLabel})</span>
+        </div>
+        <div>
+          <button class="btn btn-print" onclick="window.print()">🖨️ Cetak Dokumen</button>
+          <button class="btn btn-close" onclick="window.close()">❌ Tutup Pratinjau</button>
+        </div>
+      </div>
+
+      <div class="report-paper">
+        ${printAreaEl.innerHTML}
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
 }
 
 // ==========================================================================
@@ -13133,16 +14450,25 @@ function openShiftModal() {
     
     transactions.forEach(tx => {
       const txTime = new Date(tx.waktu).getTime();
+      const txKoreksiTime = tx.waktu_koreksi ? new Date(tx.waktu_koreksi).getTime() : 0;
+      const isShiftTx = txTime >= startTime && (!tx.kasir || tx.kasir === currentStaff.name);
+      const isShiftCorrection = !isShiftTx && txKoreksiTime >= startTime && (!tx.kasir_koreksi || tx.kasir_koreksi === currentStaff.name);
+
       // 1. Transaksi baru selama shift ini
-      if (txTime >= startTime) {
-        if (!tx.kasir || tx.kasir === currentStaff.name) {
-          totalTransaksiCount++;
-          if (tx.metode_pembayaran === 'Tunai' || tx.diganti_cash === true) {
-            const cashMasuk = (Number(tx.bayar) || 0) - (Number(tx.kembalian) || 0);
-            if (cashMasuk > 0) totalUangMasuk += cashMasuk;
-          }
+      if (isShiftTx) {
+        totalTransaksiCount++;
+        if (tx.metode_pembayaran === 'Tunai' || tx.diganti_cash === true) {
+          const cashMasuk = (Number(tx.bayar) || 0) - (Number(tx.kembalian) || 0);
+          if (cashMasuk > 0) totalUangMasuk += cashMasuk;
+        }
+      } else if (isShiftCorrection) {
+        // Transaksi lama yang diedit pada shift berjalan dan uangnya dimasukkan ke laci kasir
+        if (tx.metode_pembayaran === 'Tunai' || tx.diganti_cash === true) {
+          const cashMasuk = (Number(tx.bayar) || 0) - (Number(tx.kembalian) || 0);
+          if (cashMasuk > 0) totalUangMasuk += cashMasuk;
         }
       }
+
       // 2. Pelunasan cicilan piutang / Bon yang dibayar tunai selama shift ini
       if (Array.isArray(tx.riwayat_pelunasan)) {
         tx.riwayat_pelunasan.forEach(p => {
@@ -13161,8 +14487,17 @@ function openShiftModal() {
         if (e.sumberDana === 'laci_kasir') {
           const eTime = e.tanggal ? new Date(e.tanggal).getTime() : 0;
           if (eTime >= startTime) {
-            if (e.tipe === 'masuk') kasMasukLaci += (Number(e.nominal) || 0);
-            else kasKeluarLaci += (Number(e.nominal) || 0);
+            if (e.tipe === 'masuk') {
+              // Jangan hitung ganda pelunasan hutang karena sudah dihitung dari tx.riwayat_pelunasan di atas
+              const isDebtPayment = e.is_debt_payment === true || 
+                (e.kategori && e.kategori.toLowerCase().includes('pelunasan piutang')) ||
+                (e.id && String(e.id).startsWith('EXP_') && e.kategori === 'Pelunasan Piutang');
+              if (!isDebtPayment) {
+                kasMasukLaci += (Number(e.nominal) || 0);
+              }
+            } else {
+              kasKeluarLaci += (Number(e.nominal) || 0);
+            }
           }
         }
       });
@@ -13696,97 +15031,6 @@ function savePointsSettingsFromPane() {
   renderCustomersTable();
 }
 
-// Helper: ambil bulan yang sedang dipilih di filter voucher (atau bulan ini jika kosong)
-function getVoucherFilterMonth() {
-  const mSelect = document.getElementById('voucher-filter-month-select');
-  const ySelect = document.getElementById('voucher-filter-year-select');
-  if (mSelect && ySelect && mSelect.value && ySelect.value) {
-    const val = `${ySelect.value}-${mSelect.value}`;
-    const hiddenEl = document.getElementById('voucher-filter-month');
-    if (hiddenEl) hiddenEl.value = val;
-    return val;
-  }
-  const el = document.getElementById('voucher-filter-month');
-  return (el && el.value) ? el.value : getCurrentMonthKey();
-}
-
-// Handler saat dropdown Bulan (Januari-Desember) atau Tahun berubah
-function onVoucherDropdownMonthChange() {
-  const mSelect = document.getElementById('voucher-filter-month-select');
-  const ySelect = document.getElementById('voucher-filter-year-select');
-  const hiddenEl = document.getElementById('voucher-filter-month');
-  if (mSelect && ySelect) {
-    const val = `${ySelect.value}-${mSelect.value}`;
-    if (hiddenEl) hiddenEl.value = val;
-  }
-  onVoucherMonthFilterChange();
-}
-
-// Inisialisasi opsi tahun dan sinkronisasi dropdown bulan voucher
-function initVoucherMonthDropdowns() {
-  const ySelect = document.getElementById('voucher-filter-year-select');
-  const mSelect = document.getElementById('voucher-filter-month-select');
-  const curKey = getCurrentMonthKey(); // misal "2026-10"
-  const [curY, curM] = curKey.split('-');
-
-  if (ySelect && ySelect.options.length === 0) {
-    const nowY = parseInt(curY, 10);
-    for (let y = nowY - 2; y <= nowY + 2; y++) {
-      const opt = document.createElement('option');
-      opt.value = String(y);
-      opt.textContent = String(y);
-      if (y === nowY) opt.selected = true;
-      ySelect.appendChild(opt);
-    }
-  }
-
-  if (mSelect && !mSelect.value) {
-    mSelect.value = curM;
-  }
-  if (ySelect && !ySelect.value) {
-    ySelect.value = curY;
-  }
-}
-
-// Handler saat input bulan voucher berubah
-function onVoucherMonthFilterChange() {
-  const month = getVoucherFilterMonth();
-  const curMonth = getCurrentMonthKey();
-  const label = document.getElementById('voucher-filter-month-label');
-  const thReward = document.getElementById('th-customer-reward-status');
-  const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-
-  if (month && month.includes('-')) {
-    const [y, m] = month.split('-');
-    const mIdx = parseInt(m, 10) - 1;
-    const monthName = (mIdx >= 0 && mIdx < monthNames.length) ? monthNames[mIdx] : month;
-    if (label) {
-      if (month === curMonth) {
-        label.textContent = `(Periode: ${monthName} ${y} - Bulan Ini)`;
-      } else {
-        label.textContent = `(Periode: ${monthName} ${y})`;
-      }
-    }
-    if (thReward && loyaltySettings.rewardMode === 'voucher') {
-      thReward.textContent = `Voucher (${monthName} ${y})`;
-    }
-  }
-  renderCustomersTable();
-}
-
-// Reset ke bulan ini
-function resetVoucherMonthFilter() {
-  const curMonth = getCurrentMonthKey();
-  const [curY, curM] = curMonth.split('-');
-  const mSelect = document.getElementById('voucher-filter-month-select');
-  const ySelect = document.getElementById('voucher-filter-year-select');
-  const hiddenEl = document.getElementById('voucher-filter-month');
-  if (mSelect) mSelect.value = curM;
-  if (ySelect) ySelect.value = curY;
-  if (hiddenEl) hiddenEl.value = curMonth;
-  onVoucherMonthFilterChange();
-}
-
 function setVoucherTableFilter(filter) {
   currentCustomerVoucherFilter = filter;
   ['all', 'used', 'unused'].forEach(f => {
@@ -13804,53 +15048,6 @@ function setVoucherTableFilter(filter) {
     }
   });
   renderCustomersTable();
-}
-
-
-// Handler pergantian mode filter voucher (Bulan / Rentang Bulan / Rentang Tanggal / Tahun / Semua)
-function onVoucherFilterModeChange(mode) {
-  currentVoucherFilterMode = mode;
-  const wMonth = document.getElementById('vwrap-single-month');
-  const wMonthRange = document.getElementById('vwrap-month-range');
-  const wDateRange = document.getElementById('vwrap-date-range');
-  const wYear = document.getElementById('vwrap-year-only');
-
-  if (wMonth) wMonth.style.display = (mode === 'month') ? 'inline-flex' : 'none';
-  if (wMonthRange) wMonthRange.style.display = (mode === 'month-range') ? 'inline-flex' : 'none';
-  if (wDateRange) wDateRange.style.display = (mode === 'date-range') ? 'inline-flex' : 'none';
-  if (wYear) wYear.style.display = (mode === 'year') ? 'inline-flex' : 'none';
-
-  renderCustomersTable();
-}
-
-function resetVoucherAdvancedFilter() {
-  currentVoucherFilterMode = 'month';
-  currentCustomerVoucherFilter = 'all';
-  currentVoucherCategoryFilter = 'All';
-
-  const modeSel = document.getElementById('voucher-filter-mode-select');
-  if (modeSel) modeSel.value = 'month';
-
-  const catSel = document.getElementById('voucher-filter-category-select');
-  if (catSel) catSel.value = 'All';
-
-  const curMonth = getCurrentMonthKey();
-  const [curY, curM] = curMonth.split('-');
-  const mSelect = document.getElementById('voucher-filter-month-select');
-  const ySelect = document.getElementById('voucher-filter-year-select');
-  if (mSelect) mSelect.value = curM;
-  if (ySelect) ySelect.value = curY;
-
-  const wMonth = document.getElementById('vwrap-single-month');
-  const wMonthRange = document.getElementById('vwrap-month-range');
-  const wDateRange = document.getElementById('vwrap-date-range');
-  const wYear = document.getElementById('vwrap-year-only');
-  if (wMonth) wMonth.style.display = 'inline-flex';
-  if (wMonthRange) wMonthRange.style.display = 'none';
-  if (wDateRange) wDateRange.style.display = 'none';
-  if (wYear) wYear.style.display = 'none';
-
-  setVoucherTableFilter('all');
 }
 
 function updateVoucherCategoryDropdown() {
@@ -13922,22 +15119,7 @@ function renderCustomersTable() {
 
   const statMemberTxEl = document.getElementById('crm-stat-member-tx-count');
   if (statMemberTxEl) statMemberTxEl.textContent = memberTxCount;
-
   const isVoucher = (loyaltySettings.rewardMode === 'voucher');
-  if (typeof initVoucherMonthDropdowns === 'function') initVoucherMonthDropdowns();
-
-  // Populate year only dropdown jika ada
-  const yOnlySel = document.getElementById('voucher-filter-year-only-select');
-  if (yOnlySel && yOnlySel.options.length === 0) {
-    const curY = new Date().getFullYear();
-    for (let y = curY + 1; y >= curY - 5; y--) {
-      const opt = document.createElement('option');
-      opt.value = String(y);
-      opt.textContent = String(y);
-      if (y === curY) opt.selected = true;
-      yOnlySel.appendChild(opt);
-    }
-  }
 
   // Ambil kategori filter aktif
   const catSel = document.getElementById('voucher-filter-category-select');
@@ -14105,62 +15287,79 @@ function renderCustomersTable() {
 
     const currentSavings = c.saldo_tabungan || 0;
     const savingsColHtml = `
-      <div>
-        <strong style="color: #0284c7; font-size: 0.95rem; font-family: monospace;">Rp ${formatRupiah(currentSavings)}</strong>
+      <div style="font-family: 'JetBrains Mono', monospace, sans-serif; font-weight: 800; font-size: 0.92rem; color: #0284c7;">
+        Rp ${formatRupiah(currentSavings)}
       </div>
     `;
 
     actionButtonsHtml = `
-      <button type="button" class="btn btn-sm" onclick="openCustomerIdCard('${c.id}')" title="Lihat & Cetak ID Card Anggota" style="border-radius: 8px; padding: 0.35rem 0.65rem; font-weight: 700; font-size: 0.8rem; background: #ea580c; color: #fff; border: none; display: inline-flex; align-items: center; gap: 0.3rem;">
-        <span>🪪 ID Card</span>
-      </button>
-      <button type="button" class="btn btn-sm" onclick="openSavingsAccountModal('${c.id}')" title="Kelola Tabungan Anggota (Setor / Tarik Tunai Mandiri)" style="border-radius: 8px; padding: 0.35rem 0.65rem; font-weight: 700; font-size: 0.8rem; background: #0284c7; color: #fff; border: none; display: inline-flex; align-items: center; gap: 0.3rem;">
-        <span>🏦 Tabungan</span>
-      </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="openCustomerHistoryModal('${c.id}')" title="Lihat Riwayat Belanja Anggota" style="border-radius: 8px; padding: 0.35rem 0.65rem; font-weight: 700; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem;">
-        <i data-lucide="shopping-bag" style="width: 14px; height: 14px;"></i>
-        <span>Belanja</span>
-      </button>
-      <button type="button" class="btn btn-secondary btn-sm" onclick="openEditCustomerModal('${c.id}')" title="Edit Data Anggota" style="border-radius: 8px; padding: 0.35rem 0.65rem; font-weight: 600; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem;">
-        <i data-lucide="edit-3" style="width: 14px; height: 14px;"></i>
-        <span>Edit</span>
-      </button>
-      <button type="button" class="btn btn-danger btn-sm" onclick="deleteCustomer('${c.id}')" title="Hapus Anggota" style="border-radius: 8px; padding: 0.35rem 0.5rem; font-size: 0.8rem; display: inline-flex; align-items: center;">
-        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-      </button>
+      <div style="display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; flex-wrap: wrap;">
+        <button type="button" class="btn btn-sm" onclick="openCustomerIdCard('${c.id}')" title="Cetak ID Card Anggota" style="border-radius: 7px; padding: 0.32rem 0.6rem; font-weight: 700; font-size: 0.76rem; background: linear-gradient(135deg, #b45309, #ea580c); color: #fff; border: none; display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap; box-shadow: 0 1px 3px rgba(234,88,12,0.25);">
+          <span>🪪 ID Card</span>
+        </button>
+        <button type="button" class="btn btn-sm" onclick="openSavingsAccountModal('${c.id}')" title="Kelola Saldo Tabungan" style="border-radius: 7px; padding: 0.32rem 0.6rem; font-weight: 700; font-size: 0.76rem; background: #0284c7; color: #fff; border: none; display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap;">
+          <span>🏦 Tabungan</span>
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openCustomerHistoryModal('${c.id}')" title="Riwayat Belanja" style="border-radius: 7px; padding: 0.32rem 0.55rem; font-weight: 600; font-size: 0.76rem; display: inline-flex; align-items: center; gap: 0.25rem;">
+          <i data-lucide="shopping-bag" style="width: 13px; height: 13px;"></i>
+          <span>Belanja</span>
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openEditCustomerModal('${c.id}')" title="Edit Data Anggota" style="border-radius: 7px; padding: 0.32rem 0.5rem; font-size: 0.76rem; display: inline-flex; align-items: center;">
+          <i data-lucide="edit-3" style="width: 13px; height: 13px;"></i>
+        </button>
+        <button type="button" class="btn btn-danger btn-sm" onclick="deleteCustomer('${c.id}')" title="Hapus Anggota" style="border-radius: 7px; padding: 0.32rem 0.5rem; font-size: 0.76rem; display: inline-flex; align-items: center; background: #ef4444; border-color: #ef4444; color: #fff;">
+          <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i>
+        </button>
+      </div>
     `;
 
     const kodeAnggotaDisplay = c.kode_anggota || c.id || '-';
-    const instansiDisplay = c.instansi ? `<span style="background: rgba(99,102,241,0.08); color: #4f46e5; font-size: 0.78rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px;">${c.instansi}</span>` : '<span style="color:var(--text-muted);">-</span>';
-    const phoneDisplay = c.telepon ? `<span style="font-family: monospace; font-size: 0.85rem;">${c.telepon}</span>` : '-';
-    const alamatDisplay = c.domisili ? `<span style="font-size: 0.82rem; color: var(--text-muted);">${c.domisili}</span>` : '<span style="color:var(--text-muted);">-</span>';
+    const instansiDisplay = c.instansi 
+      ? `<span style="background: rgba(99,102,241,0.08); color: #4338ca; font-size: 0.76rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px; border: 1px solid rgba(99,102,241,0.18); display: inline-block; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeJsQuotes(c.instansi)}">${c.instansi}</span>` 
+      : '<span style="color:var(--text-muted); font-size: 0.8rem;">-</span>';
+    
+    let phoneDisplay = '<span style="color:var(--text-muted); font-size: 0.8rem;">-</span>';
+    if (c.telepon) {
+      const cleanPhone = String(c.telepon).replace(/[^0-9]/g, '');
+      const waLink = cleanPhone ? `https://wa.me/${cleanPhone.startsWith('0') ? '62' + cleanPhone.slice(1) : cleanPhone}` : null;
+      phoneDisplay = `
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <span style="font-family: monospace; font-size: 0.82rem; font-weight: 600; color: var(--text-main);">${c.telepon}</span>
+          ${waLink ? `<a href="${waLink}" target="_blank" title="Chat WhatsApp" style="color: #16a34a; display: inline-flex; align-items: center; text-decoration: none;"><svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: currentColor;"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2z"/></svg></a>` : ''}
+        </div>
+      `;
+    }
 
+    const alamatDisplay = c.domisili 
+      ? `<span style="font-size: 0.8rem; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3;" title="${escapeJsQuotes(c.domisili)}">${c.domisili}</span>` 
+      : '<span style="color:var(--text-muted); font-size: 0.8rem;">-</span>';
+
+    tr.style.borderBottom = '1px solid var(--border-color)';
+    tr.style.transition = 'background 0.15s ease';
     tr.innerHTML = `
-      <td>
-        <span style="font-family: monospace; font-weight: 800; color: #c2410c; background: #fff7ed; padding: 0.2rem 0.45rem; border-radius: 6px; border: 1px solid #ffedd5; font-size: 0.85rem;">${kodeAnggotaDisplay}</span>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle;">
+        <span style="font-family: monospace; font-weight: 800; color: #c2410c; background: #fff7ed; padding: 0.22rem 0.5rem; border-radius: 6px; border: 1px solid #ffedd5; font-size: 0.82rem; display: inline-block;">${kodeAnggotaDisplay}</span>
       </td>
-      <td>
-        <div style="font-weight: 700; color: var(--text-main); font-size: 0.92rem;">${c.nama}</div>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle;">
+        <div style="font-weight: 700; color: var(--text-main); font-size: 0.9rem; line-height: 1.3;">${c.nama}</div>
       </td>
-      <td>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle;">
         ${instansiDisplay}
       </td>
-      <td>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle;">
         ${phoneDisplay}
       </td>
-      <td>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle;">
         ${alamatDisplay}
       </td>
-      <td>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle; text-align: right;">
         ${savingsColHtml}
       </td>
-      <td>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle;">
         ${rewardColHtml}
       </td>
-      <td style="white-space: nowrap; text-align: center;">
-        <div style="display: inline-flex; gap: 0.35rem; align-items: center; justify-content: center;">
-          ${actionButtonsHtml}
-        </div>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle; text-align: center;">
+        ${actionButtonsHtml}
       </td>
     `;
     tbody.appendChild(tr);
@@ -14186,6 +15385,15 @@ function openCustomerIdCard(customerId) {
 
   const elStore = document.getElementById('vcard-store-name');
   if (elStore) elStore.textContent = storeName;
+
+  const elLogoContainer = document.getElementById('vcard-store-logo-container');
+  if (elLogoContainer) {
+    if (receiptSettings && receiptSettings.logo) {
+      elLogoContainer.innerHTML = `<img src="${receiptSettings.logo}" alt="Logo" style="height: 22px; max-width: 45px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2)); border-radius: 4px;">`;
+    } else {
+      elLogoContainer.innerHTML = `<span style="font-size: 1.15rem;">🏪</span>`;
+    }
+  }
 
   const elCustName = document.getElementById('vcard-cust-name');
   if (elCustName) elCustName.textContent = c.nama || 'Anggota';
@@ -14249,15 +15457,20 @@ function printCustomerIdCard() {
     return;
   }
   const memberCode = c.kode_anggota || c.id || 'ANGGOTA';
-  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO KAMI';
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : ((appConfig && appConfig.storeName) ? appConfig.storeName : 'TOKO KAMI');
   const storeAddress = (receiptSettings && receiptSettings.address) ? receiptSettings.address : '';
   const storePhone = (receiptSettings && receiptSettings.phone) ? receiptSettings.phone : '';
+  const storeLogo = (receiptSettings && receiptSettings.logo) ? receiptSettings.logo : '';
 
   const printWindow = window.open('', '_blank', 'width=600,height=500');
   if (!printWindow) {
     alert("Popup browser terblokir! Izinkan popup untuk mencetak ID Card.");
     return;
   }
+
+  const logoHtml = storeLogo 
+    ? `<img src="${storeLogo}" alt="Logo" style="height: 22px; max-width: 45px; object-fit: contain; vertical-align: middle; border-radius: 4px; margin-right: 5px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));">` 
+    : `<span style="margin-right: 4px;">🏪</span>`;
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -14298,10 +15511,16 @@ function printCustomerIdCard() {
           align-items: center;
         }
         .store-title {
-          font-size: 9pt;
+          font-size: 8.5pt;
           font-weight: 800;
           letter-spacing: 0.5px;
           text-transform: uppercase;
+          display: flex;
+          align-items: center;
+          max-width: 65%;
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
         }
         .badge-type {
           background: rgba(255,255,255,0.25);
@@ -14345,26 +15564,32 @@ function printCustomerIdCard() {
         }
         @media print {
           body { background: none; padding: 0; }
+          .no-print { display: none !important; }
           .id-card { box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       </style>
     </head>
     <body>
+      <div class="no-print" style="margin-bottom: 15px; text-align: center; width: 85.6mm;">
+        <button onclick="window.print()" style="padding: 7px 16px; background: #ea580c; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px;">🖨️ Cetak ID Card</button>
+        <button onclick="window.close()" style="padding: 7px 14px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; margin-left: 8px;">Tutup</button>
+      </div>
+
       <div class="id-card">
         <div class="header-row">
-          <div class="store-title">🏪 ${storeName}</div>
+          <div class="store-title">${logoHtml}<span>${escapeHtml(storeName)}</span></div>
           <div class="badge-type">KARTU ANGGOTA</div>
         </div>
         
         <div>
           <div style="font-size: 6pt; text-transform: uppercase; opacity: 0.85; font-weight: 700;">NAMA ANGGOTA:</div>
-          <div class="member-name">${c.nama}</div>
+          <div class="member-name">${escapeHtml(c.nama)}</div>
           
           <div class="details-grid">
-            <div class="detail-item">ID: <strong>${memberCode}</strong></div>
-            <div class="detail-item">Instansi: <strong>${c.instansi || '-'}</strong></div>
-            <div class="detail-item">Telp: <strong>${c.telepon || '-'}</strong></div>
-            <div class="detail-item">Alamat: <strong>${c.domisili || '-'}</strong></div>
+            <div class="detail-item">ID: <strong>${escapeHtml(memberCode)}</strong></div>
+            <div class="detail-item">Instansi: <strong>${escapeHtml(c.instansi || '-')}</strong></div>
+            <div class="detail-item">Telp: <strong>${escapeHtml(c.telepon || '-')}</strong></div>
+            <div class="detail-item">Alamat: <strong>${escapeHtml(c.domisili || '-')}</strong></div>
           </div>
         </div>
 
@@ -14417,36 +15642,49 @@ function printCustomerIdCardById(customerId) {
 let bulkIdCardSelectedIds = new Set();
 
 function openBulkIdCardModal() {
-  const modal = document.getElementById('bulk-id-card-modal');
-  if (!modal) return;
+  try {
+    const modal = document.getElementById('bulk-id-card-modal');
+    if (!modal) {
+      console.error("bulk-id-card-modal element not found");
+      alert("Modal cetak massal ID card tidak ditemukan di halaman!");
+      return;
+    }
 
-  bulkIdCardSelectedIds.clear();
-  // Isi dropdown filter instansi
-  const instansiSelect = document.getElementById('bulk-id-card-instansi-filter');
-  if (instansiSelect) {
-    const instansiSet = new Set();
-    customers.forEach(c => {
-      if (c.instansi && c.instansi.trim()) instansiSet.add(c.instansi.trim());
-    });
-    instansiSelect.innerHTML = '<option value="">Semua Instansi</option>' + 
-      Array.from(instansiSet).sort().map(inst => `<option value="${escapeHtml(inst)}">${escapeHtml(inst)}</option>`).join('');
+    bulkIdCardSelectedIds.clear();
+    // Isi dropdown filter instansi
+    const instansiSelect = document.getElementById('bulk-id-card-instansi-filter');
+    if (instansiSelect && Array.isArray(customers)) {
+      const instansiSet = new Set();
+      customers.forEach(c => {
+        if (c && c.instansi && c.instansi.trim()) instansiSet.add(c.instansi.trim());
+      });
+      instansiSelect.innerHTML = '<option value="">Semua Instansi</option>' + 
+        Array.from(instansiSet).sort().map(inst => `<option value="${escapeHtml(inst)}">${escapeHtml(inst)}</option>`).join('');
+    }
+
+    const searchInp = document.getElementById('bulk-id-card-search');
+    if (searchInp) searchInp.value = '';
+
+    filterBulkIdCardList();
+    modal.style.setProperty('display', 'flex', 'important');
+    modal.classList.add('active');
+  } catch (err) {
+    console.error("Gagal membuka dialog cetak massal ID Card:", err);
+    alert("Gagal membuka dialog cetak massal ID Card: " + err.message);
   }
-
-  const searchInp = document.getElementById('bulk-id-card-search');
-  if (searchInp) searchInp.value = '';
-
-  filterBulkIdCardList();
-  modal.style.display = 'flex';
-  modal.classList.add('active');
 }
 
 function closeBulkIdCardModal() {
   const modal = document.getElementById('bulk-id-card-modal');
   if (modal) {
-    modal.style.display = 'none';
+    modal.style.setProperty('display', 'none', 'important');
     modal.classList.remove('active');
   }
 }
+
+// Pastikan fungsi cetak massal ID Card selalu dapat diakses secara global di window
+window.openBulkIdCardModal = openBulkIdCardModal;
+window.closeBulkIdCardModal = closeBulkIdCardModal;
 
 function filterBulkIdCardList() {
   const tbody = document.getElementById('bulk-id-card-tbody');
@@ -14546,7 +15784,8 @@ function executePrintBulkIdCards() {
     return;
   }
 
-  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO KAMI';
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : ((appConfig && appConfig.storeName) ? appConfig.storeName : 'TOKO KAMI');
+  const storeLogo = (receiptSettings && receiptSettings.logo) ? receiptSettings.logo : '';
 
   const printWindow = window.open('', '_blank', 'width=900,height=750');
   if (!printWindow) {
@@ -14554,18 +15793,26 @@ function executePrintBulkIdCards() {
     return;
   }
 
+  const logoHtml = storeLogo 
+    ? `<img src="${storeLogo}" alt="Logo" style="height: 18px; max-width: 40px; object-fit: contain; vertical-align: middle; border-radius: 3px; margin-right: 4px; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.2));">` 
+    : `<span style="margin-right: 3px;">🏪</span>`;
+
   const cardsHtml = selectedCustomers.map((c, idx) => {
     const memberCode = c.kode_anggota || c.id || 'ANGGOTA';
     const svgId = `barcode-bulk-${idx}`;
     return `
       <div class="id-card">
+        <!-- Glow ornaments identical to single card -->
+        <div class="card-glow-1"></div>
+        <div class="card-glow-2"></div>
+
         <div class="header-row">
-          <div class="store-title">🏪 ${escapeHtml(storeName)}</div>
+          <div class="store-title">${logoHtml}<span>${escapeHtml(storeName)}</span></div>
           <div class="badge-type">KARTU ANGGOTA</div>
         </div>
         
-        <div style="flex: 1; margin-top: 1mm;">
-          <div style="font-size: 5.5pt; text-transform: uppercase; opacity: 0.85; font-weight: 700;">NAMA ANGGOTA:</div>
+        <div style="position: relative; z-index: 2;">
+          <div style="font-size: 6pt; text-transform: uppercase; opacity: 0.85; font-weight: 700; letter-spacing: 0.5px;">NAMA LENGKAP:</div>
           <div class="member-name">${escapeHtml(c.nama)}</div>
           
           <div class="details-grid">
@@ -14590,10 +15837,10 @@ function executePrintBulkIdCards() {
       try {
         JsBarcode('#${svgId}', '${memberCode}', {
           format: "CODE128",
-          width: 1.5,
-          height: 28,
+          width: 1.6,
+          height: 32,
           displayValue: true,
-          fontSize: 9,
+          fontSize: 10,
           fontOptions: "bold",
           font: "monospace",
           lineColor: "#000",
@@ -14616,24 +15863,24 @@ function executePrintBulkIdCards() {
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
           background: #f1f5f9;
           margin: 0;
-          padding: 10mm;
+          padding: 8mm;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
         .grid-container {
           display: grid;
           grid-template-columns: repeat(2, 85.6mm);
-          gap: 6mm;
+          gap: 6mm 8mm;
           justify-content: center;
         }
         .id-card {
           width: 85.6mm;
           height: 54mm;
-          border-radius: 10px;
+          border-radius: 12px;
           background: linear-gradient(135deg, #b45309 0%, #d97706 40%, #ea580c 100%);
           color: #ffffff;
-          padding: 3mm 3.5mm;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+          padding: 3.5mm 4mm;
+          box-shadow: 0 6px 16px rgba(0,0,0,0.18);
           box-sizing: border-box;
           position: relative;
           overflow: hidden;
@@ -14643,7 +15890,29 @@ function executePrintBulkIdCards() {
           page-break-inside: avoid;
           break-inside: avoid;
         }
+        .card-glow-1 {
+          position: absolute;
+          right: -10mm;
+          top: -10mm;
+          width: 32mm;
+          height: 32mm;
+          background: rgba(255,255,255,0.14);
+          border-radius: 50%;
+          pointer-events: none;
+        }
+        .card-glow-2 {
+          position: absolute;
+          left: -8mm;
+          bottom: -8mm;
+          width: 25mm;
+          height: 25mm;
+          background: rgba(255,255,255,0.08);
+          border-radius: 50%;
+          pointer-events: none;
+        }
         .header-row {
+          position: relative;
+          z-index: 2;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -14653,54 +15922,69 @@ function executePrintBulkIdCards() {
           font-weight: 800;
           letter-spacing: 0.5px;
           text-transform: uppercase;
+          display: flex;
+          align-items: center;
+          max-width: 65%;
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
         }
         .badge-type {
           background: rgba(255,255,255,0.25);
-          padding: 1.5px 5px;
+          padding: 1.5px 6px;
           border-radius: 999px;
-          font-size: 6pt;
+          font-size: 6.5pt;
           font-weight: 800;
           border: 0.5px solid rgba(255,255,255,0.4);
         }
         .member-name {
-          font-size: 10.5pt;
+          font-size: 11.5pt;
           font-weight: 900;
           line-height: 1.1;
-          margin: 1mm 0;
+          margin: 1.5mm 0 1mm 0;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.2);
         }
         .details-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 1mm 2mm;
-          font-size: 6.2pt;
+          font-size: 6.8pt;
           line-height: 1.2;
         }
         .detail-item strong {
           color: #fef08a;
         }
         .barcode-box {
+          position: relative;
+          z-index: 2;
           background: #ffffff;
-          border-radius: 5px;
-          padding: 1mm;
+          border-radius: 6px;
+          padding: 1.5mm;
           text-align: center;
-          margin-top: 1mm;
+          margin-top: 1.5mm;
         }
         .barcode-box svg {
           width: 100%;
-          height: 9.5mm;
+          height: 11mm;
           display: block;
           margin: 0 auto;
         }
         @media print {
           body { background: none; padding: 5mm; }
-          .id-card { box-shadow: none; border: 0.5px solid rgba(0,0,0,0.15); }
+          .no-print { display: none !important; }
+          .id-card { box-shadow: none; border: 0.5px solid rgba(0,0,0,0.15); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       </style>
     </head>
     <body>
+      <div class="no-print" style="margin-bottom: 20px; text-align: center;">
+        <button onclick="window.print()" style="padding: 9px 20px; background: #ea580c; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Seluruh ID Card (${selectedCustomers.length} Kartu)</button>
+        <button onclick="window.close()" style="padding: 9px 18px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 10px;">Tutup</button>
+      </div>
+
       <div class="grid-container">
         ${cardsHtml}
       </div>
@@ -15508,40 +16792,45 @@ function renderSavingsHistory(customer) {
   // Tampilkan urut dari terbaru
   const reversed = [...history].reverse();
   reversed.forEach(h => {
-    const isPlus = h.tipe === 'setor';
+    const isPlus = h.tipe === 'setor' || h.tipe === 'koreksi_kembali';
     const isBayar = h.tipe === 'bayar_pos';
-    let badgeColor = isPlus ? '#059669' : (isBayar ? '#d97706' : '#e11d48');
-    let badgeBg = isPlus ? '#dcfce7' : (isBayar ? '#fef3c7' : '#ffe4e6');
+    let badgeColor = isPlus ? '#047857' : (isBayar ? '#b45309' : '#b91c1c');
+    let badgeBg = isPlus ? '#ecfdf5' : (isBayar ? '#fffbeb' : '#fef2f2');
+    let badgeBorder = isPlus ? '#a7f3d0' : (isBayar ? '#fde68a' : '#fecaca');
     let sign = isPlus ? '+' : '-';
-    let typeLabel = isPlus ? '📥 Setor' : (isBayar ? '🛍️ Bayar Checkout' : '📤 Tarik Mandiri');
+    let typeLabel = (h.tipe === 'setor') ? '📥 Setor Simpanan' 
+                  : (h.tipe === 'koreksi_kembali' ? '↩️ Pengembalian'
+                  : (isBayar ? '🛍️ Belanja Kasir' : '📤 Tarik Tunai'));
 
     const d = new Date(h.waktu);
-    const dateFormatted = d.toLocaleDateString('id-ID') + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const dateFormatted = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
     const itemDiv = document.createElement('div');
-    itemDiv.style.background = 'var(--bg-card)';
-    itemDiv.style.border = '1px solid var(--border-color)';
-    itemDiv.style.borderRadius = '8px';
-    itemDiv.style.padding = '0.5rem 0.75rem';
+    itemDiv.style.background = 'var(--bg-card, #ffffff)';
+    itemDiv.style.border = '1px solid var(--border-color, #e2e8f0)';
+    itemDiv.style.borderRadius = '12px';
+    itemDiv.style.padding = '0.65rem 0.9rem';
     itemDiv.style.display = 'flex';
     itemDiv.style.justifyContent = 'space-between';
     itemDiv.style.alignItems = 'center';
+    itemDiv.style.boxShadow = '0 1px 3px rgba(0,0,0,0.03)';
+    itemDiv.style.transition = 'all 0.15s ease';
     itemDiv.innerHTML = `
       <div>
-        <div style="display: flex; align-items: center; gap: 0.4rem;">
-          <span style="font-size: 0.72rem; font-weight: 700; background: ${badgeBg}; color: ${badgeColor}; padding: 0.15rem 0.45rem; border-radius: 4px;">${typeLabel}</span>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">${dateFormatted}</span>
+        <div style="display: flex; align-items: center; gap: 0.45rem;">
+          <span style="font-size: 0.72rem; font-weight: 800; background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; padding: 0.15rem 0.5rem; border-radius: 6px;">${typeLabel}</span>
+          <span style="font-size: 0.74rem; color: var(--text-muted); font-weight: 500;">${dateFormatted}</span>
         </div>
-        <div style="font-size: 0.78rem; color: var(--text-main); margin-top: 3px;">
-          ${h.catatan || '-'} ${h.kasir ? `<small style="color:var(--text-muted);">(Kasir: ${h.kasir})</small>` : ''}
+        <div style="font-size: 0.78rem; color: var(--text-main); font-weight: 600; margin-top: 4px;">
+          ${h.catatan || '-'} ${h.kasir ? `<small style="color:var(--text-muted); font-weight:normal;">(Kasir: ${h.kasir})</small>` : ''}
         </div>
       </div>
       <div style="text-align: right;">
-        <div style="font-weight: 800; font-size: 0.9rem; color: ${badgeColor};">
+        <div style="font-weight: 900; font-size: 0.92rem; color: ${badgeColor}; font-family: -apple-system, BlinkMacSystemFont, monospace;">
           ${sign}Rp ${formatRupiah(h.nominal)}
         </div>
-        <div style="font-size: 0.72rem; color: var(--text-muted);">
-          Sisa: Rp ${formatRupiah(h.sisa_saldo)}
+        <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 600; margin-top: 2px;">
+          Saldo: Rp ${formatRupiah(h.sisa_saldo)}
         </div>
       </div>
     `;
@@ -15604,11 +16893,15 @@ function submitSavingsTransaction(event) {
     c.riwayat_tabungan = [];
   }
 
+  const cashSourceRadio = document.querySelector('input[name="savings-cash-source"]:checked');
+  const cashSource = cashSourceRadio ? cashSourceRadio.value : 'laci_kasir';
+
   const mutasi = {
     waktu: new Date().toISOString(),
     tipe: type, // 'setor' atau 'tarik'
     nominal: amount,
     sisa_saldo: newBal,
+    sumber_kas: cashSource, // 'laci_kasir' atau 'kas_sendiri'
     catatan: notes || (type === 'setor' ? 'Setor Tabungan' : 'Tarik Tunai Mandiri'),
     kasir: activeCashier || 'Kasir'
   };
@@ -15619,6 +16912,29 @@ function submitSavingsTransaction(event) {
   saveCustomerCloud(c);
   renderCustomersTable();
 
+  // Jika sumber kas dipilih 'laci_kasir', otomatis catat ke expenses agar laci kasir & cash revenue bergerak akurat
+  if (cashSource === 'laci_kasir') {
+    const isSetor = (type === 'setor');
+    const savingsExpense = {
+      id: 'EXP_' + Date.now(),
+      tanggal: new Date().toISOString(),
+      tipe: isSetor ? 'masuk' : 'keluar',
+      nominal: amount,
+      kategori: isSetor ? 'Setoran Tabungan Anggota' : 'Penarikan Tabungan Anggota',
+      is_savings_mutation: true,
+      sumberDana: 'laci_kasir',
+      keterangan: `${isSetor ? 'Setor' : 'Tarik'} Tabungan Anggota [${c.kode_anggota || c.id}] ${c.nama}${notes ? ' - ' + notes : ''}`,
+      staff: activeCashier || 'Kasir'
+    };
+    if (!Array.isArray(expenses)) expenses = [];
+    expenses.unshift(savingsExpense);
+    saveExpensesLocally();
+    if (firebaseDb && typeof getStorePath === 'function') {
+      firebaseDb.ref(getStorePath('expenses/' + savingsExpense.id)).set(savingsExpense);
+    }
+    updateAnalytics();
+  }
+
   // Update UI modal
   document.getElementById('savings-current-balance').textContent = `Rp ${formatRupiah(newBal)}`;
   document.getElementById('savings-amount').value = '';
@@ -15628,7 +16944,35 @@ function submitSavingsTransaction(event) {
   renderSavingsHistory(c);
 
   const actionMsg = type === 'setor' ? 'Penyetoran' : 'Penarikan mandiri';
-  alert(`✅ Berhasil! ${actionMsg} tabungan sebesar Rp ${formatRupiah(amount)} untuk ${c.nama} telah dicatat.\nSisa saldo tabungan: Rp ${formatRupiah(newBal)}`);
+  const cashSourceMsg = cashSource === 'laci_kasir'
+    ? (type === 'setor' ? ' (Masuk Laci Kasir & Menambah Kas Toko)' : ' (Diambil dari Laci Kasir Toko)')
+    : ' (Kas/Rekening Tabungan Terpisah)';
+  alert(`✅ Berhasil! ${actionMsg} tabungan sebesar Rp ${formatRupiah(amount)} untuk ${c.nama} telah dicatat${cashSourceMsg}.\nSisa saldo tabungan: Rp ${formatRupiah(newBal)}`);
+}
+
+function onSavingsTypeChange(type) {
+  const lblSetor = document.getElementById('label-savings-type-setor');
+  const lblTarik = document.getElementById('label-savings-type-tarik');
+
+  if (lblSetor && lblTarik) {
+    if (type === 'setor') {
+      lblSetor.style.borderColor = '#059669';
+      lblSetor.style.background = 'rgba(5, 150, 105, 0.06)';
+      lblSetor.style.boxShadow = '0 2px 8px rgba(5, 150, 105, 0.08)';
+
+      lblTarik.style.borderColor = 'var(--border-color, #e2e8f0)';
+      lblTarik.style.background = 'var(--bg-card, #ffffff)';
+      lblTarik.style.boxShadow = 'none';
+    } else {
+      lblTarik.style.borderColor = '#e11d48';
+      lblTarik.style.background = 'rgba(225, 29, 72, 0.06)';
+      lblTarik.style.boxShadow = '0 2px 8px rgba(225, 29, 72, 0.08)';
+
+      lblSetor.style.borderColor = 'var(--border-color, #e2e8f0)';
+      lblSetor.style.background = 'var(--bg-card, #ffffff)';
+      lblSetor.style.boxShadow = 'none';
+    }
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -16189,13 +17533,13 @@ function approveMemberDebtApplication(appId, custId) {
   }
 
   const now = new Date();
-  const ymd = now.getFullYear().toString().slice(-2) +
-              String(now.getMonth() + 1).padStart(2, '0') +
-              String(now.getDate()).padStart(2, '0');
-  const hms = String(now.getHours()).padStart(2, '0') +
-              String(now.getMinutes()).padStart(2, '0') +
-              String(now.getSeconds()).padStart(2, '0');
-  const txId = `MANUAL-${ymd}-${hms}`;
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const MM = String(now.getMonth() + 1).padStart(2, '0');
+  const yy = now.getFullYear().toString().slice(-2);
+  const txId = `${hh}${mm}${ss}${dd}${MM}${yy}`;
 
   const tx = {
     id: txId,
@@ -16505,9 +17849,20 @@ function selectCustomerFromDropdown(customerId) {
   }, 100);
 }
 
-let selectedCustomVoucherKeys = new Set(); // Set of "voucherId_nominal_index" yang dicentang kasir
+// (selectedCustomVoucherKeys telah dideklarasikan di level atas)
 
 function toggleCheckoutCustomVoucher(key) {
+  const statusSelect = document.getElementById('payment-status-select');
+  if (statusSelect && statusSelect.value === 'Bon') {
+    alert("⚠️ Pembayaran Bon (Hutang) tidak dapat digabungkan dengan Voucher!\nSilakan pilih salah satu: bayar Lunas menggunakan voucher, atau bayar Hutang (Bon) tanpa voucher.");
+    const chk = document.querySelector(`.checkout-voucher-checkbox[data-key="${key}"]`);
+    if (chk) chk.checked = false;
+    selectedCustomVoucherKeys.delete(key);
+    updateSelectedVouchersCountLabel();
+    calculateChange();
+    return;
+  }
+
   if (selectedCustomVoucherKeys.has(key)) {
     selectedCustomVoucherKeys.delete(key);
   } else {
@@ -16523,6 +17878,12 @@ function updateSelectedVouchersCountLabel() {
 }
 
 function selectAllEligibleVouchers(selectAll) {
+  const statusSelect = document.getElementById('payment-status-select');
+  if (selectAll && statusSelect && statusSelect.value === 'Bon') {
+    alert("⚠️ Pembayaran Bon (Hutang) tidak dapat digabungkan dengan Voucher!\nSilakan ubah Status Pembayaran ke 'Lunas' terlebih dahulu.");
+    return;
+  }
+
   const checkboxes = document.querySelectorAll('.checkout-voucher-checkbox');
   checkboxes.forEach(cb => {
     cb.checked = selectAll;
@@ -16564,16 +17925,19 @@ function renderCustomerCustomVouchersInPaymentModal(customer) {
     return;
   }
 
+  const statusSelect = document.getElementById('payment-status-select');
+  const isBon = statusSelect && statusSelect.value === 'Bon';
+
   let html = '';
 
   // Render voucher yang aktif dan belum diambil (dapat dipilih untuk membayar)
   availableVouchers.forEach((v, idx) => {
     const key = `${v.voucherId}_${v.nominal}_${idx}`;
-    // Default terpilih semua agar praktis untuk kasir
-    if (!selectedCustomVoucherKeys.has(key) && selectedCustomVoucherKeys.size === 0) {
+    // Default terpilih semua hanya jika BUKAN Bon agar praktis untuk kasir
+    if (!isBon && !selectedCustomVoucherKeys.has(key) && selectedCustomVoucherKeys.size === 0) {
       selectedCustomVoucherKeys.add(key);
     }
-    const isChecked = selectedCustomVoucherKeys.has(key);
+    const isChecked = !isBon && selectedCustomVoucherKeys.has(key);
     const expText = v.tipeKadaluarsa === 'tanggal' && v.tanggalKadaluarsa ? `Exp: ${v.tanggalKadaluarsa}` : 'Tanpa Kadaluarsa';
 
     html += `
@@ -16651,6 +18015,10 @@ function applySelectedCustomer(customer) {
     if (savingsBox) savingsBox.style.display = 'none';
     if (chkUseSavings) chkUseSavings.checked = false;
     if (pinGroup) pinGroup.style.display = 'none';
+    const replaceSavingsCashContainer = document.getElementById('savings-replace-cash-container');
+    if (replaceSavingsCashContainer) replaceSavingsCashContainer.style.display = 'none';
+    const replaceSavingsCashChk = document.getElementById('chk-replace-savings-with-cash');
+    if (replaceSavingsCashChk) replaceSavingsCashChk.checked = false;
   }
 
   const ptsInfo = document.getElementById('customer-points-info');
@@ -16694,11 +18062,20 @@ function applySelectedCustomer(customer) {
 function toggleUseSavingsPayment(checked) {
   const pinGroup = document.getElementById('savings-pin-checkout-group');
   const pinInp = document.getElementById('checkout-savings-pin');
+  const replaceSavingsCashContainer = document.getElementById('savings-replace-cash-container');
+  const replaceSavingsCashChk = document.getElementById('chk-replace-savings-with-cash');
+
   if (pinGroup) {
     pinGroup.style.display = checked ? 'flex' : 'none';
     if (checked && pinInp) {
       pinInp.value = '';
       pinInp.focus();
+    }
+  }
+  if (replaceSavingsCashContainer) {
+    replaceSavingsCashContainer.style.display = checked ? 'block' : 'none';
+    if (!checked && replaceSavingsCashChk) {
+      replaceSavingsCashChk.checked = false;
     }
   }
   calculateChange();
@@ -16727,12 +18104,15 @@ function clearSelectedCustomer() {
   if (savingsBox) savingsBox.style.display = 'none';
   const chkUseSavings = document.getElementById('chk-use-savings-payment');
   if (chkUseSavings) chkUseSavings.checked = false;
+  const pinGroup = document.getElementById('savings-pin-checkout-group');
+  if (pinGroup) pinGroup.style.display = 'none';
+  const replaceSavingsCashContainer = document.getElementById('savings-replace-cash-container');
+  if (replaceSavingsCashContainer) replaceSavingsCashContainer.style.display = 'none';
+  const replaceSavingsCashChk = document.getElementById('chk-replace-savings-with-cash');
+  if (replaceSavingsCashChk) replaceSavingsCashChk.checked = false;
 
   const redeemInput = document.getElementById('redeem-points-input');
   if (redeemInput) redeemInput.value = '';
-
-  const vInput = document.getElementById('redeem-voucher-count');
-  if (vInput) vInput.value = '0';
 
   renderCustomerCustomVouchersInPaymentModal(null);
 
@@ -16795,10 +18175,9 @@ function resetRedeemVouchers() {
   calculateChange();
 }
 
-// Fitur Bayar Pakai Poin Seketika
 function useMaxPointsForPayment() {
   const customerName = document.getElementById('customer-name-input')?.value.trim();
-  const customer = customers.find(c => c.nama === customerName);
+  const customer = customers.find(c => c.nama && c.nama.toLowerCase() === (customerName || '').toLowerCase());
   if (!customer || !customer.poin || customer.poin <= 0) {
     alert("Pelanggan ini belum memiliki saldo poin.");
     return;
@@ -16840,7 +18219,7 @@ function resetRedeemPoints() {
 
 function onCustomerSelectChange() {
   const name = document.getElementById('customer-name-input').value.trim();
-  const customer = customers.find(c => c.nama === name);
+  const customer = customers.find(c => c.nama && c.nama.toLowerCase() === name.toLowerCase());
   applySelectedCustomer(customer);
 }
 
@@ -17134,15 +18513,11 @@ function saveSalesReturnsLocally() {
 function updateSalesDropdowns() {
   const deliverySelect = document.getElementById('delivery-sales-select');
   const returnSelect = document.getElementById('return-sales-select');
-  const filterInvoiceSales = document.getElementById('filter-invoice-sales');
-  const filterReturnSales = document.getElementById('filter-return-sales');
   const rekapSalesSelect = document.getElementById('sales-rekap-sales-target');
 
   // Simpan nilai terpilih sebelumnya
   const prevDelivery = deliverySelect ? deliverySelect.value : '';
   const prevReturn = returnSelect ? returnSelect.value : '';
-  const prevFilterInv = filterInvoiceSales ? filterInvoiceSales.value : 'All';
-  const prevFilterRet = filterReturnSales ? filterReturnSales.value : 'All';
   const prevRekap = rekapSalesSelect ? rekapSalesSelect.value : 'All';
 
   if (deliverySelect) {
@@ -17164,28 +18539,6 @@ function updateSalesDropdowns() {
       opt.textContent = `${s.nama} (${s.perusahaan || 'Independen'})`;
       if (s.id === prevReturn) opt.selected = true;
       returnSelect.appendChild(opt);
-    });
-  }
-
-  if (filterInvoiceSales) {
-    filterInvoiceSales.innerHTML = '<option value="All">-- Semua Sales --</option>';
-    salesList.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.id;
-      opt.textContent = s.nama;
-      if (s.id === prevFilterInv) opt.selected = true;
-      filterInvoiceSales.appendChild(opt);
-    });
-  }
-
-  if (filterReturnSales) {
-    filterReturnSales.innerHTML = '<option value="All">-- Semua Sales --</option>';
-    salesList.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.id;
-      opt.textContent = s.nama;
-      if (s.id === prevFilterRet) opt.selected = true;
-      filterReturnSales.appendChild(opt);
     });
   }
 
@@ -18318,6 +19671,16 @@ function saveSalesDelivery(e) {
   const sisaTagihan = Math.max(0, grandTotal - paidAmount);
   const isFullyPaid = sisaTagihan <= 0;
 
+  // Validasi Kecukupan Cash Revenue Toko jika pembayaran menggunakan Saldo Penjualan Kasir
+  const deliveryFundSource = (document.getElementById('delivery-fund-source')?.value) || 'saldo_penjualan';
+  if (paidAmount > 0 && deliveryFundSource === 'saldo_penjualan') {
+    const availableCash = typeof getCurrentCashierAvailableCash === 'function' ? getCurrentCashierAvailableCash() : 0;
+    if (paidAmount > availableCash) {
+      alert(`⚠️ Saldo Kasir Tidak Mencukupi!\n\nNominal pembayaran nota: Rp ${formatRupiah(paidAmount)}\nSaldo kasir tersedia saat ini: Rp ${formatRupiah(availableCash)}\n\nKekurangan dana: Rp ${formatRupiah(paidAmount - availableCash)}.\nSilakan pilih opsi sumber dana "Gunakan Dana Lain / Kas Luar Toko" atau sesuaikan nominal bayar / jadikan Tempo.`);
+      return;
+    }
+  }
+
   // Cek apakah mode Edit atau Baru
   const editingDeliveryId = document.getElementById('delivery-id')?.value;
   const existingDelivery = editingDeliveryId ? salesDeliveries.find(x => x.id === editingDeliveryId) : null;
@@ -18395,6 +19758,8 @@ function saveSalesDelivery(e) {
     tanggal: tanggal,
     items: items,
     totalTagihan: totalTagihan,
+    hasPpn: document.getElementById('delivery-has-ppn')?.checked ?? false,
+    ppnPercent: (document.getElementById('delivery-has-ppn')?.checked) ? (Number(document.getElementById('delivery-ppn-percent')?.value) || 0) : 0,
     diskon: diskon,
     returDeduction: totalReturPotongan,
     deductedReturnIds: deductedReturnIds,
@@ -18431,6 +19796,7 @@ function saveSalesDelivery(e) {
 
   renderSalesDeliveriesTable();
   renderSalesTable();
+  if (typeof updateAnalytics === 'function') updateAnalytics();
   closeSalesDeliveryModal();
 
   const statusMsg = isFullyPaid ? 'Status: LUNAS' : `Status: TEMPO (Sisa Hutang: ${formatRupiah(sisaTagihan)}, Jatuh Tempo: ${dueDate})`;
@@ -18632,6 +19998,18 @@ function saveSalesPayment(e) {
   const d = salesDeliveries.find(x => x.id === deliveryId);
   if (!d) return;
 
+  const sumberDana = document.getElementById('pay-source-input')?.value || 'saldo_penjualan';
+  const sumberDanaLabel = (sumberDana === 'dana_lain') ? ' [Dana Luar]' : ' [Potong Saldo Kasir]';
+
+  // Validasi Kecukupan Saldo Kasir jika potong Saldo Penjualan Kasir
+  if (sumberDana === 'saldo_penjualan') {
+    const availableCash = typeof getCurrentCashierAvailableCash === 'function' ? getCurrentCashierAvailableCash() : 0;
+    if (nominal > availableCash) {
+      alert(`⚠️ Saldo Kasir Tidak Mencukupi!\n\nNominal yang akan dibayarkan: Rp ${formatRupiah(nominal)}\nSaldo kasir tersedia saat ini: Rp ${formatRupiah(availableCash)}\n\nKekurangan dana: Rp ${formatRupiah(nominal - availableCash)}.\nSilakan gunakan opsi "Gunakan Dana Lain / Kas Luar Toko" atau kurangi nominal pembayaran.`);
+      return;
+    }
+  }
+
   const currentSisa = (d.sisaTagihan !== undefined) ? d.sisaTagihan : d.grandTotal;
   const currentPaid = (d.totalDibayar !== undefined) ? d.totalDibayar : 0;
 
@@ -18641,9 +20019,6 @@ function saveSalesPayment(e) {
   d.totalDibayar = newPaid;
   d.sisaTagihan = newSisa;
   d.statusBayar = (newSisa <= 0) ? 'Lunas' : 'Tempo';
-
-  const sumberDana = document.getElementById('pay-source-input')?.value || 'saldo_penjualan';
-  const sumberDanaLabel = (sumberDana === 'dana_lain') ? ' [Dana Luar]' : ' [Potong Saldo Kasir]';
 
   if (!Array.isArray(d.riwayatBayar)) {
     d.riwayatBayar = [];
@@ -18658,6 +20033,7 @@ function saveSalesPayment(e) {
   saveSalesDeliveriesLocally();
   renderSalesDeliveriesTable();
   if (typeof renderSalesRekapView === 'function') renderSalesRekapView();
+  if (typeof updateAnalytics === 'function') updateAnalytics();
   closeSalesPayModal();
 
   if (newSisa <= 0) {
@@ -18665,21 +20041,6 @@ function saveSalesPayment(e) {
   } else {
     alert(`✅ Pembayaran dicatat sebesar ${formatRupiah(nominal)}!\nSisa hutang nota ${d.noNota}: ${formatRupiah(newSisa)}.`);
   }
-}
-
-
-function resetInvoiceFilters() {
-  if (document.getElementById('filter-invoice-sales')) document.getElementById('filter-invoice-sales').value = 'All';
-  if (document.getElementById('filter-invoice-status')) document.getElementById('filter-invoice-status').value = 'All';
-  if (document.getElementById('filter-invoice-period-type')) {
-    document.getElementById('filter-invoice-period-type').value = 'all';
-    onInvoicePeriodTypeChange('all');
-  }
-  if (document.getElementById('filter-invoice-month')) document.getElementById('filter-invoice-month').value = '';
-  if (document.getElementById('filter-invoice-date')) document.getElementById('filter-invoice-date').value = '';
-  if (document.getElementById('filter-invoice-date-start')) document.getElementById('filter-invoice-date-start').value = '';
-  if (document.getElementById('filter-invoice-date-end')) document.getElementById('filter-invoice-date-end').value = '';
-  renderSalesDeliveriesTable();
 }
 
 function deleteSalesDelivery(deliveryId) {
@@ -19153,19 +20514,6 @@ function renderSalesReturnsTable() {
   });
 }
 
-function resetReturnFilters() {
-  if (document.getElementById('filter-return-sales')) document.getElementById('filter-return-sales').value = 'All';
-  if (document.getElementById('filter-return-period-type')) {
-    document.getElementById('filter-return-period-type').value = 'all';
-    onReturnPeriodTypeChange('all');
-  }
-  if (document.getElementById('filter-return-month')) document.getElementById('filter-return-month').value = '';
-  if (document.getElementById('filter-return-date')) document.getElementById('filter-return-date').value = '';
-  if (document.getElementById('filter-return-date-start')) document.getElementById('filter-return-date-start').value = '';
-  if (document.getElementById('filter-return-date-end')) document.getElementById('filter-return-date-end').value = '';
-  renderSalesReturnsTable();
-}
-
 function deleteSalesReturn(returnId) {
   const r = salesReturns.find(x => x.id === returnId);
   if (!r) return;
@@ -19182,21 +20530,24 @@ function deleteSalesReturn(returnId) {
 
 // 9. Modul Rekap Transaksi Harian / Bulanan Sales
 function onSalesRekapFilterChange() {
-  const filterType = document.getElementById('sales-rekap-type').value;
+  const typeEl = document.getElementById('sales-rekap-type');
   const dateInput = document.getElementById('sales-rekap-date');
   const monthInput = document.getElementById('sales-rekap-month');
 
-  const today = getLocalISODate();
-  const thisMonth = today.slice(0, 7);
+  if (typeEl && dateInput && monthInput) {
+    const filterType = typeEl.value;
+    const today = getLocalISODate();
+    const thisMonth = today.slice(0, 7);
 
-  if (filterType === 'hari') {
-    dateInput.style.display = 'inline-block';
-    monthInput.style.display = 'none';
-    if (!dateInput.value) dateInput.value = today;
-  } else {
-    dateInput.style.display = 'none';
-    monthInput.style.display = 'inline-block';
-    if (!monthInput.value) monthInput.value = thisMonth;
+    if (filterType === 'hari') {
+      dateInput.style.display = 'inline-block';
+      monthInput.style.display = 'none';
+      if (!dateInput.value) dateInput.value = today;
+    } else {
+      dateInput.style.display = 'none';
+      monthInput.style.display = 'inline-block';
+      if (!monthInput.value) monthInput.value = thisMonth;
+    }
   }
 
   renderSalesRekapView();
@@ -19206,29 +20557,24 @@ function renderSalesRekapView() {
   const tbody = document.getElementById('sales-rekap-body');
   if (!tbody) return;
 
-  const filterType = document.getElementById('sales-rekap-type').value;
-  const selectedDate = document.getElementById('sales-rekap-date').value;
-  const selectedMonth = document.getElementById('sales-rekap-month').value;
-  const selectedSales = document.getElementById('sales-rekap-sales-target').value;
+  const dateStart = document.getElementById('sales-rekap-date-start')?.value || '';
+  const dateEnd = document.getElementById('sales-rekap-date-end')?.value || '';
+  const selectedSales = document.getElementById('sales-rekap-sales-target')?.value || 'All';
 
-  // 1. Filter Deliveries
+  // 1. Filter Deliveries berdasarkan rentang tanggal
   let deliveries = salesDeliveries.filter(d => {
     if (selectedSales !== 'All' && d.salesId !== selectedSales) return false;
-    if (filterType === 'hari') {
-      return d.tanggal === selectedDate;
-    } else {
-      return d.tanggal && d.tanggal.startsWith(selectedMonth);
-    }
+    if (dateStart && d.tanggal && d.tanggal < dateStart) return false;
+    if (dateEnd && d.tanggal && d.tanggal > dateEnd) return false;
+    return true;
   });
 
-  // 2. Filter Returns
+  // 2. Filter Returns berdasarkan rentang tanggal
   let returns = salesReturns.filter(r => {
     if (selectedSales !== 'All' && r.salesId !== selectedSales) return false;
-    if (filterType === 'hari') {
-      return r.tanggal === selectedDate;
-    } else {
-      return r.tanggal && r.tanggal.startsWith(selectedMonth);
-    }
+    if (dateStart && r.tanggal && r.tanggal < dateStart) return false;
+    if (dateEnd && r.tanggal && r.tanggal > dateEnd) return false;
+    return true;
   });
 
   // Kalkulasi Ringkasan Stat Cards
@@ -19369,14 +20715,21 @@ function getStorePrintHeader() {
   `;
 }
 
-// A. Cetak Rekapitulasi Pembelian & Retur Sales (Thermal & A4 Compatible)
+// A. Cetak Rekapitulasi Pembelian & Retur Sales (Standar Dokumen Resmi Toko A4/F4)
 function printSalesRekapReport() {
-  const filterType = document.getElementById('sales-rekap-type').value;
-  const selectedDate = document.getElementById('sales-rekap-date').value;
-  const selectedMonth = document.getElementById('sales-rekap-month').value;
-  const selectedSales = document.getElementById('sales-rekap-sales-target').value;
+  const dateStart = document.getElementById('sales-rekap-date-start')?.value || '';
+  const dateEnd = document.getElementById('sales-rekap-date-end')?.value || '';
+  const selectedSales = document.getElementById('sales-rekap-sales-target')?.value || 'All';
 
-  const periodeLabel = (filterType === 'hari') ? `Tanggal: ${selectedDate || '-'}` : `Bulan: ${selectedMonth || '-'}`;
+  let periodeLabel = 'Semua Periode';
+  if (dateStart && dateEnd) {
+    periodeLabel = (dateStart === dateEnd) ? `Tanggal: ${dateStart}` : `Periode: ${dateStart} s/d ${dateEnd}`;
+  } else if (dateStart) {
+    periodeLabel = `Mulai Tanggal: ${dateStart}`;
+  } else if (dateEnd) {
+    periodeLabel = `Sampai Tanggal: ${dateEnd}`;
+  }
+
   let salesNameLabel = 'Semua Supplier / Sales';
   if (selectedSales !== 'All') {
     const s = salesList.find(x => x.id === selectedSales);
@@ -19386,129 +20739,215 @@ function printSalesRekapReport() {
   // Data
   let deliveries = salesDeliveries.filter(d => {
     if (selectedSales !== 'All' && d.salesId !== selectedSales) return false;
-    return (filterType === 'hari') ? (d.tanggal === selectedDate) : (d.tanggal && d.tanggal.startsWith(selectedMonth));
+    if (dateStart && d.tanggal && d.tanggal < dateStart) return false;
+    if (dateEnd && d.tanggal && d.tanggal > dateEnd) return false;
+    return true;
   });
 
   let returns = salesReturns.filter(r => {
     if (selectedSales !== 'All' && r.salesId !== selectedSales) return false;
-    return (filterType === 'hari') ? (r.tanggal === selectedDate) : (r.tanggal && r.tanggal.startsWith(selectedMonth));
+    if (dateStart && r.tanggal && r.tanggal < dateStart) return false;
+    if (dateEnd && r.tanggal && r.tanggal > dateEnd) return false;
+    return true;
   });
 
   let totalBeli = 0;
   let totalTempo = 0;
-  deliveries.forEach(d => {
+  let totalFisikBarangMasuk = 0;
+
+  let deliveryBlocksHtml = '';
+  deliveries.forEach((d, idx) => {
     totalBeli += (d.grandTotal || 0);
     const sisa = (d.sisaTagihan !== undefined) ? d.sisaTagihan : (d.statusBayar === 'Tempo' ? d.grandTotal : 0);
     if (sisa > 0) totalTempo += sisa;
+    const isLunas = sisa <= 0;
+
+    let itemsTableRows = '';
+    let totalQtyNota = 0;
+
+    if (Array.isArray(d.items) && d.items.length > 0) {
+      d.items.forEach((item, itemIdx) => {
+        totalQtyNota += (Number(item.qty) || 0);
+        totalFisikBarangMasuk += (Number(item.qty) || 0);
+
+        const hargaNota = Number(item.hargaNota) || Number(item.hargaBeli) || 0;
+        const hargaBeliModal = Number(item.hargaBeli) || hargaNota;
+        const hargaJual = Number(item.hargaJual) || 0;
+        const subtotalItem = Number(item.subtotal) || ((Number(item.qty) || 0) * hargaNota);
+
+        itemsTableRows += `
+          <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+            <td style="padding: 5px 6px; text-align: center; color: #64748b;">${itemIdx + 1}</td>
+            <td style="padding: 5px 6px;">
+              <strong>${item.nama || item.productName || item.productId || 'Produk'}</strong>
+              <div style="font-size: 10px; color: #64748b; font-family: monospace;">ID: ${item.productId || '-'} ${item.expired ? `| Exp: ${item.expired}` : ''}</div>
+            </td>
+            <td style="padding: 5px 6px; text-align: center; font-weight: 700;">${item.qty} pcs</td>
+            <td style="padding: 5px 6px; text-align: right; font-family: monospace;">Rp ${formatRupiah(hargaNota)}</td>
+            <td style="padding: 5px 6px; text-align: right; font-family: monospace; color: #0284c7;">Rp ${formatRupiah(hargaBeliModal)}</td>
+            <td style="padding: 5px 6px; text-align: right; font-family: monospace; color: #16a34a;">Rp ${formatRupiah(hargaJual)}</td>
+            <td style="padding: 5px 6px; text-align: right; font-weight: 700; font-family: monospace;">Rp ${formatRupiah(subtotalItem)}</td>
+          </tr>
+        `;
+      });
+    } else {
+      itemsTableRows = `<tr><td colspan="7" style="padding: 8px; text-align: center; color: #94a3b8; font-style: italic;">Tidak ada rincian item barang pada nota ini.</td></tr>`;
+    }
+
+    const ppnRate = d.ppnPercent !== undefined ? d.ppnPercent : (d.hasPpn ? 11 : 0);
+    const ppnText = (d.hasPpn || ppnRate > 0) ? `Kena PPN ${ppnRate}% (Modal otomatis dipotong PPN jadi DPP)` : 'Non-PPN (0%)';
+
+    deliveryBlocksHtml += `
+      <div style="border: 1.5px solid #cbd5e1; border-radius: 8px; margin-bottom: 14px; page-break-inside: avoid; background: #fff; overflow: hidden;">
+        <div style="background: #f8fafc; border-bottom: 1px solid #cbd5e1; padding: 7px 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+          <div>
+            <span style="font-size: 11px; background: #0f172a; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 800; margin-right: 6px;">#${idx + 1}</span>
+            <strong style="font-size: 12px; color: #0f172a;">No. Nota: ${d.noNota || '-'}</strong>
+            <span style="font-size: 11px; color: #475569; margin-left: 8px;">| Sales: <b>${d.salesName || '-'}</b></span>
+            <span style="font-size: 11px; color: #475569; margin-left: 8px;">| Tgl: <b>${d.tanggal || '-'}</b></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 800; background: ${isLunas ? '#dcfce7; color: #15803d;' : '#fee2e2; color: #b91c1c;'}">
+              ${isLunas ? '✅ LUNAS' : `⏳ TEMPO (Sisa: Rp ${formatRupiah(sisa)})`}
+            </span>
+          </div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f1f5f9; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; color: #475569; border-bottom: 1px solid #cbd5e1;">
+              <th style="padding: 5px; width: 30px; text-align: center;">No</th>
+              <th style="padding: 5px; text-align: left;">Nama Produk & Barcode</th>
+              <th style="padding: 5px; text-align: center; width: 75px;">Qty</th>
+              <th style="padding: 5px; text-align: right; width: 95px;">Harga Nota</th>
+              <th style="padding: 5px; text-align: right; width: 95px;">Modal (DPP)</th>
+              <th style="padding: 5px; text-align: right; width: 90px;">Harga Jual</th>
+              <th style="padding: 5px; text-align: right; width: 105px;">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsTableRows}
+          </tbody>
+        </table>
+
+        <div style="background: #fafafa; border-top: 1px solid #e2e8f0; padding: 6px 12px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+          <div style="color: #475569; font-size: 10px;">
+            <span>🏷️ <b>Pajak:</b> ${ppnText}</span>
+            ${d.bonus ? `<span style="margin-left: 8px; color: #ea580c;">🎁 <b>Bonus:</b> ${d.bonus}</span>` : ''}
+          </div>
+          <div style="text-align: right;">
+            <span>Subtotal: <b>Rp ${formatRupiah(d.totalTagihan || 0)}</b></span>
+            ${d.diskon ? ` | <span style="color: #ea580c;">Diskon: -Rp ${formatRupiah(d.diskon)}</span>` : ''}
+            ${d.returDeduction ? ` | <span style="color: #dc2626;">Retur: -Rp ${formatRupiah(d.returDeduction)}</span>` : ''}
+            | <strong style="font-size: 12px; color: #0f172a;">TOTAL: Rp ${formatRupiah(d.grandTotal || 0)}</strong>
+          </div>
+        </div>
+      </div>
+    `;
   });
 
+  // Bagian Retur
   let totalReturQty = 0;
   let totalReturVal = 0;
-  returns.forEach(r => {
-    const q = Number(r.qty) || 0;
-    totalReturQty += q;
-    totalReturVal += (q * (r.hargaBeli || 0));
-  });
-
-  let rowsHtml = '';
-  deliveries.forEach((d, idx) => {
-    const itemsText = (d.items || []).map(i => `${i.nama} (${i.qty}x)`).join(', ');
-    const sisa = (d.sisaTagihan !== undefined) ? d.sisaTagihan : (d.statusBayar === 'Tempo' ? d.grandTotal : 0);
-    const statusText = sisa <= 0 ? 'Lunas' : `Tempo (Sisa ${formatRupiah(sisa)})`;
-
-    rowsHtml += `
-      <tr>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${d.tanggal}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;"><strong>${d.noNota}</strong><br><small>${d.salesName}</small></td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${itemsText}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${statusText}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px; text-align: right; font-family: monospace;">${formatRupiah(d.grandTotal)}</td>
-      </tr>
-    `;
-  });
-
   let returnRowsHtml = '';
-  returns.forEach(r => {
-    const val = (r.qty || 0) * (r.hargaBeli || 0);
+
+  returns.forEach((r, idx) => {
+    const q = Number(r.qty) || 0;
+    const hargaModal = Number(r.hargaBeli) || 0;
+    const v = q * hargaModal;
+    totalReturQty += q;
+    totalReturVal += v;
+
+    const isDone = (r.status === 'Sudah Diganti Fisik' || r.status === 'Sudah Diganti' || r.status === 'Selesai');
+    const statusBadge = isDone 
+      ? `<span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; background: #dcfce7; color: #15803d;">✅ Sudah Diganti</span>`
+      : `<span style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; background: #fee2e2; color: #b91c1c;">⏳ Menunggu Sales</span>`;
+
     returnRowsHtml += `
-      <tr>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${r.tanggal}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${r.salesName}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${r.productName} (${r.qty} pcs)</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${r.alasan} - <em>${r.status}</em></td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px; text-align: right; font-family: monospace; color: #dc2626;">-${formatRupiah(val)}</td>
+      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+        <td style="padding: 6px 8px; text-align: center; color: #64748b;">${idx + 1}</td>
+        <td style="padding: 6px 8px;">${r.tanggal || '-'}</td>
+        <td style="padding: 6px 8px; font-weight: 700;">${r.salesName || '-'}</td>
+        <td style="padding: 6px 8px;">
+          <strong>${r.productName || '-'}</strong>
+          ${r.catatan ? `<div style="font-size: 10px; color: #64748b; font-style: italic;">Catatan: ${r.catatan}</div>` : ''}
+        </td>
+        <td style="padding: 6px 8px; text-align: center; font-weight: 800; color: #dc2626;">${q} pcs</td>
+        <td style="padding: 6px 8px; text-align: right; font-family: monospace;">Rp ${formatRupiah(hargaModal)}</td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: 800; font-family: monospace; color: #0f172a;">Rp ${formatRupiah(v)}</td>
+        <td style="padding: 6px 8px;">${r.alasan || '-'}</td>
+        <td style="padding: 6px 8px; text-align: center;">${statusBadge}</td>
       </tr>
     `;
   });
+
+  const printTime = new Date().toLocaleString('id-ID');
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO SAHIL';
+  const storeAddress = (receiptSettings && receiptSettings.address) ? receiptSettings.address : '';
+  const netBelanja = Math.max(0, totalBeli - totalReturVal);
 
   const printHtml = `
     <!DOCTYPE html>
-    <html>
+    <html lang="id">
     <head>
-      <title>Laporan Rekap Sales & Kulak</title>
-      <meta charset="utf-8">
+      <meta charset="UTF-8">
+      <title>Laporan Rekapitulasi Pembelian & Retur Sales - ${storeName}</title>
       <style>
-        body { font-family: 'Courier New', Courier, monospace, sans-serif; margin: 0; padding: 15px; color: #000; font-size: 12px; }
-        .title { text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; }
-        .meta-table { width: 100%; margin-bottom: 12px; border-collapse: collapse; font-size: 11px; }
-        .meta-table td { padding: 2px 0; }
-        .data-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-        .data-table th { background: #eee; font-size: 11px; padding: 5px; border-bottom: 1px solid #000; text-align: left; }
-        .summary-box { border: 1.5px solid #000; padding: 8px; margin-bottom: 12px; border-radius: 4px; font-size: 11px; }
-        .summary-box table { width: 100%; }
-        .sign-area { display: flex; justify-content: space-between; margin-top: 25px; padding-top: 10px; font-size: 11px; text-align: center; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 20px; color: #0f172a; font-size: 12px; line-height: 1.4; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 16px; }
+        .header h2 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .header p { margin: 2px 0; color: #475569; font-size: 12px; }
+        .summary-banner { display: flex; justify-content: space-between; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin-bottom: 18px; font-size: 12px; flex-wrap: wrap; gap: 10px; }
+        .section-title { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin: 18px 0 8px 0; color: #0f172a; border-left: 4px solid #ea580c; padding-left: 8px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
+        th { background: #f1f5f9; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; color: #475569; }
         @media print {
           body { padding: 0; }
-          .no-print { display: none; }
+          .no-print { display: none !important; }
+          @page { size: portrait; margin: 10mm; }
         }
       </style>
     </head>
     <body>
-      ${getStorePrintHeader()}
-      <div class="title">REKAPITULASI PEMBELIAN &amp; RETUR SALES</div>
-      <table class="meta-table">
-        <tr><td><strong>Periode:</strong> ${periodeLabel}</td><td style="text-align: right;"><strong>Sales:</strong> ${salesNameLabel}</td></tr>
-        <tr><td><strong>Dicetak Pada:</strong> ${new Date().toLocaleString('id-ID')}</td><td style="text-align: right;"><strong>Status:</strong> Resmi Toko</td></tr>
-      </table>
-
-      <div class="summary-box">
-        <table>
-          <tr><td>Total Pembelian (${deliveries.length} Nota):</td><td style="text-align: right; font-weight: bold;">${formatRupiah(totalBeli)}</td></tr>
-          <tr><td>Total Tagihan Tempo (Hutang Belum Lunas):</td><td style="text-align: right; font-weight: bold; color: #b45309;">${formatRupiah(totalTempo)}</td></tr>
-          <tr><td>Total Nilai Retur (${totalReturQty} pcs):</td><td style="text-align: right; font-weight: bold; color: #dc2626;">-${formatRupiah(totalReturVal)}</td></tr>
-          <tr style="border-top: 1px dashed #000;">
-            <td style="padding-top: 4px;"><strong>PENGELUARAN BERSIH KULAK:</strong></td>
-            <td style="text-align: right; font-weight: 800; font-size: 13px; padding-top: 4px;">${formatRupiah(Math.max(0, totalBeli - totalReturVal))}</td>
-          </tr>
-        </table>
+      <div class="no-print" style="margin-bottom: 15px; text-align: right;">
+        <button onclick="window.print()" style="padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
-      <div style="font-weight: bold; margin-bottom: 4px; font-size: 11px;">RINCIAN NOTA PEMBELIAN BARANG MASUK:</div>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Tgl</th>
-            <th>No Nota / Sales</th>
-            <th>Item Barang</th>
-            <th>Status</th>
-            <th style="text-align: right;">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsHtml || '<tr><td colspan="5" style="text-align:center; padding: 10px;">Tidak ada nota pembelian pada periode ini.</td></tr>'}
-        </tbody>
-      </table>
+      <div class="header">
+        <h2>${storeName}</h2>
+        ${storeAddress ? `<p>${storeAddress}</p>` : ''}
+        <h3 style="margin: 8px 0 2px 0; font-size: 16px;">LAPORAN REKAPITULASI PEMBELIAN &amp; RETUR SALES</h3>
+        <p style="font-weight: 700; color: #0284c7;">${periodeLabel} | Rekanan: ${salesNameLabel}</p>
+        <p style="font-size: 11px; color: #64748b;">Dicetak pada: ${printTime}</p>
+      </div>
+
+      <div class="summary-banner">
+        <div><strong>Total Faktur Nota:</strong> ${deliveries.length} Faktur</div>
+        <div><strong>Total Barang Masuk:</strong> <b>${totalFisikBarangMasuk} pcs</b></div>
+        <div><strong>Total Pembelian Nota:</strong> <b style="color: #0f172a; font-size: 13px;">Rp ${formatRupiah(totalBeli)}</b></div>
+        <div><strong>Total Sisa Tempo (Hutang Toko):</strong> <b style="color: #dc2626; font-size: 13px;">Rp ${formatRupiah(totalTempo)}</b></div>
+        <div><strong>Total Retur Barang (${totalReturQty} pcs):</strong> <b style="color: #b91c1c; font-size: 13px;">-Rp ${formatRupiah(totalReturVal)}</b></div>
+        <div><strong>Pengeluaran Bersih:</strong> <b style="color: #16a34a; font-size: 14px;">Rp ${formatRupiah(netBelanja)}</b></div>
+      </div>
+
+      <div class="section-title">RINCIAN LENGKAP NOTA PEMBELIAN BARANG MASUK</div>
+      ${deliveryBlocksHtml || '<div style="padding: 12px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; color: #64748b; margin-bottom: 16px;">Tidak ada nota pembelian barang masuk pada periode ini.</div>'}
 
       ${returns.length > 0 ? `
-        <div style="font-weight: bold; margin: 12px 0 4px 0; font-size: 11px;">RINCIAN BARANG RETUR:</div>
-        <table class="data-table">
+        <div class="section-title" style="border-left-color: #dc2626;">RINCIAN BARANG RETUR KEPADA DISTRIBUTOR</div>
+        <table>
           <thead>
             <tr>
-              <th>Tgl</th>
-              <th>Sales</th>
-              <th>Produk &amp; Qty</th>
-              <th>Alasan &amp; Status</th>
-              <th style="text-align: right;">Estimasi Nilai</th>
+              <th style="width: 30px; text-align: center;">No</th>
+              <th style="width: 85px; text-align: left;">Tanggal</th>
+              <th style="width: 120px; text-align: left;">Sales Tujuan</th>
+              <th style="text-align: left;">Nama Produk & Barcode</th>
+              <th style="width: 70px; text-align: center;">Qty</th>
+              <th style="width: 90px; text-align: right;">Harga Modal</th>
+              <th style="width: 105px; text-align: right;">Total Nilai</th>
+              <th style="width: 120px; text-align: left;">Alasan Retur</th>
+              <th style="width: 110px; text-align: center;">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -19517,21 +20956,21 @@ function printSalesRekapReport() {
         </table>
       ` : ''}
 
-      <div class="sign-area">
-        <div>
-          Penanggung Jawab / Kasir<br><br><br><br>
-          ( ........................... )
+      <div style="margin-top: 35px; display: flex; justify-content: space-between; padding: 0 40px; page-break-inside: avoid;">
+        <div style="text-align: center; width: 220px;">
+          <p style="font-size: 12px; margin-bottom: 55px;">Penanggung Jawab / Kasir Toko,</p>
+          <div style="border-bottom: 1px solid #000;"></div>
         </div>
-        <div>
-          Supplier / Rekanan Sales<br><br><br><br>
-          ( ........................... )
+        <div style="text-align: center; width: 220px;">
+          <p style="font-size: 12px; margin-bottom: 55px;">Supplier / Rekanan Sales,</p>
+          <div style="border-bottom: 1px solid #000;"></div>
         </div>
       </div>
     </body>
     </html>
   `;
 
-  const printWin = window.open('', '_blank');
+  const printWin = window.open('', '_blank', 'width=950,height=800');
   if (printWin) {
     printWin.document.open();
     printWin.document.write(printHtml);
@@ -19539,12 +20978,13 @@ function printSalesRekapReport() {
     printWin.focus();
     setTimeout(() => {
       printWin.print();
-      printWin.close();
     }, 400);
+  } else {
+    alert("Popup browser diblokir! Izinkan pop-up untuk mencetak dokumen.");
   }
 }
 
-// B. Cetak 1 Lembar Bukti Penerimaan Barang / Nota Masuk Sales (Struk Thermal 58mm/80mm atau Kertas Nota)
+// B. Cetak 1 Lembar Bukti Penerimaan Barang / Nota Masuk Sales (Lengkap Standar Faktur Pembelian)
 function printSingleSalesDeliveryReceipt(deliveryId) {
   const d = salesDeliveries.find(x => x.id === deliveryId);
   if (!d) {
@@ -19555,74 +20995,144 @@ function printSingleSalesDeliveryReceipt(deliveryId) {
   const sisa = (d.sisaTagihan !== undefined) ? d.sisaTagihan : (d.statusBayar === 'Tempo' ? d.grandTotal : 0);
   const isLunas = sisa <= 0;
 
-  let itemsHtml = '';
-  (d.items || []).forEach((item, idx) => {
-    const expStr = item.expired ? ` [Exp: ${item.expired}]` : '';
-    itemsHtml += `
-      <div style="margin-bottom: 4px;">
-        <div style="font-weight: bold;">${idx + 1}. ${item.nama}</div>
-        <div style="display: flex; justify-content: space-between; font-size: 11px; padding-left: 8px;">
-          <span>${item.qty} pcs @${formatRupiah(item.hargaBeli)}${expStr}</span>
-          <span style="font-weight: 600;">${formatRupiah(item.subtotal)}</span>
-        </div>
-      </div>
-    `;
-  });
+  let itemsTableRows = '';
+  let totalQtyNota = 0;
+
+  if (Array.isArray(d.items) && d.items.length > 0) {
+    d.items.forEach((item, itemIdx) => {
+      totalQtyNota += (Number(item.qty) || 0);
+
+      const hargaNota = Number(item.hargaNota) || Number(item.hargaBeli) || 0;
+      const hargaBeliModal = Number(item.hargaBeli) || hargaNota;
+      const hargaJual = Number(item.hargaJual) || 0;
+      const subtotalItem = Number(item.subtotal) || ((Number(item.qty) || 0) * hargaNota);
+
+      itemsTableRows += `
+        <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+          <td style="padding: 6px 8px; text-align: center; color: #64748b;">${itemIdx + 1}</td>
+          <td style="padding: 6px 8px;">
+            <strong style="color: #0f172a;">${item.nama || item.productName || item.productId || 'Produk'}</strong>
+            <div style="font-size: 10px; color: #64748b; font-family: monospace;">ID: ${item.productId || '-'} ${item.expired ? `| Exp: ${item.expired}` : ''}</div>
+          </td>
+          <td style="padding: 6px 8px; text-align: center; font-weight: 700;">${item.qty} pcs</td>
+          <td style="padding: 6px 8px; text-align: right; font-family: monospace;">Rp ${formatRupiah(hargaNota)}</td>
+          <td style="padding: 6px 8px; text-align: right; font-family: monospace; color: #0284c7;">Rp ${formatRupiah(hargaBeliModal)}</td>
+          <td style="padding: 6px 8px; text-align: right; font-family: monospace; color: #16a34a;">Rp ${formatRupiah(hargaJual)}</td>
+          <td style="padding: 6px 8px; text-align: right; font-weight: 700; font-family: monospace;">Rp ${formatRupiah(subtotalItem)}</td>
+        </tr>
+      `;
+    });
+  } else {
+    itemsTableRows = `<tr><td colspan="7" style="padding: 10px; text-align: center; color: #94a3b8; font-style: italic;">Tidak ada rincian item barang pada nota ini.</td></tr>`;
+  }
+
+  const ppnRate = d.ppnPercent !== undefined ? d.ppnPercent : (d.hasPpn ? 11 : 0);
+  const ppnText = (d.hasPpn || ppnRate > 0) ? `Kena PPN ${ppnRate}% (Modal otomatis dipotong PPN jadi DPP)` : 'Non-PPN (0%)';
+  const printTime = new Date().toLocaleString('id-ID');
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO SAHIL';
+  const storeAddress = (receiptSettings && receiptSettings.address) ? receiptSettings.address : '';
 
   const printHtml = `
     <!DOCTYPE html>
-    <html>
+    <html lang="id">
     <head>
-      <title>Bukti Masuk Nota - ${d.noNota}</title>
-      <meta charset="utf-8">
+      <meta charset="UTF-8">
+      <title>Faktur Pembelian Nota ${d.noNota} - ${storeName}</title>
       <style>
-        body { font-family: 'Courier New', Courier, monospace, sans-serif; max-width: 380px; margin: 0 auto; padding: 12px; color: #000; font-size: 12px; }
-        .divider { border-top: 1px dashed #000; margin: 8px 0; }
-        .double-divider { border-top: 2px dashed #000; margin: 8px 0; }
-        .flex-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; }
-        .title { text-align: center; font-weight: bold; font-size: 13px; margin: 6px 0; }
-        .sign { display: flex; justify-content: space-between; text-align: center; margin-top: 25px; font-size: 10px; }
-        @media print { body { padding: 0; } }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 20px; color: #0f172a; font-size: 12px; line-height: 1.4; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 16px; }
+        .header h2 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .header p { margin: 2px 0; color: #475569; font-size: 12px; }
+        .meta-box { display: flex; justify-content: space-between; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; flex-wrap: wrap; gap: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+        th { background: #f1f5f9; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; padding: 7px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; color: #475569; }
+        @media print {
+          body { padding: 0; }
+          .no-print { display: none !important; }
+          @page { size: portrait; margin: 10mm; }
+        }
       </style>
     </head>
     <body>
-      ${getStorePrintHeader()}
-      <div class="title">BUKTI KEDATANGAN BARANG SALES</div>
-      <div class="flex-row"><span>No. Nota:</span><strong>${d.noNota}</strong></div>
-      <div class="flex-row"><span>Tanggal:</span><span>${d.tanggal}</span></div>
-      <div class="flex-row"><span>Sales:</span><strong>${d.salesName}</strong></div>
-      <div class="divider"></div>
-
-      <div style="font-weight: bold; font-size: 11px; margin-bottom: 5px;">RINCIAN BARANG:</div>
-      ${itemsHtml}
-
-      <div class="divider"></div>
-      <div class="flex-row"><span>Total Kotor:</span><span>${formatRupiah(d.totalTagihan)}</span></div>
-      ${d.diskon ? `<div class="flex-row"><span>Diskon Toko:</span><span>-${formatRupiah(d.diskon)}</span></div>` : ''}
-      ${d.returDeduction ? `<div class="flex-row" style="color: #dc2626;"><span>Potongan Retur:</span><span>-${formatRupiah(d.returDeduction)}</span></div>` : ''}
-      <div class="double-divider"></div>
-      <div class="flex-row" style="font-size: 13px; font-weight: 800;"><span>TOTAL BERSIH:</span><span>${formatRupiah(d.grandTotal)}</span></div>
-      
-      <div class="flex-row" style="margin-top: 4px;">
-        <span>Status Bayar:</span>
-        <strong>${isLunas ? 'LUNAS (TUNAI)' : 'TEMPO / TAGIHAN'}</strong>
+      <div class="no-print" style="margin-bottom: 15px; text-align: right;">
+        <button onclick="window.print()" style="padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
-      ${!isLunas ? `
-        <div class="flex-row"><span>Sudah Dibayar/DP:</span><span>${formatRupiah(d.totalDibayar || 0)}</span></div>
-        <div class="flex-row" style="color: #dc2626; font-weight: bold;"><span>Sisa Hutang:</span><span>${formatRupiah(sisa)}</span></div>
-        ${d.jatuhTempo ? `<div class="flex-row"><span>Jatuh Tempo:</span><span>${d.jatuhTempo}</span></div>` : ''}
-      ` : ''}
-      ${d.bonus ? `<div class="flex-row" style="margin-top: 4px;"><span>Bonus/Gratis:</span><span>🎁 ${d.bonus}</span></div>` : ''}
 
-      <div class="sign">
-        <div>Diterima Toko:<br><br><br>( ................. )</div>
-        <div>Kurir / Sales:<br><br><br>( ................. )</div>
+      <div class="header">
+        <h2>${storeName}</h2>
+        ${storeAddress ? `<p>${storeAddress}</p>` : ''}
+        <h3 style="margin: 8px 0 2px 0; font-size: 16px;">FAKTUR PENERIMAAN BARANG DARI SALES / DISTRIBUTOR</h3>
+        <p style="font-size: 11px; color: #64748b;">Dicetak pada: ${printTime}</p>
+      </div>
+
+      <div class="meta-box">
+        <div>
+          <div>No. Nota / Faktur: <strong style="font-size: 14px; color: #0f172a; font-family: monospace;">${d.noNota || '-'}</strong></div>
+          <div style="margin-top: 4px;">Distributor / Sales: <strong>${d.salesName || '-'}</strong></div>
+          <div style="margin-top: 4px;">Tanggal Datang Barang: <b>${d.tanggal || '-'}</b></div>
+        </div>
+        <div style="text-align: right;">
+          <div>Status Pembayaran: 
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-weight: 800; font-size: 11px; background: ${isLunas ? '#dcfce7; color: #15803d;' : '#fee2e2; color: #b91c1c;'}">
+              ${isLunas ? '✅ LUNAS' : `⏳ TEMPO (Sisa Tagihan: Rp ${formatRupiah(sisa)})`}
+            </span>
+          </div>
+          ${d.jatuhTempo && !isLunas ? `<div style="margin-top: 4px; color: #dc2626; font-weight: 600;">Jatuh Tempo: ${d.jatuhTempo}</div>` : ''}
+          <div style="margin-top: 4px; color: #475569;">Total Fisik: <b>${totalQtyNota} pcs</b></div>
+        </div>
+      </div>
+
+      <table style="border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden;">
+        <thead>
+          <tr>
+            <th style="width: 30px; text-align: center;">No</th>
+            <th style="text-align: left;">Nama Produk & Barcode</th>
+            <th style="text-align: center; width: 75px;">Qty Masuk</th>
+            <th style="text-align: right; width: 100px;">Harga di Nota</th>
+            <th style="text-align: right; width: 100px;">Modal Bersih (DPP)</th>
+            <th style="text-align: right; width: 95px;">Harga Jual</th>
+            <th style="text-align: right; width: 115px;">Subtotal Nota</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsTableRows}
+        </tbody>
+      </table>
+
+      <!-- Kalkulasi & Info Pajak -->
+      <div style="border: 1.5px solid #cbd5e1; border-radius: 8px; background: #fafafa; padding: 12px 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div style="color: #475569; font-size: 12px; line-height: 1.6;">
+          <div>🏷️ <b>Status Pajak:</b> ${ppnText}</div>
+          ${d.bonus ? `<div style="color: #ea580c;">🎁 <b>Bonus / Hadiah Nota:</b> ${d.bonus}</div>` : ''}
+          ${d.sumberDana ? `<div>💳 <b>Sumber Dana:</b> ${d.sumberDana === 'dana_lain' ? 'Dana Luar Toko' : 'Potong Saldo Kasir'}</div>` : ''}
+        </div>
+        <div style="text-align: right; font-size: 12px; line-height: 1.6;">
+          <div>Subtotal Tagihan: <b>Rp ${formatRupiah(d.totalTagihan || 0)}</b></div>
+          ${d.diskon ? `<div style="color: #ea580c;">Potongan Diskon Nota: -Rp ${formatRupiah(d.diskon)}</div>` : ''}
+          ${d.returDeduction ? `<div style="color: #dc2626;">Kompensasi Retur Barang: -Rp ${formatRupiah(d.returDeduction)}</div>` : ''}
+          <div style="font-size: 14px; font-weight: 900; color: #0f172a; margin-top: 4px; border-top: 1.5px dashed #cbd5e1; padding-top: 4px;">
+            TOTAL NILAI NOTA: Rp ${formatRupiah(d.grandTotal || 0)}
+          </div>
+          ${!isLunas ? `<div style="color: #dc2626; font-weight: 700;">Sisa Hutang: Rp ${formatRupiah(sisa)}</div>` : ''}
+        </div>
+      </div>
+
+      <div style="margin-top: 35px; display: flex; justify-content: space-between; padding: 0 40px; page-break-inside: avoid;">
+        <div style="text-align: center; width: 200px;">
+          <p style="font-size: 12px; margin-bottom: 50px;">Kurir / Sales Distributor,</p>
+          <div style="border-bottom: 1px solid #000;"></div>
+        </div>
+        <div style="text-align: center; width: 200px;">
+          <p style="font-size: 12px; margin-bottom: 50px;">Penerima / Petugas Toko,</p>
+          <div style="border-bottom: 1px solid #000;"></div>
+        </div>
       </div>
     </body>
     </html>
   `;
 
-  const printWin = window.open('', '_blank');
+  const printWin = window.open('', '_blank', 'width=950,height=800');
   if (printWin) {
     printWin.document.open();
     printWin.document.write(printHtml);
@@ -19630,12 +21140,13 @@ function printSingleSalesDeliveryReceipt(deliveryId) {
     printWin.focus();
     setTimeout(() => {
       printWin.print();
-      printWin.close();
     }, 400);
+  } else {
+    alert("Popup browser diblokir! Izinkan pop-up untuk mencetak dokumen.");
   }
 }
 
-// C. Cetak Surat Tanda Terima Retur Barang Bermasalah ke Sales
+// C. Cetak Surat Tanda Terima Retur Barang Bermasalah ke Sales (Standar Dokumen Resmi Toko)
 function printSingleSalesReturnReceipt(returnId) {
   const r = salesReturns.find(x => x.id === returnId);
   if (!r) {
@@ -19643,56 +21154,112 @@ function printSingleSalesReturnReceipt(returnId) {
     return;
   }
 
-  const totalNilai = (r.qty || 0) * (r.hargaBeli || 0);
+  const q = Number(r.qty) || 0;
+  const hargaModal = Number(r.hargaBeli) || 0;
+  const totalNilai = q * hargaModal;
+
+  const isDone = (r.status === 'Sudah Diganti Fisik' || r.status === 'Sudah Diganti' || r.status === 'Selesai');
+  const statusBadge = isDone 
+    ? `<span style="display:inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 800; background: #dcfce7; color: #15803d;">✅ Sudah Diganti Fisik / Dipotong Nota</span>`
+    : `<span style="display:inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 800; background: #fee2e2; color: #b91c1c;">⏳ Menunggu Penggantian dari Sales</span>`;
+
+  const printTime = new Date().toLocaleString('id-ID');
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO SAHIL';
+  const storeAddress = (receiptSettings && receiptSettings.address) ? receiptSettings.address : '';
 
   const printHtml = `
     <!DOCTYPE html>
-    <html>
+    <html lang="id">
     <head>
-      <title>Surat Tanda Terima Retur - ${r.productName}</title>
-      <meta charset="utf-8">
+      <meta charset="UTF-8">
+      <title>Surat Retur Barang - ${r.productName} - ${storeName}</title>
       <style>
-        body { font-family: 'Courier New', Courier, monospace, sans-serif; max-width: 380px; margin: 0 auto; padding: 12px; color: #000; font-size: 12px; }
-        .divider { border-top: 1px dashed #000; margin: 8px 0; }
-        .double-divider { border-top: 2px dashed #000; margin: 8px 0; }
-        .flex-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
-        .title { text-align: center; font-weight: bold; font-size: 13px; margin: 6px 0; }
-        .sign { display: flex; justify-content: space-between; text-align: center; margin-top: 25px; font-size: 10px; }
-        @media print { body { padding: 0; } }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 20px; color: #0f172a; font-size: 12px; line-height: 1.4; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #b91c1c; padding-bottom: 10px; margin-bottom: 16px; }
+        .header h2 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .header p { margin: 2px 0; color: #475569; font-size: 12px; }
+        .meta-box { display: flex; justify-content: space-between; background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; flex-wrap: wrap; gap: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 18px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
+        th { background: #fee2e2; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #fca5a5; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; color: #991b1b; }
+        td { border-bottom: 1px solid #e2e8f0; padding: 8px; }
+        @media print {
+          body { padding: 0; }
+          .no-print { display: none !important; }
+          @page { size: portrait; margin: 10mm; }
+        }
       </style>
     </head>
     <body>
-      ${getStorePrintHeader()}
-      <div class="title">SURAT TANDA TERIMA RETUR PRODUK</div>
-      <div class="flex-row"><span>No. Bukti:</span><strong>${r.id}</strong></div>
-      <div class="flex-row"><span>Tanggal:</span><span>${r.tanggal}</span></div>
-      <div class="flex-row"><span>Sales Tujuan:</span><strong>${r.salesName}</strong></div>
-      <div class="divider"></div>
-
-      <div class="flex-row"><span>Nama Produk:</span><strong>${r.productName}</strong></div>
-      <div class="flex-row"><span>Jumlah Diretur:</span><strong style="font-size: 13px;">${r.qty} pcs</strong></div>
-      <div class="flex-row"><span>Harga Modal/Beli:</span><span>${formatRupiah(r.hargaBeli || 0)}</span></div>
-      <div class="flex-row"><span>Estimasi Nilai Retur:</span><strong>${formatRupiah(totalNilai)}</strong></div>
-      <div class="divider"></div>
-
-      <div class="flex-row"><span>Alasan Retur:</span><span>${r.alasan}</span></div>
-      <div class="flex-row"><span>Status Penggantian:</span><strong>${r.status}</strong></div>
-      ${r.catatan ? `<div class="flex-row"><span>Catatan:</span><span>${r.catatan}</span></div>` : ''}
-
-      <div class="double-divider"></div>
-      <div style="font-size: 10px; color: #333; text-align: center; margin-top: 4px;">
-        *Barang telah diserahkan ke pihak sales untuk ditindaklanjuti sesuai kesepakatan penggantian.
+      <div class="no-print" style="margin-bottom: 15px; text-align: right;">
+        <button onclick="window.print()" style="padding: 8px 16px; background: #dc2626; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
-      <div class="sign">
-        <div>Toko (Yang Menyerahkan):<br><br><br>( ................. )</div>
-        <div>Sales (Yang Menerima):<br><br><br>( ................. )</div>
+      <div class="header">
+        <h2>${storeName}</h2>
+        ${storeAddress ? `<p>${storeAddress}</p>` : ''}
+        <h3 style="margin: 8px 0 2px 0; font-size: 16px; color: #b91c1c;">SURAT BUKTI PENGEMBALIAN (RETUR) BARANG KE DISTRIBUTOR</h3>
+        <p style="font-size: 11px; color: #64748b;">Dicetak pada: ${printTime}</p>
+      </div>
+
+      <div class="meta-box">
+        <div>
+          <div>No. Bukti Retur: <strong style="font-size: 13px; color: #0f172a; font-family: monospace;">${r.id || '-'}</strong></div>
+          <div style="margin-top: 4px;">Sales / Distributor Tujuan: <strong>${r.salesName || '-'}</strong></div>
+          <div style="margin-top: 4px;">Tanggal Penyerahan: <b>${r.tanggal || '-'}</b></div>
+        </div>
+        <div style="text-align: right;">
+          <div>Status Penggantian: ${statusBadge}</div>
+          <div style="margin-top: 4px; color: #475569;">Estimasi Nilai Klaim: <b style="font-size: 13px; color: #0f172a;">Rp ${formatRupiah(totalNilai)}</b></div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 30px; text-align: center;">No</th>
+            <th style="text-align: left;">Nama Produk yang Diretur</th>
+            <th style="width: 80px; text-align: center;">Jumlah (Qty)</th>
+            <th style="width: 100px; text-align: right;">Harga Modal</th>
+            <th style="width: 120px; text-align: right;">Total Nilai Modal</th>
+            <th style="width: 150px; text-align: left;">Alasan Retur</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align: center; color: #64748b;">1</td>
+            <td>
+              <strong style="color: #0f172a; font-size: 13px;">${r.productName || '-'}</strong>
+              ${r.productId ? `<div style="font-size: 10px; color: #64748b; font-family: monospace;">ID: ${r.productId}</div>` : ''}
+              ${r.catatan ? `<div style="font-size: 11px; color: #475569; margin-top: 2px; font-style: italic;">Catatan: ${r.catatan}</div>` : ''}
+            </td>
+            <td style="text-align: center; font-size: 14px; font-weight: 800; color: #dc2626;">${q} pcs</td>
+            <td style="text-align: right; font-family: monospace;">Rp ${formatRupiah(hargaModal)}</td>
+            <td style="text-align: right; font-family: monospace; font-weight: 800; font-size: 13px; color: #0f172a;">Rp ${formatRupiah(totalNilai)}</td>
+            <td style="font-weight: 600; color: #dc2626;">${r.alasan || '-'}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="background: #fafafa; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; margin-bottom: 25px; font-size: 11px; color: #475569;">
+        📌 <b>Pemberitahuan Klaim:</b> Barang fisik yang rusak/expired di atas telah diserahkan kembali kepada pihak sales/distributor bersangkutan untuk diproses ganti barang baru atau potongan langsung pada nota pembelian berikutnya.
+      </div>
+
+      <div style="margin-top: 35px; display: flex; justify-content: space-between; padding: 0 40px; page-break-inside: avoid;">
+        <div style="text-align: center; width: 220px;">
+          <p style="font-size: 12px; margin-bottom: 55px;">Petugas Toko (Yang Menyerahkan),</p>
+          <div style="border-bottom: 1px solid #000;"></div>
+        </div>
+        <div style="text-align: center; width: 220px;">
+          <p style="font-size: 12px; margin-bottom: 55px;">Sales / Distributor (Yang Menerima),</p>
+          <div style="border-bottom: 1px solid #000;"></div>
+        </div>
       </div>
     </body>
     </html>
   `;
 
-  const printWin = window.open('', '_blank');
+  const printWin = window.open('', '_blank', 'width=950,height=800');
   if (printWin) {
     printWin.document.open();
     printWin.document.write(printHtml);
@@ -19700,8 +21267,9 @@ function printSingleSalesReturnReceipt(returnId) {
     printWin.focus();
     setTimeout(() => {
       printWin.print();
-      printWin.close();
     }, 400);
+  } else {
+    alert("Popup browser diblokir! Izinkan pop-up untuk mencetak dokumen.");
   }
 }
 
@@ -19805,7 +21373,7 @@ function shareSalesReturnToWhatsApp(returnId) {
   window.open(waUrl, '_blank');
 }
 
-// D. Cetak Laporan Cepat Daftar Nota Sesuai Filter
+// D. Cetak Laporan Cepat Daftar Nota Sesuai Filter (Super Lengkap dengan Rincian Produk, Qty, Harga, & PPN)
 function printFilteredDeliveriesReport() {
   const filtered = getFilteredSalesDeliveriesList();
 
@@ -19814,58 +21382,180 @@ function printFilteredDeliveriesReport() {
     return;
   }
 
-  let totalBeli = 0;
-  let rowsHtml = '';
+  const start = document.getElementById('filter-invoice-date-start')?.value;
+  const end = document.getElementById('filter-invoice-date-end')?.value;
+  let periodeInfo = "Semua Tanggal Nota";
+  if (start && end) {
+    periodeInfo = `Periode: ${start} s/d ${end}`;
+  } else if (start) {
+    periodeInfo = `Mulai Tanggal: ${start}`;
+  } else if (end) {
+    periodeInfo = `Sampai Tanggal: ${end}`;
+  }
+
+  let grandTotalSemuaNota = 0;
+  let totalSisaSemuaTempo = 0;
+  let totalItemPcsSemua = 0;
+  let blocksHtml = '';
+
   filtered.forEach((d, idx) => {
-    totalBeli += (d.grandTotal || 0);
+    grandTotalSemuaNota += (d.grandTotal || 0);
     const sisa = (d.sisaTagihan !== undefined) ? d.sisaTagihan : (d.statusBayar === 'Tempo' ? d.grandTotal : 0);
-    rowsHtml += `
-      <tr>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${idx + 1}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${d.tanggal}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;"><strong>${d.noNota}</strong></td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${d.salesName}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${sisa <= 0 ? 'Lunas' : 'Tempo (Sisa ' + formatRupiah(sisa) + ')'}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px; text-align: right; font-family: monospace;">${formatRupiah(d.grandTotal)}</td>
-      </tr>
+    totalSisaSemuaTempo += sisa;
+    const isLunas = sisa <= 0;
+
+    let itemsTableRows = '';
+    let totalQtyNota = 0;
+
+    if (Array.isArray(d.items) && d.items.length > 0) {
+      d.items.forEach((item, itemIdx) => {
+        totalQtyNota += (Number(item.qty) || 0);
+        totalItemPcsSemua += (Number(item.qty) || 0);
+
+        const hargaNota = Number(item.hargaNota) || Number(item.hargaBeli) || 0;
+        const hargaBeliModal = Number(item.hargaBeli) || hargaNota;
+        const hargaJual = Number(item.hargaJual) || 0;
+        const subtotalItem = Number(item.subtotal) || ((Number(item.qty) || 0) * hargaNota);
+
+        itemsTableRows += `
+          <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+            <td style="padding: 5px 6px; text-align: center; color: #64748b;">${itemIdx + 1}</td>
+            <td style="padding: 5px 6px;">
+              <strong>${item.nama || item.productName || item.productId || 'Produk'}</strong>
+              <div style="font-size: 10px; color: #64748b; font-family: monospace;">ID: ${item.productId || '-'} ${item.expired ? `| Exp: ${item.expired}` : ''}</div>
+            </td>
+            <td style="padding: 5px 6px; text-align: center; font-weight: 700;">${item.qty} pcs</td>
+            <td style="padding: 5px 6px; text-align: right; font-family: monospace;">Rp ${formatRupiah(hargaNota)}</td>
+            <td style="padding: 5px 6px; text-align: right; font-family: monospace; color: #0284c7;">Rp ${formatRupiah(hargaBeliModal)}</td>
+            <td style="padding: 5px 6px; text-align: right; font-family: monospace; color: #16a34a;">Rp ${formatRupiah(hargaJual)}</td>
+            <td style="padding: 5px 6px; text-align: right; font-weight: 700; font-family: monospace;">Rp ${formatRupiah(subtotalItem)}</td>
+          </tr>
+        `;
+      });
+    } else {
+      itemsTableRows = `<tr><td colspan="7" style="padding: 8px; text-align: center; color: #94a3b8; font-style: italic;">Tidak ada rincian item barang pada nota ini.</td></tr>`;
+    }
+
+    const ppnRate = d.ppnPercent !== undefined ? d.ppnPercent : (d.hasPpn ? 11 : 0);
+    const ppnText = (d.hasPpn || ppnRate > 0) ? `Kena PPN ${ppnRate}% (Modal otomatis dipotong PPN jadi DPP)` : 'Non-PPN (0%)';
+
+    blocksHtml += `
+      <div style="border: 1.5px solid #cbd5e1; border-radius: 8px; margin-bottom: 16px; page-break-inside: avoid; background: #fff; overflow: hidden;">
+        <!-- Header Nota -->
+        <div style="background: #f8fafc; border-bottom: 1px solid #cbd5e1; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <span style="font-size: 11px; background: #0f172a; color: #fff; padding: 2px 7px; border-radius: 4px; font-weight: 800; margin-right: 6px;">#${idx + 1}</span>
+            <strong style="font-size: 13px; color: #0f172a;">No. Nota: ${d.noNota || '-'}</strong>
+            <span style="font-size: 12px; color: #475569; margin-left: 8px;">| Sales / Distributor: <b>${d.salesName || '-'}</b></span>
+            <span style="font-size: 12px; color: #475569; margin-left: 8px;">| Tanggal Masuk: <b>${d.tanggal || '-'}</b></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 800; background: ${isLunas ? '#dcfce7; color: #15803d;' : '#fee2e2; color: #b91c1c;'}">
+              ${isLunas ? '✅ LUNAS' : `⏳ TEMPO (Sisa Tagihan: Rp ${formatRupiah(sisa)})`}
+            </span>
+            ${d.jatuhTempo && !isLunas ? `<span style="font-size: 11px; color: #b91c1c;">(Jatuh Tempo: ${d.jatuhTempo})</span>` : ''}
+          </div>
+        </div>
+
+        <!-- Tabel Rincian Barang di Nota -->
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; color: #475569; border-bottom: 1px solid #cbd5e1;">
+              <th style="padding: 6px; width: 30px; text-align: center;">No</th>
+              <th style="padding: 6px; text-align: left;">Nama Produk & Barcode</th>
+              <th style="padding: 6px; text-align: center; width: 75px;">Qty Masuk</th>
+              <th style="padding: 6px; text-align: right; width: 95px;">Harga di Nota</th>
+              <th style="padding: 6px; text-align: right; width: 95px;">Modal Bersih (DPP)</th>
+              <th style="padding: 6px; text-align: right; width: 90px;">Harga Jual</th>
+              <th style="padding: 6px; text-align: right; width: 105px;">Subtotal Nota</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsTableRows}
+          </tbody>
+        </table>
+
+        <!-- Footer / Ringkasan Kalkulasi Nota -->
+        <div style="background: #fafafa; border-top: 1px solid #e2e8f0; padding: 8px 12px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div style="color: #475569;">
+            <span>🏷️ <b>Pajak:</b> ${ppnText}</span>
+            ${d.bonus ? `<span style="margin-left: 12px; color: #ea580c;">🎁 <b>Bonus:</b> ${d.bonus}</span>` : ''}
+            ${d.sumberDana ? `<span style="margin-left: 12px;">💳 <b>Sumber Dana:</b> ${d.sumberDana === 'dana_lain' ? 'Dana Luar' : 'Potong Laci Kasir'}</span>` : ''}
+          </div>
+          <div style="text-align: right; line-height: 1.5;">
+            <div>Subtotal Tagihan: <b>Rp ${formatRupiah(d.totalTagihan || 0)}</b></div>
+            ${d.diskon ? `<div style="color: #ea580c;">Potongan Diskon Nota: -Rp ${formatRupiah(d.diskon)}</div>` : ''}
+            ${d.returDeduction ? `<div style="color: #dc2626;">Kompensasi Retur Barang: -Rp ${formatRupiah(d.returDeduction)}</div>` : ''}
+            <div style="font-size: 12px; font-weight: 900; color: #0f172a; margin-top: 2px; border-top: 1px dashed #cbd5e1; padding-top: 2px;">
+              TOTAL NILAI NOTA: Rp ${formatRupiah(d.grandTotal || 0)}
+            </div>
+          </div>
+        </div>
+      </div>
     `;
   });
 
+  const printTime = new Date().toLocaleString('id-ID');
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO SAHIL';
+  const storeAddress = (receiptSettings && receiptSettings.address) ? receiptSettings.address : '';
+
   const printHtml = `
     <!DOCTYPE html>
-    <html>
+    <html lang="id">
     <head>
-      <title>Daftar Nota Pembelian Sales</title>
+      <meta charset="UTF-8">
+      <title>Laporan Lengkap Daftar Nota Pembelian Sales - ${storeName}</title>
       <style>
-        body { font-family: sans-serif; padding: 15px; color: #000; font-size: 12px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th { background: #f1f5f9; padding: 6px; text-align: left; border-bottom: 2px solid #cbd5e1; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 20px; color: #0f172a; font-size: 12px; line-height: 1.4; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 16px; }
+        .header h2 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .header p { margin: 2px 0; color: #475569; font-size: 12px; }
+        .summary-banner { display: flex; justify-content: space-between; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; flex-wrap: wrap; gap: 8px; }
+        @media print {
+          body { padding: 0; }
+          .no-print { display: none !important; }
+          @page { size: portrait; margin: 10mm; }
+        }
       </style>
     </head>
     <body>
-      ${getStorePrintHeader()}
-      <h3 style="text-align: center; margin-bottom: 5px;">DAFTAR NOTA PEMBELIAN BARANG DARI SALES</h3>
-      <div style="font-size: 11px; text-align: center; color: #555;">Total: ${filtered.length} Nota | Nilai Belanja: <strong>${formatRupiah(totalBeli)}</strong></div>
-      <table>
-        <thead>
-          <tr>
-            <th>No</th>
-            <th>Tanggal</th>
-            <th>No. Nota</th>
-            <th>Sales</th>
-            <th>Status Bayar</th>
-            <th style="text-align: right;">Total Nilai</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsHtml}
-        </tbody>
-      </table>
+      <div class="no-print" style="margin-bottom: 15px; text-align: right;">
+        <button onclick="window.print()" style="padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
+      </div>
+
+      <div class="header">
+        <h2>${storeName}</h2>
+        ${storeAddress ? `<p>${storeAddress}</p>` : ''}
+        <h3 style="margin: 8px 0 2px 0; font-size: 15px;">LAPORAN RINCIAN LENGKAP NOTA PEMBELIAN BARANG SALES</h3>
+        <p style="font-weight: 700; color: #0284c7;">${periodeInfo}</p>
+        <p style="font-size: 11px; color: #64748b;">Dicetak pada: ${printTime}</p>
+      </div>
+
+      <div class="summary-banner">
+        <div><strong>Total Nota:</strong> ${filtered.length} Faktur Pembelian</div>
+        <div><strong>Total Fisik Barang Masuk:</strong> <b>${totalItemPcsSemua} pcs</b></div>
+        <div><strong>Total Belanja Nota:</strong> <b style="color: #0f172a; font-size: 13px;">Rp ${formatRupiah(grandTotalSemuaNota)}</b></div>
+        ${totalSisaSemuaTempo > 0 ? `<div><strong>Total Sisa Tempo (Hutang Toko):</strong> <b style="color: #dc2626; font-size: 13px;">Rp ${formatRupiah(totalSisaSemuaTempo)}</b></div>` : '<div style="color:#16a34a; font-weight:bold;">Semua Nota Lunas</div>'}
+      </div>
+
+      ${blocksHtml}
+
+      <div style="margin-top: 30px; display: flex; justify-content: space-between; padding: 0 40px; page-break-inside: avoid;">
+        <div style="text-align: center; width: 200px;">
+          <p style="font-size: 12px; margin-bottom: 50px;">Bagian Logistik & Penerimaan,</p>
+          <div style="border-bottom: 1px solid #000;"></div>
+        </div>
+        <div style="text-align: center; width: 200px;">
+          <p style="font-size: 12px; margin-bottom: 50px;">Owner / Penanggung Jawab Toko,</p>
+          <div style="border-bottom: 1px solid #000;"></div>
+        </div>
+      </div>
     </body>
     </html>
   `;
 
-  const printWin = window.open('', '_blank');
+  const printWin = window.open('', '_blank', 'width=950,height=800');
   if (printWin) {
     printWin.document.open();
     printWin.document.write(printHtml);
@@ -19873,12 +21563,13 @@ function printFilteredDeliveriesReport() {
     printWin.focus();
     setTimeout(() => {
       printWin.print();
-      printWin.close();
     }, 400);
+  } else {
+    alert("Popup browser diblokir! Izinkan pop-up untuk mencetak dokumen.");
   }
 }
 
-// E. Cetak Laporan Cepat Daftar Retur Sesuai Filter
+// E. Cetak Laporan Cepat Daftar Retur Sesuai Filter (Standar Dokumen Resmi Toko)
 function printFilteredReturnsReport() {
   const filtered = getFilteredSalesReturnsList();
 
@@ -19887,66 +21578,139 @@ function printFilteredReturnsReport() {
     return;
   }
 
+  const start = document.getElementById('filter-return-date-start')?.value;
+  const end = document.getElementById('filter-return-date-end')?.value;
+  let periodeInfo = "Semua Tanggal Retur";
+  if (start && end) {
+    periodeInfo = `Periode: ${start} s/d ${end}`;
+  } else if (start) {
+    periodeInfo = `Mulai Tanggal: ${start}`;
+  } else if (end) {
+    periodeInfo = `Sampai Tanggal: ${end}`;
+  }
+
   let totalQty = 0;
   let totalVal = 0;
+  let totalSudahDiganti = 0;
+  let totalBelumDiganti = 0;
   let rowsHtml = '';
+
   filtered.forEach((r, idx) => {
     const q = Number(r.qty) || 0;
-    const v = q * (r.hargaBeli || 0);
+    const hargaModal = Number(r.hargaBeli) || 0;
+    const v = q * hargaModal;
     totalQty += q;
     totalVal += v;
 
+    const isDone = (r.status === 'Sudah Diganti Fisik' || r.status === 'Sudah Diganti' || r.status === 'Selesai');
+    if (isDone) {
+      totalSudahDiganti += v;
+    } else {
+      totalBelumDiganti += v;
+    }
+
+    const statusBadge = isDone 
+      ? `<span style="display:inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 800; background: #dcfce7; color: #15803d;">✅ Sudah Diganti</span>`
+      : `<span style="display:inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 800; background: #fee2e2; color: #b91c1c;">⏳ Menunggu Sales</span>`;
+
     rowsHtml += `
-      <tr>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${idx + 1}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${r.tanggal}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${r.salesName}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;"><strong>${r.productName}</strong></td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px; text-align: center; font-weight: bold; color: #dc2626;">${r.qty} pcs</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${r.alasan}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px;">${r.status}</td>
-        <td style="padding: 4px; border-bottom: 1px solid #ccc; font-size: 11px; text-align: right; font-family: monospace;">${formatRupiah(v)}</td>
+      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+        <td style="padding: 6px 8px; text-align: center; color: #64748b;">${idx + 1}</td>
+        <td style="padding: 6px 8px; white-space: nowrap;">${r.tanggal || '-'}</td>
+        <td style="padding: 6px 8px; font-weight: 700; color: #0f172a;">${r.salesName || '-'}</td>
+        <td style="padding: 6px 8px;">
+          <strong style="color: #0f172a;">${r.productName || '-'}</strong>
+          ${r.catatan ? `<div style="font-size: 10px; color: #64748b; font-style: italic;">Catatan: ${r.catatan}</div>` : ''}
+        </td>
+        <td style="padding: 6px 8px; text-align: center; font-weight: 800; color: #dc2626;">${q} pcs</td>
+        <td style="padding: 6px 8px; text-align: right; font-family: monospace;">Rp ${formatRupiah(hargaModal)}</td>
+        <td style="padding: 6px 8px; text-align: right; font-weight: 800; font-family: monospace; color: #0f172a;">Rp ${formatRupiah(v)}</td>
+        <td style="padding: 6px 8px;">${r.alasan || '-'}</td>
+        <td style="padding: 6px 8px; text-align: center;">${statusBadge}</td>
       </tr>
     `;
   });
 
+  const printTime = new Date().toLocaleString('id-ID');
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO SAHIL';
+  const storeAddress = (receiptSettings && receiptSettings.address) ? receiptSettings.address : '';
+
   const printHtml = `
     <!DOCTYPE html>
-    <html>
+    <html lang="id">
     <head>
-      <title>Daftar Retur Barang ke Sales</title>
+      <meta charset="UTF-8">
+      <title>Laporan Daftar Retur Barang ke Sales - ${storeName}</title>
       <style>
-        body { font-family: sans-serif; padding: 15px; color: #000; font-size: 12px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th { background: #fef2f2; padding: 6px; text-align: left; border-bottom: 2px solid #fca5a5; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 20px; color: #0f172a; font-size: 12px; line-height: 1.4; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #b91c1c; padding-bottom: 10px; margin-bottom: 16px; }
+        .header h2 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .header p { margin: 2px 0; color: #475569; font-size: 12px; }
+        .summary-banner { display: flex; justify-content: space-between; background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; flex-wrap: wrap; gap: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
+        th { background: #fee2e2; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #fca5a5; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; color: #991b1b; }
+        @media print {
+          body { padding: 0; }
+          .no-print { display: none !important; }
+          @page { size: portrait; margin: 10mm; }
+        }
       </style>
     </head>
     <body>
-      ${getStorePrintHeader()}
-      <h3 style="text-align: center; margin-bottom: 5px; color: #b91c1c;">DAFTAR RETUR PRODUK BERMASALAH KE SALES</h3>
-      <div style="font-size: 11px; text-align: center; color: #555;">Total: ${filtered.length} Transaksi Retur | Total Barang: <strong>${totalQty} pcs</strong> | Nilai Retur: <strong>${formatRupiah(totalVal)}</strong></div>
+      <div class="no-print" style="margin-bottom: 15px; text-align: right;">
+        <button onclick="window.print()" style="padding: 8px 16px; background: #dc2626; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
+      </div>
+
+      <div class="header">
+        <h2>${storeName}</h2>
+        ${storeAddress ? `<p>${storeAddress}</p>` : ''}
+        <h3 style="margin: 8px 0 2px 0; font-size: 16px; color: #b91c1c;">LAPORAN REKAPITULASI RETUR BARANG RUSAK / EXPIRED KE DISTRIBUTOR</h3>
+        <p style="font-weight: 700; color: #c2410c;">${periodeInfo}</p>
+        <p style="font-size: 11px; color: #64748b;">Dicetak pada: ${printTime}</p>
+      </div>
+
+      <div class="summary-banner">
+        <div><strong>Total Transaksi Retur:</strong> ${filtered.length} Kejadian</div>
+        <div><strong>Total Fisik Barang Diretur:</strong> <b style="color: #dc2626; font-size: 13px;">${totalQty} pcs</b></div>
+        <div><strong>Total Estimasi Nilai Modal:</strong> <b style="color: #0f172a; font-size: 13px;">Rp ${formatRupiah(totalVal)}</b></div>
+        <div><strong>Sisa Belum Diganti:</strong> <b style="color: #b91c1c; font-size: 13px;">Rp ${formatRupiah(totalBelumDiganti)}</b></div>
+      </div>
+
       <table>
         <thead>
           <tr>
-            <th>No</th>
-            <th>Tanggal</th>
-            <th>Sales</th>
-            <th>Produk</th>
-            <th style="text-align: center;">Qty</th>
-            <th>Alasan</th>
-            <th>Status</th>
-            <th style="text-align: right;">Estimasi Nilai</th>
+            <th style="width: 30px; text-align: center;">No</th>
+            <th style="width: 85px; text-align: left;">Tanggal</th>
+            <th style="width: 120px; text-align: left;">Sales Tujuan</th>
+            <th style="text-align: left;">Nama Produk & Barcode</th>
+            <th style="width: 70px; text-align: center;">Qty</th>
+            <th style="width: 90px; text-align: right;">Harga Modal</th>
+            <th style="width: 105px; text-align: right;">Total Nilai</th>
+            <th style="width: 130px; text-align: left;">Alasan Retur</th>
+            <th style="width: 115px; text-align: center;">Status</th>
           </tr>
         </thead>
         <tbody>
           ${rowsHtml}
         </tbody>
       </table>
+
+      <div style="margin-top: 35px; display: flex; justify-content: space-between; padding: 0 40px; page-break-inside: avoid;">
+        <div style="text-align: center; width: 220px;">
+          <p style="font-size: 12px; margin-bottom: 55px;">Petugas Gudang / Toko (Penyerah),</p>
+          <div style="border-bottom: 1px solid #000;"></div>
+        </div>
+        <div style="text-align: center; width: 220px;">
+          <p style="font-size: 12px; margin-bottom: 55px;">Sales / Distributor (Penerima Retur),</p>
+          <div style="border-bottom: 1px solid #000;"></div>
+        </div>
+      </div>
     </body>
     </html>
   `;
 
-  const printWin = window.open('', '_blank');
+  const printWin = window.open('', '_blank', 'width=950,height=800');
   if (printWin) {
     printWin.document.open();
     printWin.document.write(printHtml);
@@ -19954,26 +21718,30 @@ function printFilteredReturnsReport() {
     printWin.focus();
     setTimeout(() => {
       printWin.print();
-      printWin.close();
     }, 400);
+  } else {
+    alert("Popup browser diblokir! Izinkan pop-up untuk mencetak dokumen.");
   }
 }
 
 // F. Fitur Saran Tambahan: Export Rekapitulasi ke File CSV / Excel
 function exportSalesRekapCSV() {
-  const filterType = document.getElementById('sales-rekap-type').value;
-  const selectedDate = document.getElementById('sales-rekap-date').value;
-  const selectedMonth = document.getElementById('sales-rekap-month').value;
-  const selectedSales = document.getElementById('sales-rekap-sales-target').value;
+  const dateStart = document.getElementById('sales-rekap-date-start')?.value || '';
+  const dateEnd = document.getElementById('sales-rekap-date-end')?.value || '';
+  const selectedSales = document.getElementById('sales-rekap-sales-target')?.value || 'All';
 
   let deliveries = salesDeliveries.filter(d => {
     if (selectedSales !== 'All' && d.salesId !== selectedSales) return false;
-    return (filterType === 'hari') ? (d.tanggal === selectedDate) : (d.tanggal && d.tanggal.startsWith(selectedMonth));
+    if (dateStart && d.tanggal && d.tanggal < dateStart) return false;
+    if (dateEnd && d.tanggal && d.tanggal > dateEnd) return false;
+    return true;
   });
 
   let returns = salesReturns.filter(r => {
     if (selectedSales !== 'All' && r.salesId !== selectedSales) return false;
-    return (filterType === 'hari') ? (r.tanggal === selectedDate) : (r.tanggal && r.tanggal.startsWith(selectedMonth));
+    if (dateStart && r.tanggal && r.tanggal < dateStart) return false;
+    if (dateEnd && r.tanggal && r.tanggal > dateEnd) return false;
+    return true;
   });
 
   if (deliveries.length === 0 && returns.length === 0) {
@@ -19999,7 +21767,8 @@ function exportSalesRekapCSV() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  link.setAttribute('download', `Rekap_Sales_${filterType === 'hari' ? selectedDate : selectedMonth}.csv`);
+  const fileDateLabel = (dateStart && dateEnd) ? `${dateStart}_sd_${dateEnd}` : (dateStart || dateEnd || 'Semua');
+  link.setAttribute('download', `Rekap_Sales_${fileDateLabel}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -20009,7 +21778,7 @@ function exportSalesRekapCSV() {
    G. FITUR MANAJEMEN CRM: RIWAYAT BELANJA, PENGINGAT WA VOUCHER, & BUKU HUTANG
    ========================================================================== */
 
-let currentCustomerDebtFilter = 'unpaid'; // 'unpaid' | 'paid' | 'all'
+let currentCustomerDebtFilter = 'all'; // 'all' | 'unpaid' | 'paid'
 let currentActiveHistoryCustomerId = null;
 
 // 1. Switcher Sub-View Pelanggan: Daftar Member vs Buku Hutang
@@ -20093,7 +21862,8 @@ function renderCustomerDebtBook() {
     } catch(e) { txSource = []; }
   }
 
-  const monthFilter = document.getElementById('filter-debt-month')?.value || '';
+  const dateStart = document.getElementById('filter-debt-date-start')?.value || '';
+  const dateEnd = document.getElementById('filter-debt-date-end')?.value || '';
   const now = new Date();
   const todayStr = getLocalISODate(now).slice(0, 10);
 
@@ -20121,9 +21891,15 @@ function renderCustomerDebtBook() {
     return tx;
   });
 
-  // Filter Bulan jika dipilih
-  if (monthFilter) {
-    debtTxs = debtTxs.filter(tx => tx.waktu && parseTxDateStr(tx.waktu).startsWith(monthFilter));
+  // Filter Rentang Tanggal jika dipilih (Tanggal Mulai s/d Tanggal Akhir)
+  if (dateStart || dateEnd) {
+    debtTxs = debtTxs.filter(tx => {
+      if (!tx.waktu) return false;
+      const tgl = parseTxDateStr(tx.waktu).slice(0, 10);
+      if (dateStart && tgl < dateStart) return false;
+      if (dateEnd && tgl > dateEnd) return false;
+      return true;
+    });
   }
 
   // Hitung ringkasan & Peringatan Jatuh Tempo
@@ -20248,12 +22024,11 @@ function renderCustomerDebtBook() {
     });
   }
 
-  // Urutkan: yang belum lunas dulu, lalu yang terlama
+  // Urutkan secara default berdasarkan hutang yang terbaru
   displayTxs.sort((a, b) => {
-    const aUnpaid = (a.sisa_piutang || 0) > 0 ? 1 : 0;
-    const bUnpaid = (b.sisa_piutang || 0) > 0 ? 1 : 0;
-    if (aUnpaid !== bUnpaid) return bUnpaid - aUnpaid;
-    return new Date(a.waktu || 0) - new Date(b.waktu || 0);
+    const timeA = a.waktu ? new Date(a.waktu).getTime() : 0;
+    const timeB = b.waktu ? new Date(b.waktu).getTime() : 0;
+    return timeB - timeA; // Paling baru di atas
   });
 
   tbody.innerHTML = '';
@@ -20377,30 +22152,36 @@ function renderCustomerDebtBook() {
 
     const noteText = tx.catatan_bon ? `<div style="font-size: 0.73rem; color: var(--text-muted); font-style: italic; margin-top: 2px;">Catatan: ${tx.catatan_bon}</div>` : '';
 
+    tr.style.borderBottom = '1px solid var(--border-color)';
+    tr.style.transition = 'background 0.15s ease';
     tr.innerHTML = `
-      <td>
-        <strong style="color: var(--text-main); font-size: 0.9rem;">${tx.nama_pelanggan || 'Pelanggan Umum'}</strong>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle;">
+        <strong style="color: var(--text-main); font-size: 0.9rem; display: block; line-height: 1.3;">${tx.nama_pelanggan || 'Pelanggan Umum'}</strong>
         ${noteText}
       </td>
-      <td>
-        <div style="font-family: monospace; font-size: 0.8rem; font-weight: 700; color: #ea580c;">${tx.id}</div>
-        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1px; display: flex; align-items: center; gap: 3px;">
+      <td style="padding: 0.75rem 1rem; vertical-align: middle;">
+        <div style="font-family: monospace; font-size: 0.82rem; font-weight: 700; color: #ea580c;">${tx.id}</div>
+        <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px; display: flex; align-items: center; gap: 3px;">
           <i data-lucide="clock" style="width: 11px; height: 11px;"></i> ${waktuStr}
         </div>
       </td>
-      <td>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle;">
         ${productsHtml}
       </td>
-      <td>${dueBadgeHtml}</td>
-      <td style="font-size: 0.88rem; font-weight: 600;">Rp ${formatRupiah(tx.total || 0)}</td>
-      <td style="font-size: 0.92rem; font-weight: 800; color: ${isLunas ? '#059669' : '#dc2626'};">
+      <td style="padding: 0.75rem 1rem; vertical-align: middle;">
+        ${dueBadgeHtml}
+      </td>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle; text-align: right; font-family: 'JetBrains Mono', monospace, sans-serif; font-size: 0.88rem; font-weight: 700; color: var(--text-main);">
+        Rp ${formatRupiah(tx.total || 0)}
+      </td>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle; text-align: right; font-family: 'JetBrains Mono', monospace, sans-serif; font-size: 0.94rem; font-weight: 900; color: ${isLunas ? '#059669' : '#dc2626'};">
         Rp ${formatRupiah(sisa)}
       </td>
-      <td>
+      <td style="padding: 0.75rem 1rem; vertical-align: middle; text-align: center;">
         ${statusBadgeHtml}
         ${settlementHistoryHtml}
       </td>
-      <td style="text-align: center;">
+      <td style="padding: 0.75rem 1rem; vertical-align: middle; text-align: center;">
         <div style="display: inline-flex; gap: 0.35rem; align-items: center; justify-content: center; flex-wrap: wrap;">
           ${actionBtnHtml}
         </div>
@@ -20525,6 +22306,7 @@ async function submitPayDebt(event) {
         tipe: 'masuk',
         nominal: payAmount,
         kategori: 'Pelunasan Piutang',
+        is_debt_payment: true,
         sumberDana: 'laci_kasir',
         keterangan: `Pelunasan Bon #${tx.id} (${tx.nama_pelanggan || 'Pelanggan'})`,
         staff: activeCashier || 'Admin'
@@ -20588,6 +22370,7 @@ function quickPayFullDebt(txId) {
       tipe: 'masuk',
       nominal: sisa,
       kategori: 'Pelunasan Piutang',
+      is_debt_payment: true,
       sumberDana: 'laci_kasir',
       keterangan: `Pelunasan Bon #${tx.id} (${tx.nama_pelanggan || 'Pelanggan'})`,
       staff: activeCashier || 'Admin'
@@ -20635,20 +22418,33 @@ async function deleteCustomerDebt(txId) {
   renderCustomerDebtBook();
 }
 
-// 5. Cetak Laporan Rekapitulasi Piutang & Hutang Member
+// 5. Cetak Laporan Rekapitulasi Piutang & Hutang Member (Super Lengkap: Rincian Barang, Pembayaran, Pelunasan)
 function printCustomerDebtReport() {
-  const monthFilter = document.getElementById('filter-debt-month')?.value || '';
+  const dateStart = document.getElementById('filter-debt-date-start')?.value || '';
+  const dateEnd = document.getElementById('filter-debt-date-end')?.value || '';
   const now = new Date();
   const todayStr = getLocalISODate(now).slice(0, 10);
 
-  let debtTxs = transactions.filter(tx => {
+  let txSource = transactions;
+  if (typeof analyticsTransactions !== 'undefined' && Array.isArray(analyticsTransactions) && analyticsTransactions.length > 0) {
+    txSource = analyticsTransactions;
+  }
+
+  let debtTxs = txSource.filter(tx => {
     const isBon = tx.status_pembayaran === 'Bon' || (tx.sisa_piutang > 0);
     const wasEverBon = Array.isArray(tx.riwayat_pelunasan) && tx.riwayat_pelunasan.length > 0;
     return isBon || wasEverBon;
   });
 
-  if (monthFilter) {
-    debtTxs = debtTxs.filter(tx => tx.waktu && parseTxDateStr(tx.waktu).startsWith(monthFilter));
+  // Filter Rentang Tanggal jika diisi
+  if (dateStart || dateEnd) {
+    debtTxs = debtTxs.filter(tx => {
+      if (!tx.waktu) return false;
+      const tgl = parseTxDateStr(tx.waktu).slice(0, 10);
+      if (dateStart && tgl < dateStart) return false;
+      if (dateEnd && tgl > dateEnd) return false;
+      return true;
+    });
   }
 
   if (currentCustomerDebtFilter === 'unpaid') {
@@ -20658,72 +22454,174 @@ function printCustomerDebtReport() {
   }
 
   if (debtTxs.length === 0) {
-    alert("Tidak ada data piutang untuk dicetak.");
+    alert("Tidak ada data piutang untuk dicetak pada periode ini.");
     return;
   }
 
+  // Urutkan berdasarkan waktu transaksi terbaru
+  debtTxs.sort((a, b) => {
+    const timeA = a.waktu ? new Date(a.waktu).getTime() : 0;
+    const timeB = b.waktu ? new Date(b.waktu).getTime() : 0;
+    return timeB - timeA;
+  });
+
   let totalUnpaid = 0;
   let totalPaid = 0;
+  let totalTagihanAwal = 0;
   let rowsHtml = '';
 
   debtTxs.forEach((tx, idx) => {
-    const sisa = tx.sisa_piutang || 0;
+    const sisa = Number(tx.sisa_piutang) || 0;
     const isLunas = sisa <= 0;
-    if (isLunas) totalPaid += (tx.total || 0);
+    const totalTx = Number(tx.total) || 0;
+    const dpBayarAwal = Math.max(0, (Number(tx.bayar) || 0) - (Number(tx.kembalian) || 0));
+
+    totalTagihanAwal += totalTx;
+    if (isLunas) totalPaid += totalTx;
     else totalUnpaid += sisa;
 
-    const tgl = tx.waktu ? parseTxDateStr(tx.waktu) : '-';
+    const tglPinjam = tx.waktu ? parseTxDateStr(tx.waktu) : '-';
     const tempo = tx.jatuh_tempo || '-';
     const statusText = isLunas ? 'LUNAS' : 'BELUM LUNAS';
+    const statusColor = isLunas ? '#059669' : '#dc2626';
+
+    // Rincian Barang yang Dihutang
+    let itemsDetailHtml = '';
+    if (Array.isArray(tx.items) && tx.items.length > 0) {
+      itemsDetailHtml = '<ul style="margin: 0; padding-left: 14px; list-style-type: square; font-size: 11px;">';
+      tx.items.forEach(it => {
+        const qtyPcs = Number(it.qty) || 0;
+        const hargaSatuan = Number(it.harga) || 0;
+        const subtotal = it.subtotal !== undefined ? Number(it.subtotal) : (qtyPcs * hargaSatuan);
+        itemsDetailHtml += `<li><b>${escapeHtml(it.nama || 'Produk')}</b>: ${qtyPcs} pcs &times; Rp ${formatRupiah(hargaSatuan)} = <b>Rp ${formatRupiah(subtotal)}</b></li>`;
+      });
+      itemsDetailHtml += '</ul>';
+    } else {
+      itemsDetailHtml = `<span style="color: #64748b; font-style: italic;">Hutang Manual / Pinjaman Kas: ${escapeHtml(tx.catatan_bon || tx.keterangan_manual || '-')}</span>`;
+    }
+
+    // Rincian Riwayat Pembayaran & Kapan Lunas
+    let paymentHistoryHtml = '';
+    let tglLunasStr = '-';
+    let totalSudahDibayar = 0;
+
+    if (Array.isArray(tx.riwayat_pelunasan) && tx.riwayat_pelunasan.length > 0) {
+      paymentHistoryHtml = '<div style="margin-top: 4px; font-size: 10.5px; color: #334155; line-height: 1.35;">';
+      if (dpBayarAwal > 0) {
+        paymentHistoryHtml += `<div>• DP Awal: Rp ${formatRupiah(dpBayarAwal)}</div>`;
+        totalSudahDibayar += dpBayarAwal;
+      }
+      tx.riwayat_pelunasan.forEach((p, pIdx) => {
+        const pTgl = p.waktu ? new Date(p.waktu).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+        const pNom = Number(p.bayar) || 0;
+        totalSudahDibayar += pNom;
+        paymentHistoryHtml += `<div>• Bayar ${pIdx + 1} (${pTgl}): <b>Rp ${formatRupiah(pNom)}</b> [${p.metode || 'Tunai'}]</div>`;
+      });
+      paymentHistoryHtml += '</div>';
+
+      if (isLunas) {
+        const lastPay = tx.riwayat_pelunasan[tx.riwayat_pelunasan.length - 1];
+        if (lastPay && lastPay.waktu) {
+          tglLunasStr = new Date(lastPay.waktu).toLocaleDateString('id-ID', { dateStyle: 'medium' });
+        }
+      }
+    } else if (dpBayarAwal > 0) {
+      paymentHistoryHtml = `<div style="font-size: 10.5px; color: #334155;">• Uang Muka / DP: Rp ${formatRupiah(dpBayarAwal)}</div>`;
+      totalSudahDibayar = dpBayarAwal;
+      if (isLunas) tglLunasStr = tglPinjam;
+    } else if (isLunas) {
+      tglLunasStr = tglPinjam;
+      totalSudahDibayar = totalTx;
+    }
 
     rowsHtml += `
-      <tr>
-        <td style="padding: 6px; border: 1px solid #000; text-align: center;">${idx + 1}</td>
-        <td style="padding: 6px; border: 1px solid #000;"><strong>${tx.nama_pelanggan || 'Pelanggan Umum'}</strong></td>
-        <td style="padding: 6px; border: 1px solid #000; font-family: monospace;">${tx.id}</td>
-        <td style="padding: 6px; border: 1px solid #000;">${tgl}</td>
-        <td style="padding: 6px; border: 1px solid #000;">${tempo}</td>
-        <td style="padding: 6px; border: 1px solid #000; text-align: right;">${formatRupiah(tx.total || 0)}</td>
-        <td style="padding: 6px; border: 1px solid #000; text-align: right; font-weight: bold; color: ${isLunas ? '#059669' : '#dc2626'};">${formatRupiah(sisa)}</td>
-        <td style="padding: 6px; border: 1px solid #000; text-align: center; font-weight: bold;">${statusText}</td>
+      <tr style="border-bottom: 1px solid #cbd5e1; page-break-inside: avoid;">
+        <td style="padding: 8px 6px; text-align: center; vertical-align: top; font-weight: bold; color: #64748b;">${idx + 1}</td>
+        <td style="padding: 8px 6px; vertical-align: top;">
+          <strong style="font-size: 12px; color: #0f172a;">${escapeHtml(tx.nama_pelanggan || 'Pelanggan Umum')}</strong>
+          ${tx.id_pelanggan ? `<br><small style="color: #64748b; font-family: monospace;">ID: ${escapeHtml(tx.id_pelanggan)}</small>` : ''}
+          <br><small style="color: #475569; font-family: monospace;">#${tx.id}</small>
+        </td>
+        <td style="padding: 8px 6px; vertical-align: top; line-height: 1.4;">
+          ${itemsDetailHtml}
+        </td>
+        <td style="padding: 8px 6px; vertical-align: top; font-size: 11px;">
+          <div><b>Pinjam:</b> ${tglPinjam}</div>
+          <div style="color: #dc2626; margin-top: 2px;"><b>Tempo:</b> ${tempo}</div>
+          ${isLunas ? `<div style="color: #059669; margin-top: 2px;"><b>Lunas:</b> ${tglLunasStr}</div>` : ''}
+        </td>
+        <td style="padding: 8px 6px; vertical-align: top; text-align: right; font-family: monospace;">
+          <div style="font-weight: 700; color: #0f172a;">Rp ${formatRupiah(totalTx)}</div>
+          <small style="color: #059669;">Terbayar: Rp ${formatRupiah(totalSudahDibayar)}</small>
+          ${paymentHistoryHtml}
+        </td>
+        <td style="padding: 8px 6px; vertical-align: top; text-align: right; font-family: monospace; font-weight: 800; font-size: 12px; color: ${sisa > 0 ? '#dc2626' : '#059669'};">
+          Rp ${formatRupiah(sisa)}
+        </td>
+        <td style="padding: 8px 6px; vertical-align: top; text-align: center;">
+          <span style="display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; background: ${isLunas ? '#dcfce7' : '#fee2e2'}; color: ${statusColor}; border: 1px solid ${statusColor}40;">
+            ${statusText}
+          </span>
+        </td>
       </tr>
     `;
   });
 
-  const filterText = monthFilter ? `Bulan: ${monthFilter}` : 'Semua Periode';
+  let filterText = 'Semua Periode';
+  if (dateStart && dateEnd) {
+    filterText = (dateStart === dateEnd) ? `Tanggal: ${dateStart}` : `Periode: ${dateStart} s/d ${dateEnd}`;
+  } else if (dateStart) {
+    filterText = `Mulai Tanggal: ${dateStart}`;
+  } else if (dateEnd) {
+    filterText = `Sampai Tanggal: ${dateEnd}`;
+  }
+
   const printContent = `
     <!DOCTYPE html>
-    <html>
+    <html lang="id">
     <head>
-      <title>Laporan Rekapitulasi Piutang & Hutang Member</title>
+      <meta charset="UTF-8">
+      <title>Laporan Rekapitulasi Rincian Hutang &amp; Piutang Member</title>
       <style>
-        body { font-family: Arial, sans-serif; padding: 20px; color: #000; font-size: 12px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th { background: #f1f5f9; padding: 7px; text-align: left; border: 1px solid #000; font-size: 11px; }
-        td { font-size: 11px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 20px; color: #0f172a; font-size: 11px; line-height: 1.4; background: #fff; }
+        .no-print { margin-bottom: 18px; text-align: right; }
+        .summary-card { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; background: #f8fafc; border: 1.5px solid #cbd5e1; padding: 12px 18px; border-radius: 8px; font-size: 12px; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
+        th { background: #f1f5f9; padding: 8px 6px; text-align: left; border: 1px solid #cbd5e1; font-size: 10.5px; text-transform: uppercase; color: #475569; letter-spacing: 0.3px; }
+        td { font-size: 11px; border: 1px solid #cbd5e1; padding: 8px 6px; }
+        @media print {
+          body { padding: 0; }
+          .no-print { display: none !important; }
+          @page { size: landscape; margin: 10mm; }
+        }
       </style>
     </head>
     <body>
+      <div class="no-print">
+        <button onclick="window.print()" style="padding: 8px 20px; background: #ea580c; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
+      </div>
+
       ${getStorePrintHeader()}
-      <h3 style="text-align: center; margin: 10px 0 3px 0; text-decoration: underline;">LAPORAN REKAPITULASI PIUTANG &amp; HUTANG MEMBER</h3>
-      <div style="text-align: center; font-size: 11px; color: #444; margin-bottom: 12px;">${filterText} | Status: ${currentCustomerDebtFilter.toUpperCase()}</div>
+      <h3 style="text-align: center; margin: 10px 0 3px 0; font-size: 16px; text-transform: uppercase; color: #1e293b;">LAPORAN RINCIAN BUKU HUTANG &amp; PIUTANG MEMBER</h3>
+      <div style="text-align: center; font-size: 11px; color: #64748b; margin-bottom: 14px;">${filterText} &bull; Filter Status: <b>${currentCustomerDebtFilter.toUpperCase()}</b> &bull; Total Transaksi: <b>${debtTxs.length}</b></div>
       
-      <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; font-weight: bold;">
-        <span>Total Piutang Belum Lunas: <span style="color: #dc2626;">Rp ${formatRupiah(totalUnpaid)}</span></span>
-        <span>Total Piutang Sudah Lunas: <span style="color: #059669;">Rp ${formatRupiah(totalPaid)}</span></span>
+      <div class="summary-card">
+        <div>Total Nilai Belanja Diutang: <span style="color: #0284c7; font-size: 13px;">Rp ${formatRupiah(totalTagihanAwal)}</span></div>
+        <div>Total Sisa Hutang Belum Lunas: <span style="color: #dc2626; font-size: 13px;">Rp ${formatRupiah(totalUnpaid)}</span></div>
+        <div>Total Hutang Yang Sudah Lunas: <span style="color: #059669; font-size: 13px;">Rp ${formatRupiah(totalPaid)}</span></div>
       </div>
 
       <table>
         <thead>
           <tr>
             <th style="width: 30px; text-align: center;">No</th>
-            <th>Pelanggan</th>
-            <th>No. Transaksi</th>
-            <th>Tgl Pinjam</th>
-            <th>Jatuh Tempo</th>
-            <th style="text-align: right;">Total Belanja (Rp)</th>
-            <th style="text-align: right;">Sisa Hutang (Rp)</th>
-            <th style="text-align: center;">Status</th>
+            <th style="width: 140px;">Member / Debitur</th>
+            <th>Rincian Barang &amp; Qty Belanja</th>
+            <th style="width: 130px;">Tgl Pinjam / Jatuh Tempo / Lunas</th>
+            <th style="width: 170px; text-align: right;">Total &amp; Riwayat Cicilan</th>
+            <th style="width: 110px; text-align: right;">Sisa Hutang</th>
+            <th style="width: 85px; text-align: center;">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -20734,16 +22632,14 @@ function printCustomerDebtReport() {
     </html>
   `;
 
-  const printWin = window.open('', '_blank');
+  const printWin = window.open('', '_blank', 'width=1050,height=800');
   if (printWin) {
     printWin.document.open();
     printWin.document.write(printContent);
     printWin.document.close();
     printWin.focus();
-    setTimeout(() => {
-      printWin.print();
-      printWin.close();
-    }, 400);
+  } else {
+    alert("Popup browser diblokir! Izinkan pop-up untuk mencetak dokumen.");
   }
 }
 
@@ -21544,13 +23440,13 @@ function submitManualDebt(event) {
     }
   } else {
     const fundSource = document.getElementById('manual-debt-fund-source')?.value || 'saldo_penjualan';
-    const ymd = now.getFullYear().toString().slice(-2) +
-                String(now.getMonth() + 1).padStart(2, '0') +
-                String(now.getDate()).padStart(2, '0');
-    const hms = String(now.getHours()).padStart(2, '0') +
-                String(now.getMinutes()).padStart(2, '0') +
-                String(now.getSeconds()).padStart(2, '0');
-    const txId = `MANUAL-${ymd}-${hms}`;
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const MM = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = now.getFullYear().toString().slice(-2);
+    const txId = `${hh}${mm}${ss}${dd}${MM}${yy}`;
     const tx = {
       id: txId,
       waktu: now.toISOString(),
@@ -21791,6 +23687,23 @@ function submitExpenseForm(event) {
     return;
   }
 
+  // Validasi jika pengeluaran memotong saldo laci kasir
+  if (type === 'keluar' && source === 'laci_kasir') {
+    const availableCash = typeof getCurrentCashierAvailableCash === 'function' ? getCurrentCashierAvailableCash() : 0;
+    // Jika edit, tambahkan kembali nominal lama untuk perbandingan adil
+    let currentAvailable = availableCash;
+    if (editId) {
+      const oldExp = expenses.find(x => x.id === editId);
+      if (oldExp && oldExp.tipe === 'keluar' && oldExp.sumberDana === 'laci_kasir') {
+        currentAvailable += (Number(oldExp.nominal) || 0);
+      }
+    }
+    if (amount > currentAvailable) {
+      alert(`⚠️ Saldo Kasir Tidak Mencukupi!\n\nNominal pengeluaran: Rp ${formatRupiah(amount)}\nSaldo kasir tersedia saat ini: Rp ${formatRupiah(currentAvailable)}\n\nKekurangan dana: Rp ${formatRupiah(amount - currentAvailable)}.\nSilakan gunakan opsi sumber dana "Dana Luar / Kas Pribadi Owner" atau sesuaikan nominal.`);
+      return;
+    }
+  }
+
   const now = new Date();
   const fullDate = dateVal ? new Date(dateVal + 'T' + now.toTimeString().slice(0, 8)).toISOString() : now.toISOString();
 
@@ -21837,6 +23750,7 @@ function submitExpenseForm(event) {
   syncExpensesToCloud();
   closeExpenseModal();
   renderExpensesTable();
+  if (typeof updateAnalytics === 'function') updateAnalytics();
 }
 
 function deleteExpense(id) {
@@ -21853,6 +23767,7 @@ function deleteExpense(id) {
     saveExpensesLocally();
     syncExpensesToCloud();
     renderExpensesTable();
+    if (typeof updateAnalytics === 'function') updateAnalytics();
   }
 }
 
@@ -21969,6 +23884,187 @@ function renderExpensesTable() {
       </tr>
     `;
   }).join('');
+}
+
+function getFilteredExpensesList() {
+  const searchVal = (document.getElementById('expense-search')?.value || '').toLowerCase().trim();
+  const typeFilter = document.getElementById('expense-filter-type')?.value || 'ALL';
+  const catFilter = document.getElementById('expense-filter-category')?.value || 'ALL';
+  const startFilter = document.getElementById('expense-filter-start')?.value || '';
+  const endFilter = document.getElementById('expense-filter-end')?.value || '';
+
+  let filtered = expenses.filter(e => {
+    if (typeFilter !== 'ALL' && e.tipe !== typeFilter) return false;
+    if (catFilter !== 'ALL' && e.kategori !== catFilter) return false;
+    if (startFilter && e.tanggal && e.tanggal.slice(0, 10) < startFilter) return false;
+    if (endFilter && e.tanggal && e.tanggal.slice(0, 10) > endFilter) return false;
+
+    if (searchVal) {
+      const matchNotes = (e.keterangan || '').toLowerCase().includes(searchVal);
+      const matchCat = (e.kategori || '').toLowerCase().includes(searchVal);
+      const matchUser = (e.pencatat || '').toLowerCase().includes(searchVal);
+      if (!matchNotes && !matchCat && !matchUser) return false;
+    }
+    return true;
+  });
+
+  // Urutkan dari yang terbaru
+  filtered.sort((a, b) => new Date(b.tanggal || 0) - new Date(a.tanggal || 0));
+  return filtered;
+}
+
+function printExpensesReport() {
+  const filtered = getFilteredExpensesList();
+
+  if (filtered.length === 0) {
+    alert("Tidak ada data biaya operasional atau kas kecil untuk dicetak pada filter ini.");
+    return;
+  }
+
+  const start = document.getElementById('expense-filter-start')?.value || '';
+  const end = document.getElementById('expense-filter-end')?.value || '';
+  let periodeText = "Semua Catatan Kas";
+  if (start && end) {
+    periodeText = `Periode: ${start} s/d ${end}`;
+  } else if (start) {
+    periodeText = `Mulai Tanggal: ${start}`;
+  } else if (end) {
+    periodeText = `Sampai Tanggal: ${end}`;
+  }
+
+  let totalKeluar = 0;
+  let totalMasuk = 0;
+  let totalPotongLaci = 0;
+  let rowsHtml = '';
+
+  filtered.forEach((e, idx) => {
+    const isMasuk = e.tipe === 'masuk';
+    const nominal = Number(e.nominal) || 0;
+
+    if (isMasuk) {
+      totalMasuk += nominal;
+    } else {
+      totalKeluar += nominal;
+      if (e.sumberDana === 'laci_kasir') {
+        totalPotongLaci += nominal;
+      }
+    }
+
+    const sourceLabel = e.sumberDana === 'laci_kasir' 
+      ? 'Potong Laci Kasir' 
+      : (e.sumberDana === 'dana_luar' ? 'Dana Luar Toko' : 'Transfer Bank');
+
+    const badgeTipe = isMasuk 
+      ? '<span style="color:#15803d; font-weight:800; background:#dcfce7; padding:2px 6px; border-radius:4px; font-size:10px;">+ Kas Masuk</span>'
+      : '<span style="color:#b91c1c; font-weight:800; background:#fee2e2; padding:2px 6px; border-radius:4px; font-size:10px;">- Biaya Keluar</span>';
+
+    rowsHtml += `
+      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+        <td style="padding: 6px 8px; text-align: center; color: #64748b;">${idx + 1}</td>
+        <td style="padding: 6px 8px; white-space: nowrap;">${e.tanggal ? new Date(e.tanggal).toLocaleString('id-ID') : '-'}</td>
+        <td style="padding: 6px 8px; text-align: center;">${badgeTipe}</td>
+        <td style="padding: 6px 8px; font-weight: 700; color: #0f172a;">${e.kategori || '-'}</td>
+        <td style="padding: 6px 8px;">
+          <strong>${e.keterangan || '-'}</strong>
+          <div style="font-size: 10px; color: #64748b;">Sumber: ${sourceLabel} | Pencatat: ${e.pencatat || 'Admin'}</div>
+        </td>
+        <td style="padding: 6px 8px; text-align: right; font-family: monospace; font-weight: 800; font-size: 12px; color: ${isMasuk ? '#16a34a' : '#dc2626'};">
+          ${isMasuk ? '+' : '-'} Rp ${formatRupiah(nominal)}
+        </td>
+      </tr>
+    `;
+  });
+
+  const netCashFlow = totalMasuk - totalKeluar;
+  const printTime = new Date().toLocaleString('id-ID');
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO SAHIL';
+  const storeAddress = (receiptSettings && receiptSettings.address) ? receiptSettings.address : '';
+
+  const printHtml = `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>Laporan Buku Kas Kecil & Biaya Operasional - ${storeName}</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 20px; color: #0f172a; font-size: 12px; line-height: 1.4; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 16px; }
+        .header h2 { margin: 0; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .header p { margin: 2px 0; color: #475569; font-size: 12px; }
+        .summary-banner { display: flex; justify-content: space-between; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin-bottom: 18px; font-size: 12px; flex-wrap: wrap; gap: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
+        th { background: #f1f5f9; border-top: 1px solid #cbd5e1; border-bottom: 2px solid #cbd5e1; padding: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; color: #475569; }
+        @media print {
+          body { padding: 0; }
+          .no-print { display: none !important; }
+          @page { size: portrait; margin: 10mm; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="no-print" style="margin-bottom: 15px; text-align: right;">
+        <button onclick="window.print()" style="padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
+      </div>
+
+      <div class="header">
+        <h2>${storeName}</h2>
+        ${storeAddress ? `<p>${storeAddress}</p>` : ''}
+        <h3 style="margin: 8px 0 2px 0; font-size: 16px;">LAPORAN BUKU KAS KECIL &amp; BIAYA OPERASIONAL</h3>
+        <p style="font-weight: 700; color: #0284c7;">${periodeText}</p>
+        <p style="font-size: 11px; color: #64748b;">Dicetak pada: ${printTime}</p>
+      </div>
+
+      <div class="summary-banner">
+        <div><strong>Total Transaksi Kas:</strong> ${filtered.length} Catatan</div>
+        <div><strong>Total Kas Masuk (+):</strong> <b style="color: #16a34a; font-size: 13px;">+Rp ${formatRupiah(totalMasuk)}</b></div>
+        <div><strong>Total Biaya Keluar (-):</strong> <b style="color: #dc2626; font-size: 13px;">-Rp ${formatRupiah(totalKeluar)}</b></div>
+        <div><strong>Dipotong Dari Laci Kasir:</strong> <b style="color: #ea580c; font-size: 13px;">Rp ${formatRupiah(totalPotongLaci)}</b></div>
+        <div><strong>Arus Kas Bersih (Net):</strong> <b style="color: ${netCashFlow >= 0 ? '#16a34a' : '#dc2626'}; font-size: 14px;">${netCashFlow >= 0 ? '+' : '-'}Rp ${formatRupiah(Math.abs(netCashFlow))}</b></div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 30px; text-align: center;">No</th>
+            <th style="width: 130px; text-align: left;">Waktu &amp; Tanggal</th>
+            <th style="width: 100px; text-align: center;">Jenis Kas</th>
+            <th style="width: 130px; text-align: left;">Kategori Biaya</th>
+            <th style="text-align: left;">Keterangan / Keperluan &amp; Sumber</th>
+            <th style="width: 120px; text-align: right;">Nominal (Rp)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+
+      <div style="margin-top: 35px; display: flex; justify-content: space-between; padding: 0 40px; page-break-inside: avoid;">
+        <div style="text-align: center; width: 220px;">
+          <p style="font-size: 12px; margin-bottom: 55px;">Bendahara / Petugas Kasir,</p>
+          <div style="border-bottom: 1px solid #000;"></div>
+        </div>
+        <div style="text-align: center; width: 220px;">
+          <p style="font-size: 12px; margin-bottom: 55px;">Owner / Pimpinan Toko,</p>
+          <div style="border-bottom: 1px solid #000;"></div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const printWin = window.open('', '_blank', 'width=950,height=800');
+  if (printWin) {
+    printWin.document.open();
+    printWin.document.write(printHtml);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+      printWin.print();
+    }, 400);
+  } else {
+    alert("Popup browser diblokir! Izinkan pop-up untuk mencetak dokumen.");
+  }
 }
 
 function exportExpensesToExcel() {
@@ -22211,31 +24307,40 @@ function printProfitLossStatement() {
 
   const printHtml = `
     <!DOCTYPE html>
-    <html>
+    <html lang="id">
     <head>
+      <meta charset="UTF-8">
       <title>Laporan Laba Rugi - ${d.periodText}</title>
-      <meta charset="utf-8">
       <style>
-        body { font-family: 'Courier New', Courier, monospace, sans-serif; max-width: 480px; margin: 0 auto; padding: 18px; color: #000; font-size: 12px; }
-        .divider { border-top: 1px dashed #000; margin: 8px 0; }
-        .double-divider { border-top: 2px dashed #000; margin: 8px 0; }
-        .header { text-align: center; margin-bottom: 12px; }
-        .header h2 { margin: 0 0 4px 0; font-size: 16px; }
-        .flex { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #0f172a; font-size: 12px; line-height: 1.4; background: #fff; }
+        .no-print { margin-bottom: 15px; text-align: right; }
+        .divider { border-top: 1px dashed #cbd5e1; margin: 8px 0; }
+        .double-divider { border-top: 2px dashed #94a3b8; margin: 10px 0; }
+        .header { text-align: center; margin-bottom: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
+        .header h2 { margin: 0 0 4px 0; font-size: 18px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .flex { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
         table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-        .sec-title { font-weight: bold; background: #eee; padding: 4px 6px; margin-top: 8px; font-size: 11px; }
-        .sign { display: flex; justify-content: space-between; text-align: center; margin-top: 35px; font-size: 11px; }
-        @media print { body { padding: 5px; } }
+        .sec-title { font-weight: bold; background: #f1f5f9; padding: 5px 8px; margin-top: 10px; font-size: 11px; text-transform: uppercase; color: #475569; border-radius: 4px; }
+        .sign { display: flex; justify-content: space-between; text-align: center; margin-top: 35px; font-size: 11px; page-break-inside: avoid; }
+        @media print {
+          body { padding: 0; }
+          .no-print { display: none !important; }
+          @page { size: portrait; margin: 10mm; }
+        }
       </style>
     </head>
     <body>
+      <div class="no-print">
+        <button onclick="window.print()" style="padding: 8px 18px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
+      </div>
+
       <div class="header">
-        <h2>${storeName}</h2>
-        <div>${storeAddress}</div>
-        <div class="double-divider"></div>
-        <div style="font-weight: bold; font-size: 13px; margin: 4px 0;">LAPORAN LABA / RUGI BERSIH (P&amp;L)</div>
-        <div style="font-size: 11px;">Periode: ${d.periodText}</div>
-        <div style="font-size: 10px; color: #444;">Waktu Cetak: ${nowStr}</div>
+        <h2>${escapeHtml(storeName)}</h2>
+        <div>${escapeHtml(storeAddress)}</div>
+        <div style="font-weight: 800; font-size: 15px; margin: 6px 0 2px 0;">LAPORAN LABA / RUGI BERSIH (P&amp;L)</div>
+        <div style="font-size: 12px; color: #0284c7; font-weight: 600;">Periode: ${d.periodText}</div>
+        <div style="font-size: 11px; color: #64748b;">Waktu Cetak: ${nowStr}</div>
       </div>
 
       <div class="sec-title">1. PENDAPATAN PENJUALAN</div>
@@ -22245,37 +24350,37 @@ function printProfitLossStatement() {
       <div class="sec-title">2. BEBAN POKOK PENJUALAN (HPP)</div>
       <div class="flex" style="padding-top: 4px;"><span>Modal Kulak Barang Terjual:</span><span>- Rp ${formatRupiah(d.totalHpp)}</span></div>
       <div class="divider"></div>
-      <div class="flex" style="font-weight: bold;"><span>= LABA KOTOR PENJUALAN:</span><span>Rp ${formatRupiah(d.labaKotor)}</span></div>
+      <div class="flex" style="font-weight: bold;"><span>= LABA KOTOR PENJUALAN:</span><span style="color: #0284c7;">Rp ${formatRupiah(d.labaKotor)}</span></div>
 
       <div class="sec-title">3. BIAYA OPERASIONAL TOKO</div>
       <table>
         ${expRows}
-        <tr style="font-weight: bold; border-top: 1px dotted #000;">
-          <td style="padding-top: 4px;">Total Biaya Operasional:</td>
-          <td style="padding-top: 4px; text-align: right; color: #b91c1c;">- Rp ${formatRupiah(d.totalExpenses)}</td>
+        <tr style="font-weight: bold; border-top: 1px dotted #cbd5e1;">
+          <td style="padding-top: 6px;">Total Biaya Operasional:</td>
+          <td style="padding-top: 6px; text-align: right; color: #b91c1c;">- Rp ${formatRupiah(d.totalExpenses)}</td>
         </tr>
       </table>
 
       <div class="double-divider"></div>
-      <div class="flex" style="font-size: 14px; font-weight: 900; margin: 6px 0;">
+      <div class="flex" style="font-size: 15px; font-weight: 900; margin: 6px 0;">
         <span>LABA BERSIH RIIL:</span>
         <span style="color: ${d.labaBersihRiil >= 0 ? '#059669' : '#dc2626'};">${d.labaBersihRiil < 0 ? '-' : ''}Rp ${formatRupiah(Math.abs(d.labaBersihRiil))}</span>
       </div>
-      <div class="flex" style="font-size: 11px; font-style: italic;">
+      <div class="flex" style="font-size: 11px; font-style: italic; color: #64748b;">
         <span>Persentase Margin Bersih:</span>
         <span>${d.marginPercent}%</span>
       </div>
       <div class="double-divider"></div>
 
       <div class="sign">
-        <div>Dibuat Oleh Kasir:<br><br><br><br>( ${activeCashier || 'Admin'} )</div>
+        <div>Dibuat Oleh Kasir:<br><br><br><br>( ${escapeHtml(activeCashier || 'Admin')} )</div>
         <div>Mengetahui Pemilik/Owner:<br><br><br><br>( ................................ )</div>
       </div>
     </body>
     </html>
   `;
 
-  const printWin = window.open('', '_blank');
+  const printWin = window.open('', '_blank', 'width=900,height=800');
   if (printWin) {
     printWin.document.open();
     printWin.document.write(printHtml);
@@ -22283,8 +24388,9 @@ function printProfitLossStatement() {
     printWin.focus();
     setTimeout(() => {
       printWin.print();
-      printWin.close();
     }, 450);
+  } else {
+    alert("Popup browser diblokir! Izinkan pop-up untuk mencetak dokumen.");
   }
 }
 
@@ -22648,16 +24754,48 @@ function syncStockOpnamesToCloud() {
   }
 }
 
+function getFilteredStockOpnames() {
+  const startDateStr = document.getElementById('opname-history-start-date')?.value;
+  const endDateStr = document.getElementById('opname-history-end-date')?.value;
+
+  let filtered = [...stockOpnames];
+
+  if (startDateStr) {
+    const start = new Date(startDateStr);
+    start.setHours(0, 0, 0, 0);
+    filtered = filtered.filter(o => o.waktu && new Date(o.waktu) >= start);
+  }
+  if (endDateStr) {
+    const end = new Date(endDateStr);
+    end.setHours(23, 59, 59, 999);
+    filtered = filtered.filter(o => o.waktu && new Date(o.waktu) <= end);
+  }
+
+  // Urutkan dari yang terbaru ke terlama berdasarkan waktu
+  filtered.sort((a, b) => new Date(b.waktu || 0) - new Date(a.waktu || 0));
+  return filtered;
+}
+
+function resetOpnameDateFilter() {
+  const startDateEl = document.getElementById('opname-history-start-date');
+  const endDateEl = document.getElementById('opname-history-end-date');
+  if (startDateEl) startDateEl.value = '';
+  if (endDateEl) endDateEl.value = '';
+  renderStockOpnameHistoryTable();
+}
+
 function renderStockOpnameHistoryTable() {
   const tbody = document.getElementById('opname-history-tbody');
   if (!tbody) return;
 
-  if (stockOpnames.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:1.2rem; color:var(--text-muted);">Belum ada riwayat stock opname.</td></tr>`;
+  const data = getFilteredStockOpnames();
+
+  if (data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:1.2rem; color:var(--text-muted);">Tidak ada riwayat stock opname pada rentang tanggal ini.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = stockOpnames.slice(0, 30).map(o => {
+  tbody.innerHTML = data.slice(0, 50).map(o => {
     const diffColor = o.selisih > 0 ? '#16a34a' : (o.selisih < 0 ? '#dc2626' : '#64748b');
     return `
       <tr>
@@ -22671,6 +24809,146 @@ function renderStockOpnameHistoryTable() {
       </tr>
     `;
   }).join('');
+}
+
+function printStockOpnameReport() {
+  const data = getFilteredStockOpnames();
+
+  if (!data || data.length === 0) {
+    alert("Tidak ada data riwayat stock opname untuk dicetak!");
+    return;
+  }
+
+  const startDateStr = document.getElementById('opname-history-start-date')?.value;
+  const endDateStr = document.getElementById('opname-history-end-date')?.value;
+
+  let periodeText = "Semua Riwayat Opname";
+  if (startDateStr && endDateStr) {
+    periodeText = `Periode: ${startDateStr} s/d ${endDateStr}`;
+  } else if (startDateStr) {
+    periodeText = `Mulai Tanggal: ${startDateStr}`;
+  } else if (endDateStr) {
+    periodeText = `Sampai Tanggal: ${endDateStr}`;
+  }
+
+  const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'TOKO SAHIL';
+  const storeAddress = (receiptSettings && receiptSettings.address) ? receiptSettings.address : '';
+  const printTime = new Date().toLocaleString('id-ID');
+
+  let rowsHtml = '';
+  let totalSelisihKurang = 0;
+  let totalSelisihLebih = 0;
+
+  data.forEach((o, idx) => {
+    const selisihNum = Number(o.selisih) || 0;
+    if (selisihNum < 0) totalSelisihKurang += Math.abs(selisihNum);
+    if (selisihNum > 0) totalSelisihLebih += selisihNum;
+
+    const diffColor = selisihNum > 0 ? '#16a34a' : (selisihNum < 0 ? '#dc2626' : '#333');
+    const diffSign = selisihNum > 0 ? '+' : '';
+
+    rowsHtml += `
+      <tr>
+        <td style="text-align:center; border:1px solid #cbd5e1; padding:6px;">${idx + 1}</td>
+        <td style="border:1px solid #cbd5e1; padding:6px; font-size:11px;">${o.waktu ? new Date(o.waktu).toLocaleString('id-ID') : '-'}</td>
+        <td style="border:1px solid #cbd5e1; padding:6px; font-weight:600;">${o.productName || o.productId}</td>
+        <td style="border:1px solid #cbd5e1; padding:6px; font-size:12px;">${o.petugas || 'Admin'}</td>
+        <td style="text-align:center; border:1px solid #cbd5e1; padding:6px;">${o.stokLama}</td>
+        <td style="text-align:center; border:1px solid #cbd5e1; padding:6px; font-weight:700;">${o.stokBaru}</td>
+        <td style="text-align:center; border:1px solid #cbd5e1; padding:6px; font-weight:700; color:${diffColor};">${diffSign}${selisihNum}</td>
+        <td style="border:1px solid #cbd5e1; padding:6px; font-size:12px;">${o.alasan || '-'}</td>
+      </tr>
+    `;
+  });
+
+  const printWindow = window.open('', '_blank', 'width=950,height=750');
+  if (!printWindow) {
+    alert("Popup browser diblokir! Izinkan pop-up untuk mencetak laporan.");
+    return;
+  }
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>Laporan Stock Opname - ${storeName}</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 20px; color: #1e293b; font-size: 13px; line-height: 1.4; }
+        .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0f172a; padding-bottom: 12px; }
+        .header h2 { margin: 0 0 4px 0; font-size: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .header p { margin: 2px 0; font-size: 12px; color: #475569; }
+        .summary-box { display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 15px; border-radius: 6px; margin-bottom: 15px; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 8px 6px; font-weight: 700; font-size: 12px; text-align: left; }
+        td { border: 1px solid #cbd5e1; padding: 6px; }
+        .signature-area { margin-top: 40px; display: flex; justify-content: space-between; padding: 0 40px; }
+        .signature-box { text-align: center; width: 200px; }
+        .signature-line { margin-top: 60px; border-bottom: 1px solid #000; }
+        @media print {
+          @page { size: landscape; margin: 12mm; }
+          body { margin: 0; }
+          .no-print { display: none !important; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="no-print" style="margin-bottom: 15px; text-align: right;">
+        <button onclick="window.print()" style="padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
+      </div>
+
+      <div class="header">
+        <h2>${storeName}</h2>
+        ${storeAddress ? `<p>${storeAddress}</p>` : ''}
+        <h3 style="margin: 8px 0 2px 0; font-size: 16px;">LAPORAN PENYESUAIAN STOCK OPNAME</h3>
+        <p style="font-weight: 600; color: #0284c7;">${periodeText}</p>
+        <p style="font-size: 11px; color: #64748b;">Dicetak pada: ${printTime}</p>
+      </div>
+
+      <div class="summary-box">
+        <div><strong>Total Item Opname:</strong> ${data.length} transaksi</div>
+        <div><strong>Total Selisih Lebih (+):</strong> <span style="color:#16a34a; font-weight:bold;">+${totalSelisihLebih} Pcs</span></div>
+        <div><strong>Total Selisih Kurang (-):</strong> <span style="color:#dc2626; font-weight:bold;">-${totalSelisihKurang} Pcs</span></div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px; text-align:center;">No</th>
+            <th style="width:130px;">Waktu & Tanggal</th>
+            <th>Nama Produk / Barcode</th>
+            <th style="width:110px;">Petugas</th>
+            <th style="width:75px; text-align:center;">Stok Awal</th>
+            <th style="width:75px; text-align:center;">Fisik Baru</th>
+            <th style="width:75px; text-align:center;">Selisih</th>
+            <th>Alasan / Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+
+      <div class="signature-area">
+        <div class="signature-box">
+          <p>Petugas Stock Opname,</p>
+          <div class="signature-line"></div>
+        </div>
+        <div class="signature-box">
+          <p>Penanggung Jawab / Kepala Toko,</p>
+          <div class="signature-line"></div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+  }, 350);
 }
 
 function exportOpnameHistoryToExcel() {
@@ -22819,6 +25097,21 @@ function renderExpiredTrackerTable() {
   const searchVal = (document.getElementById('expired-search-input')?.value || '').toLowerCase().trim();
   // Default filter adalah 'ALL' (semua yang memiliki tanggal expired)
   const statusFilter = document.getElementById('expired-status-filter')?.value || 'ALL';
+  const rackFilterEl = document.getElementById('expired-rack-filter');
+  const selectedRack = rackFilterEl ? rackFilterEl.value : 'ALL';
+
+  // Isi / sinkronkan opsi dropdown rak jika belum lengkap
+  const prodsWithExp = products.filter(p => !!p.tanggal_kadaluarsa);
+  if (rackFilterEl) {
+    const racks = Array.from(new Set(prodsWithExp.map(p => (p.rak || '').trim()).filter(Boolean))).sort();
+    const racksKey = racks.join('|');
+    const cachedRacks = rackFilterEl.getAttribute('data-cached-racks') || '';
+    if (cachedRacks !== racksKey) {
+      rackFilterEl.setAttribute('data-cached-racks', racksKey);
+      rackFilterEl.innerHTML = `<option value="ALL">Semua Lokasi Rak</option>` +
+        racks.map(r => `<option value="${escapeHtml(r)}" ${r === selectedRack ? 'selected' : ''}>Rak: ${escapeHtml(r)}</option>`).join('');
+    }
+  }
 
   let countPassed = 0;
   let countH14 = 0;
@@ -22844,11 +25137,14 @@ function renderExpiredTrackerTable() {
   if (elH30) elH30.textContent = `${countH30} Produk`;
   if (elH90) elH90.textContent = `${countH90} Produk`;
 
-  const prodsWithExp = products.filter(p => !!p.tanggal_kadaluarsa);
-
   const filtered = prodsWithExp.filter(p => {
     const info = getProductExpiryStatus(p.tanggal_kadaluarsa);
     if (statusFilter !== 'ALL' && info.status !== statusFilter) return false;
+
+    if (selectedRack && selectedRack !== 'ALL') {
+      const prodRack = (p.rak || '').trim();
+      if (prodRack !== selectedRack) return false;
+    }
 
     if (searchVal) {
       const matchName = (p.nama || '').toLowerCase().includes(searchVal);
@@ -22895,6 +25191,146 @@ function renderExpiredTrackerTable() {
       </tr>
     `;
   }).join('');
+}
+
+// Cetak Laporan Expired Tracker (Daftar Produk Kadaluarsa & Lokasi Rak)
+function printExpiredTrackerReport() {
+  const searchVal = (document.getElementById('expired-search-input')?.value || '').toLowerCase().trim();
+  const statusFilter = document.getElementById('expired-status-filter')?.value || 'ALL';
+  const rackFilterEl = document.getElementById('expired-rack-filter');
+  const selectedRack = rackFilterEl ? rackFilterEl.value : 'ALL';
+
+  const prodsWithExp = products.filter(p => !!p.tanggal_kadaluarsa);
+  const filtered = prodsWithExp.filter(p => {
+    const info = getProductExpiryStatus(p.tanggal_kadaluarsa);
+    if (statusFilter !== 'ALL' && info.status !== statusFilter) return false;
+
+    if (selectedRack && selectedRack !== 'ALL') {
+      const prodRack = (p.rak || '').trim();
+      if (prodRack !== selectedRack) return false;
+    }
+
+    if (searchVal) {
+      const matchName = (p.nama || '').toLowerCase().includes(searchVal);
+      const matchBarcode = (p.barcode || '').toLowerCase().includes(searchVal);
+      const matchRack = (p.rak || '').toLowerCase().includes(searchVal);
+      if (!matchName && !matchBarcode && !matchRack) return false;
+    }
+    return true;
+  });
+
+  filtered.sort((a, b) => {
+    const da = new Date(a.tanggal_kadaluarsa).getTime();
+    const db = new Date(b.tanggal_kadaluarsa).getTime();
+    return da - db;
+  });
+
+  if (filtered.length === 0) {
+    alert("Tidak ada produk kadaluarsa untuk dicetak berdasarkan filter saat ini.");
+    return;
+  }
+
+  let filterLabel = 'Semua Yang Memiliki Tanggal Expired';
+  if (statusFilter === 'PASSED') filterLabel = 'Sudah Kadaluarsa / Lewat Waktu';
+  else if (statusFilter === 'H14') filterLabel = 'Kritis: ≤ 14 Hari';
+  else if (statusFilter === 'H30') filterLabel = 'Mendekati: ≤ 1 Bulan (30 Hari)';
+  else if (statusFilter === 'H90') filterLabel = 'Peringatan: ≤ 3 Bulan (90 Hari)';
+  else if (statusFilter === 'SAFE') filterLabel = 'Aman (> 3 Bulan)';
+
+  const rowsHtml = filtered.map((p, idx) => {
+    const info = getProductExpiryStatus(p.tanggal_kadaluarsa);
+    const rakName = p.rak || '-';
+    const statusColor = (info.status === 'PASSED' || info.status === 'H14') ? '#dc2626' : (info.status === 'H30' ? '#d97706' : '#059669');
+
+    return `
+      <tr style="border-bottom: 1px solid #cbd5e1; page-break-inside: avoid;">
+        <td style="padding: 7px 6px; text-align: center; color: #64748b; font-weight: bold;">${idx + 1}</td>
+        <td style="padding: 7px 6px;">
+          <strong style="color: #0f172a; font-size: 12px;">${escapeHtml(p.nama)}</strong>
+          <br><small style="color: #64748b; font-family: monospace;">ID: ${escapeHtml(p.id)}</small>
+        </td>
+        <td style="padding: 7px 6px; font-family: monospace; font-size: 11px;">${p.barcode || '-'}</td>
+        <td style="padding: 7px 6px; font-weight: 700; color: #1e293b;">
+          <span style="background: #f1f5f9; padding: 2px 7px; border-radius: 4px; border: 1px solid #e2e8f0;">${escapeHtml(rakName)}</span>
+        </td>
+        <td style="padding: 7px 6px; text-align: center; font-weight: 800; font-size: 11.5px; color: ${p.stok <= 2 ? '#dc2626' : '#0f172a'};">
+          ${p.stok || 0} pcs
+        </td>
+        <td style="padding: 7px 6px; font-weight: 800; font-size: 11.5px; color: #0f172a;">
+          ${p.tanggal_kadaluarsa}
+        </td>
+        <td style="padding: 7px 6px; text-align: center;">
+          <span style="font-weight: 800; font-size: 10.5px; color: ${statusColor};">
+            ${info.label}
+          </span>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  const printContent = `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>Laporan Pengawasan Kadaluarsa &amp; Posisi Rak Produk</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 20px; color: #0f172a; font-size: 11.5px; line-height: 1.4; background: #fff; max-width: 950px; margin: 0 auto; }
+        .no-print { margin-bottom: 18px; text-align: right; }
+        .info-card { background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 8px; padding: 10px 16px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; }
+        th { background: #f8fafc; padding: 8px 6px; text-align: left; border: 1px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.3px; }
+        td { font-size: 11px; border: 1px solid #cbd5e1; padding: 7px 6px; }
+        @media print {
+          body { padding: 0; }
+          .no-print { display: none !important; }
+          @page { size: portrait; margin: 10mm; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="no-print">
+        <button onclick="window.print()" style="padding: 8px 20px; background: #ea580c; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
+      </div>
+
+      ${getStorePrintHeader()}
+      <h3 style="text-align: center; margin: 10px 0 3px 0; font-size: 16px; text-transform: uppercase; color: #1e293b;">LAPORAN PENGAWASAN KADALUARSA PRODUK (EXPIRED TRACKER)</h3>
+      <div style="text-align: center; font-size: 11px; color: #64748b; margin-bottom: 14px;">Filter: <b>${escapeHtml(filterLabel)}</b> &bull; Total Terdata: <b>${filtered.length} Produk</b> &bull; Dicetak: ${new Date().toLocaleString('id-ID')}</div>
+
+      <div class="info-card">
+        <div>💡 <b>Panduan Tindakan Toko:</b> Periksa lokasi fisik rak barang di bawah untuk segera dipajang di rak depan, diberi diskon promo, atau diajukan retur ke sales.</div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 30px; text-align: center;">No</th>
+            <th>Nama Produk &amp; ID</th>
+            <th style="width: 120px;">Barcode</th>
+            <th style="width: 110px;">Lokasi Rak</th>
+            <th style="width: 75px; text-align: center;">Sisa Stok</th>
+            <th style="width: 105px;">Tgl Expired</th>
+            <th style="width: 140px; text-align: center;">Status Kadaluarsa</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const printWin = window.open('', '_blank', 'width=1000,height=800');
+  if (printWin) {
+    printWin.document.open();
+    printWin.document.write(printContent);
+    printWin.document.close();
+    printWin.focus();
+  } else {
+    alert("Popup browser diblokir! Izinkan pop-up untuk mencetak dokumen.");
+  }
 }
 
 function directReturSalesFromExpired(productId) {

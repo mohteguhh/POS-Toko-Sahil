@@ -94,11 +94,6 @@
           <i data-lucide="settings" class="icon"></i>
           <span>Pengaturan</span>
         </button>
-        <!-- Tombol Portal Mandiri Anggota (Buka Link Sendiri) -->
-        <a href="portal.html" target="_blank" class="tab-btn" id="tab-member-portal" title="Portal Mandiri Anggota: Link Sendiri untuk Anggota Cek Saldo, Voucher, Riwayat & Ajukan Bon" style="background: linear-gradient(135deg, rgba(234,88,12,0.15) 0%, rgba(249,115,22,0.2) 100%); color: #ea580c; border: 1.5px solid rgba(234,88,12,0.3); font-weight: 800; text-decoration: none; display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; border-radius: 10px;">
-          <i data-lucide="shield-check" class="icon" style="color: #ea580c;"></i>
-          <span>Portal Anggota</span>
-        </a>
       </nav>
       
       <!-- System Indicators -->
@@ -527,8 +522,12 @@
                     <!-- Di-render dinamis oleh renderVoucherAnalyticsTable() -->
                   </div>
                 </div>
-                <div class="modal-footer" style="display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); padding: 0.75rem 1.25rem;">
+                <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding: 0.75rem 1.25rem;">
                   <button type="button" class="btn btn-secondary" onclick="closeVoucherAnalyticsModal()">Tutup</button>
+                  <button type="button" class="btn btn-primary" onclick="printVoucherAnalyticsReport()" style="background: #d97706; border-color: #d97706; font-weight: 700; display: inline-flex; align-items: center; gap: 0.45rem;">
+                    <svg viewBox="0 0 24 24" style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    <span>Cetak Rincian Voucher</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1198,14 +1197,15 @@
                   </h3>
                   <p class="settings-desc" style="margin: 0.25rem 0 0;">Lihat total pembelian masuk, nilai belanja, dan barang retur dari sales per hari atau per bulan tertentu.</p>
                 </div>
-                <!-- Filter Periode Rekap & Tombol Cetak / Export -->
+                <!-- Filter Periode Rekap (Tanggal Sekian s/d Sekian) & Tombol Cetak / Export -->
                 <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                  <select id="sales-rekap-type" onchange="onSalesRekapFilterChange()" style="padding: 0.5rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-family: var(--font-main); font-weight: 600; background: var(--bg-surface); color: var(--text-main);">
-                    <option value="hari">Harian (Per Tanggal)</option>
-                    <option value="bulan" selected>Bulanan (Per Bulan)</option>
-                  </select>
-                  <input type="date" id="sales-rekap-date" onchange="renderSalesRekapView()" style="display: none; padding: 0.45rem 0.65rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main);">
-                  <input type="month" id="sales-rekap-month" onchange="renderSalesRekapView()" style="padding: 0.45rem 0.65rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main);">
+                  <div style="display: flex; align-items: center; gap: 0.25rem; background: var(--bg-surface); padding: 3px 8px; border: 1.5px solid var(--border-color); border-radius: 8px;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700;">Periode:</span>
+                    <input type="date" id="sales-rekap-date-start" onchange="renderSalesRekapView()" style="padding: 0.35rem 0.5rem; border: none; background: transparent; color: var(--text-main); font-weight: 600; font-size: 0.85rem;" title="Tanggal Mulai">
+                    <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700;">s/d</span>
+                    <input type="date" id="sales-rekap-date-end" onchange="renderSalesRekapView()" style="padding: 0.35rem 0.5rem; border: none; background: transparent; color: var(--text-main); font-weight: 600; font-size: 0.85rem;" title="Tanggal Sampai">
+                    <button type="button" onclick="document.getElementById('sales-rekap-date-start').value=''; document.getElementById('sales-rekap-date-end').value=''; renderSalesRekapView();" style="border: none; background: none; color: var(--text-muted); cursor: pointer; font-size: 0.8rem; padding: 0 4px;" title="Reset Tanggal">✕</button>
+                  </div>
                   <select id="sales-rekap-sales-target" onchange="renderSalesRekapView()" style="padding: 0.5rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-size: 0.9rem;">
                     <option value="All">Semua Sales</option>
                   </select>
@@ -1284,6 +1284,10 @@
                   <button type="button" class="btn btn-primary" onclick="openExpenseModal('masuk')" style="display: flex; align-items: center; gap: 0.45rem; padding: 0.55rem 1.1rem; border-radius: 9px; font-weight: 700; background: #16a34a; border-color: #16a34a; box-shadow: 0 2px 8px rgba(22,163,74,0.25);">
                     <svg viewBox="0 0 24 24" style="width: 17px; height: 17px;" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
                     <span>Kas Masuk / Modal</span>
+                  </button>
+                  <button type="button" class="btn btn-primary btn-sm" onclick="printExpensesReport()" style="display: flex; align-items: center; gap: 0.35rem; font-weight: 700; background: #2563eb; border-color: #2563eb;">
+                    <i data-lucide="printer" style="width: 15px; height: 15px;"></i>
+                    <span>Cetak Laporan Kas</span>
                   </button>
                   <button type="button" class="btn btn-secondary btn-sm" onclick="exportExpensesToExcel()" style="display: flex; align-items: center; gap: 0.35rem; font-weight: 600;">
                     <i data-lucide="file-spreadsheet" style="width: 15px; height: 15px;"></i>
@@ -1442,11 +1446,6 @@
             <button type="button" onclick="openCreateCustomVoucherModal()" style="background: rgba(255,255,255,0.22); color: #fff; border: 1.5px solid rgba(255,255,255,0.45); padding: 0.55rem 0.95rem; border-radius: 11px; font-weight: 800; font-size: 0.84rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; backdrop-filter: blur(10px); transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.06);" onmouseover="this.style.background='rgba(255,255,255,0.32)';this.style.transform='translateY(-1px)';" onmouseout="this.style.background='rgba(255,255,255,0.22)';this.style.transform='';">
               <i data-lucide="ticket" style="width: 15px; height: 15px;"></i>
               Buat Voucher Custom
-            </button>
-            <!-- Tombol Cetak Massal ID Card -->
-            <button type="button" onclick="openBulkIdCardModal()" title="Cetak ID Card untuk semua atau beberapa anggota sekaligus" style="background: rgba(255,255,255,0.22); color: #fff; border: 1.5px solid rgba(255,255,255,0.45); padding: 0.55rem 0.95rem; border-radius: 11px; font-weight: 800; font-size: 0.84rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; backdrop-filter: blur(10px); transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.06);" onmouseover="this.style.background='rgba(255,255,255,0.32)';this.style.transform='translateY(-1px)';" onmouseout="this.style.background='rgba(255,255,255,0.22)';this.style.transform='';">
-              <i data-lucide="printer" style="width: 15px; height: 15px;"></i>
-              🪪 Cetak Massal ID Card
             </button>
             <!-- Tombol Buka Portal Anggota (Link Sendiri) -->
             <a href="portal.html" target="_blank" title="Buka Portal Mandiri Anggota di tab baru / link terpisah" style="background: rgba(255,255,255,0.22); color: #fff; border: 1.5px solid rgba(255,255,255,0.45); padding: 0.55rem 0.95rem; border-radius: 11px; font-weight: 800; font-size: 0.84rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; backdrop-filter: blur(10px); text-decoration: none; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.06);" onmouseover="this.style.background='rgba(255,255,255,0.32)';this.style.transform='translateY(-1px)';" onmouseout="this.style.background='rgba(255,255,255,0.22)';this.style.transform='';">
@@ -1804,6 +1803,11 @@
                 </div>
               </div>
               <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <!-- Tombol Cetak Massal ID Card (Akses Cepat Toolbar) -->
+                <button type="button" class="btn btn-sm" onclick="openBulkIdCardModal()" title="Cetak ID Card untuk semua atau beberapa anggota sekaligus" style="background: linear-gradient(135deg, #b45309 0%, #ea580c 100%); color: #fff; border: none; font-weight: 800; font-size: 0.82rem; padding: 0.5rem 0.95rem; border-radius: 50px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; box-shadow: 0 2px 6px rgba(234,88,12,0.25);">
+                  <i data-lucide="printer" style="width: 15px; height: 15px;"></i>
+                  <span>🪪 Cetak Massal ID Card</span>
+                </button>
                 <!-- Search box -->
                 <div style="position: relative; min-width: 250px; display: flex; align-items: center;">
                   <i data-lucide="search" style="position: absolute; left: 12px; width: 16px; height: 16px; color: var(--text-muted); pointer-events: none;"></i>
@@ -1813,18 +1817,18 @@
               </div>
             </div>
 
-            <div class="table-responsive">
-              <table class="data-table">
+            <div class="table-responsive" style="border-radius: 12px; border: 1px solid var(--border-color); overflow-x: auto; background: var(--bg-surface);">
+              <table class="data-table members-modern-table" style="width: 100%; min-width: 950px; border-collapse: separate; border-spacing: 0;">
                 <thead>
-                  <tr>
-                    <th style="width: 100px;">ID Anggota</th>
-                    <th>Nama Anggota</th>
-                    <th>Instansi</th>
-                    <th>No. HP</th>
-                    <th>Alamat</th>
-                    <th>Saldo Tabungan</th>
-                    <th id="th-customer-reward-status">Daftar Voucher</th>
-                    <th style="width: 280px; text-align: center;">Aksi &amp; Tabungan</th>
+                  <tr style="background: var(--bg-body, #f8fafc);">
+                    <th style="width: 110px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color);">ID Anggota</th>
+                    <th style="min-width: 160px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color);">Nama Anggota</th>
+                    <th style="min-width: 120px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color);">Instansi</th>
+                    <th style="width: 130px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color);">No. HP (WA)</th>
+                    <th style="min-width: 130px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color);">Alamat</th>
+                    <th style="width: 130px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color); text-align: right;">Saldo Tabungan</th>
+                    <th id="th-customer-reward-status" style="min-width: 180px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color);">Daftar Voucher / Poin</th>
+                    <th style="width: 200px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color); text-align: center;">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="customer-table-body">
@@ -1852,20 +1856,26 @@
               <!-- Filter Status & Cetak Rekap Hutang -->
               <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
                 <div style="display: flex; gap: 0.35rem; background: var(--bg-body); padding: 3px; border-radius: 10px; border: 1px solid var(--border-color);">
-                  <button type="button" class="btn btn-sm" id="btn-debt-filter-unpaid" onclick="setCustomerDebtFilter('unpaid')" style="border-radius: 8px; font-size: 0.8rem; font-weight: 700; padding: 0.35rem 0.8rem; background: #ef4444; color: #fff; border: none; cursor: pointer;">
+                  <button type="button" class="btn btn-sm" id="btn-debt-filter-unpaid" onclick="setCustomerDebtFilter('unpaid')" style="border-radius: 8px; font-size: 0.8rem; font-weight: 700; padding: 0.35rem 0.8rem; background: transparent; color: var(--text-muted); border: none; cursor: pointer;">
                     Belum Lunas (<span id="count-debt-unpaid">0</span>)
                   </button>
                   <button type="button" class="btn btn-sm" id="btn-debt-filter-paid" onclick="setCustomerDebtFilter('paid')" style="border-radius: 8px; font-size: 0.8rem; font-weight: 700; padding: 0.35rem 0.8rem; background: transparent; color: var(--text-muted); border: none; cursor: pointer;">
                     Sudah Lunas (<span id="count-debt-paid">0</span>)
                   </button>
-                  <button type="button" class="btn btn-sm" id="btn-debt-filter-all" onclick="setCustomerDebtFilter('all')" style="border-radius: 8px; font-size: 0.8rem; font-weight: 700; padding: 0.35rem 0.8rem; background: transparent; color: var(--text-muted); border: none; cursor: pointer;">
+                  <button type="button" class="btn btn-sm" id="btn-debt-filter-all" onclick="setCustomerDebtFilter('all')" style="border-radius: 8px; font-size: 0.8rem; font-weight: 700; padding: 0.35rem 0.8rem; background: #ea580c; color: #fff; border: none; cursor: pointer;">
                     Semua
                   </button>
                 </div>
 
-                <div style="display: flex; align-items: center; gap: 0.3rem;">
-                  <input type="month" id="filter-debt-month" class="form-control" style="font-size: 0.82rem; padding: 0.35rem 0.6rem; border-radius: 8px;" onchange="renderCustomerDebtBook()">
-                  <button type="button" onclick="openManualDebtModal()" style="font-weight: 700; font-size: 0.82rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.35rem; background: #ea580c; color: #fff; border: none; padding: 0.4rem 0.85rem; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                  <div style="display: flex; align-items: center; gap: 0.25rem; background: var(--bg-surface); padding: 2px 6px; border: 1.5px solid var(--border-color); border-radius: 8px;">
+                    <span style="font-size: 0.76rem; color: var(--text-muted); font-weight: 700;">Tgl:</span>
+                    <input type="date" id="filter-debt-date-start" class="form-control" style="font-size: 0.8rem; padding: 0.25rem 0.4rem; border: none; background: transparent; color: var(--text-main);" onchange="renderCustomerDebtBook()" title="Tanggal Mulai">
+                    <span style="font-size: 0.76rem; color: var(--text-muted); font-weight: 700;">s/d</span>
+                    <input type="date" id="filter-debt-date-end" class="form-control" style="font-size: 0.8rem; padding: 0.25rem 0.4rem; border: none; background: transparent; color: var(--text-main);" onchange="renderCustomerDebtBook()" title="Tanggal Akhir">
+                    <button type="button" onclick="document.getElementById('filter-debt-date-start').value=''; document.getElementById('filter-debt-date-end').value=''; renderCustomerDebtBook();" style="border: none; background: none; color: var(--text-muted); cursor: pointer; font-size: 0.8rem; padding: 0 4px;" title="Reset Tanggal">✕</button>
+                  </div>
+                  <button type="button" onclick="openManualDebtModal()" style="font-weight: 700; font-size: 0.82rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.35rem; background: #ea580c; color: #fff; border: none; padding: 0.45rem 0.85rem; cursor: pointer;">
                     <i data-lucide="plus-circle" style="width: 14px; height: 14px;"></i>
                     <span>Hutang Manual</span>
                   </button>
@@ -1904,6 +1914,8 @@
                 <div id="summary-total-paid-debt" style="font-size: 1.4rem; font-weight: 900; color: #059669; margin-top: 4px;">Rp 0</div>
                 <div style="font-size: 0.75rem; color: #065f46; margin-top: 2px;">Tercatat dari riwayat pelunasan kasir</div>
               </div>
+            </div>
+
             <!-- Banner Permohonan Hutang Masuk dari Portal Anggota -->
             <div id="container-member-debt-applications" style="display: none; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 12px; padding: 1.15rem; margin-bottom: 1.25rem;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
@@ -1922,18 +1934,18 @@
             </div>
 
             <!-- Tabel Buku Hutang -->
-            <div class="table-responsive">
-              <table class="data-table">
+            <div class="table-responsive" style="border-radius: 12px; border: 1px solid var(--border-color); overflow-x: auto; background: var(--bg-surface);">
+              <table class="data-table debt-modern-table" style="width: 100%; min-width: 980px; border-collapse: separate; border-spacing: 0;">
                 <thead>
-                  <tr>
-                    <th>Pelanggan</th>
-                    <th>No. Transaksi &amp; Waktu Hutang</th>
-                    <th>Rincian Produk Yang Dihutang</th>
-                    <th>Jatuh Tempo</th>
-                    <th>Total Belanja</th>
-                    <th>Sisa Hutang</th>
-                    <th>Status &amp; Riwayat Lunas</th>
-                    <th style="width: 220px; text-align: center;">Aksi Pelunasan</th>
+                  <tr style="background: var(--bg-body, #f8fafc);">
+                    <th style="min-width: 160px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color);">Pelanggan</th>
+                    <th style="width: 170px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color);">No. Transaksi &amp; Waktu</th>
+                    <th style="min-width: 200px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color);">Rincian Produk</th>
+                    <th style="width: 140px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color);">Jatuh Tempo</th>
+                    <th style="width: 120px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color); text-align: right;">Total Bon</th>
+                    <th style="width: 130px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color); text-align: right;">Sisa Piutang</th>
+                    <th style="width: 160px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color); text-align: center;">Status</th>
+                    <th style="width: 180px; padding: 0.85rem 1rem; font-weight: 700; font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid var(--border-color); text-align: center;">Aksi Pelunasan</th>
                   </tr>
                 </thead>
                 <tbody id="customer-debt-table-body">
@@ -1978,6 +1990,10 @@
               <i data-lucide="gift" style="width: 14px; height: 14px;"></i>
               <span>Paket Bundling Hemat</span>
             </button>
+            <a href="price-checker.html" target="_blank" class="btn btn-sm" title="Buka Mesin Cek Harga Mandiri Pelanggan (Komputer Kios Supermarket)" style="font-weight: 800; border-radius: 7px; display: inline-flex; align-items: center; gap: 0.35rem; background: #ea580c; color: #fff; text-decoration: none;">
+              <i data-lucide="scan-barcode" style="width: 14px; height: 14px;"></i>
+              <span>Layar Cek Harga</span>
+            </a>
           </div>
         </div>
 
@@ -2326,10 +2342,25 @@
 
           <!-- Riwayat Audit Stock Opname Masa Lalu -->
           <div class="card" style="padding: 1.25rem;">
-            <h4 style="margin: 0 0 0.85rem 0; font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
-              <i data-lucide="history" style="width: 18px; height: 18px; color: var(--text-muted);"></i>
-              <span>Riwayat Penyesuaian Stok Terakhir</span>
-            </h4>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.85rem;">
+              <h4 style="margin: 0; font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="history" style="width: 18px; height: 18px; color: var(--text-muted);"></i>
+                <span>Riwayat Penyesuaian Stok Terakhir</span>
+              </h4>
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                <div style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem;">
+                  <span style="color: var(--text-muted); font-size: 0.82rem;">Dari:</span>
+                  <input type="date" id="opname-history-start-date" onchange="renderStockOpnameHistoryTable()" style="padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.82rem;">
+                  <span style="color: var(--text-muted); font-size: 0.82rem;">s/d:</span>
+                  <input type="date" id="opname-history-end-date" onchange="renderStockOpnameHistoryTable()" style="padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); font-size: 0.82rem;">
+                  <button type="button" class="btn btn-outline-secondary btn-sm" onclick="resetOpnameDateFilter()" style="padding: 0.35rem 0.6rem; font-size: 0.8rem;" title="Reset filter tanggal">Semua</button>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" onclick="printStockOpnameReport()" style="display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600; background: #2563eb; border-color: #2563eb;">
+                  <i data-lucide="printer" style="width: 15px; height: 15px;"></i>
+                  <span>Cetak Laporan Opname</span>
+                </button>
+              </div>
+            </div>
             <div class="table-wrapper">
               <table id="opname-history-table">
                 <thead>
@@ -2402,13 +2433,20 @@
                 <input type="text" id="expired-search-input" placeholder="🔍 Cari nama produk, barcode, atau rak..." oninput="renderExpiredTrackerTable()" style="width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-size: 0.88rem;">
               </div>
               <select id="expired-status-filter" onchange="renderExpiredTrackerTable()" style="padding: 0.5rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-size: 0.88rem; font-weight: 700;">
-                <option value="ALL" selected>Semua Yang Memiliki Tanggal Expired</option>
+                <option value="ALL" selected>Semua Status Kadaluarsa</option>
                 <option value="PASSED">Sudah Expired / Lewat Waktu</option>
                 <option value="H14">Kritis: &le; 14 Hari</option>
                 <option value="H30">Mendekati: &le; 1 Bulan (30 Hari)</option>
                 <option value="H90">Peringatan: &le; 3 Bulan (90 Hari)</option>
                 <option value="SAFE">Aman (&gt; 3 Bulan)</option>
               </select>
+              <select id="expired-rack-filter" onchange="renderExpiredTrackerTable()" style="padding: 0.5rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-size: 0.88rem; font-weight: 700;">
+                <option value="ALL" selected>Semua Lokasi Rak</option>
+              </select>
+              <button type="button" class="btn btn-primary btn-sm" onclick="printExpiredTrackerReport()" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; font-weight: 700; border-radius: 8px; background: #ea580c; border-color: #ea580c;">
+                <svg viewBox="0 0 24 24" style="width: 15px; height: 15px;" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
+                <span>Cetak Rekap Kadaluarsa</span>
+              </button>
             </div>
 
             <!-- Tabel Produk Expired Tracker -->
@@ -3491,6 +3529,17 @@
                 <input type="password" id="checkout-savings-pin" maxlength="6" pattern="[0-9]*" inputmode="numeric" placeholder="6 digit PIN" style="font-size: 0.85rem; font-weight: 800; width: 110px; padding: 0.25rem 0.5rem; border-radius: 6px; border: 1.5px solid #0284c7; letter-spacing: 2px; text-align: center;">
                 <span style="font-size: 0.7rem; color: #075985;">(Wajib diisi untuk konfirmasi)</span>
               </div>
+              <div id="savings-replace-cash-container" style="display: none; margin-top: 0.45rem; padding-top: 0.45rem; border-top: 1px dashed #7dd3fc;">
+                <label style="display: flex; align-items: flex-start; gap: 0.45rem; margin: 0; cursor: pointer; font-size: 0.78rem; font-weight: 700; color: #0369a1;">
+                  <input type="checkbox" id="chk-replace-savings-with-cash" onchange="calculateChange()" style="width: 15px; height: 15px; accent-color: #0284c7; margin-top: 1px; cursor: pointer;">
+                  <div>
+                    <div>💵 Ganti uang cash ke laci (Masuk Penjualan &amp; Laci Kasir)</div>
+                    <div style="font-size: 0.69rem; font-weight: normal; color: #0284c7; margin-top: 1px;">
+                      Centang jika uang dari kas tabungan diambilkan cash ke laci kasir agar penjualan kasir &amp; laci kasir tetap masuk utuh.
+                    </div>
+                  </div>
+                </label>
+              </div>
               <div id="savings-payment-summary" style="margin-top: 0.35rem; font-size: 0.76rem; color: #075985; font-weight: 700; display: none;">
                 <!-- Ringkasan potongan tabungan -->
               </div>
@@ -3634,38 +3683,84 @@
           </div>
 
           <div class="edit-tx-payment-grid">
-            <div class="edit-tx-form-group">
-              <label>Metode Bayar</label>
+            <div class="edit-tx-form-group" style="grid-column: 1 / -1;">
+              <label>Metode Bayar / Status</label>
               <input type="hidden" id="edit-tx-payment-method" value="Tunai">
-              <div class="edit-tx-method-pills" id="edit-tx-method-pills" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; margin-top: 0.35rem;">
-                <button type="button" class="btn btn-secondary btn-sm edit-tx-method-pill active" data-method="Tunai" onclick="selectEditTxPaymentMethod('Tunai')" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.5rem 0.25rem; font-size: 0.76rem; font-weight: 700; gap: 0.25rem; border-radius: 8px;">
+              <div class="edit-tx-method-pills" id="edit-tx-method-pills" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.35rem; margin-top: 0.35rem;">
+                <button type="button" class="btn btn-secondary btn-sm edit-tx-method-pill active" data-method="Tunai" onclick="selectEditTxPaymentMethod('Tunai')" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.5rem 0.2rem; font-size: 0.74rem; font-weight: 700; gap: 0.25rem; border-radius: 8px;">
                   <i data-lucide="banknote" style="width: 16px; height: 16px;"></i>
                   <span>Tunai</span>
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm edit-tx-method-pill" data-method="QRIS" onclick="selectEditTxPaymentMethod('QRIS')" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.5rem 0.25rem; font-size: 0.76rem; font-weight: 700; gap: 0.25rem; border-radius: 8px;">
+                <button type="button" class="btn btn-secondary btn-sm edit-tx-method-pill" data-method="Bon" onclick="selectEditTxPaymentMethod('Bon')" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.5rem 0.2rem; font-size: 0.74rem; font-weight: 700; gap: 0.25rem; border-radius: 8px; border-color: #f87171;">
+                  <i data-lucide="book-open" style="width: 16px; height: 16px;"></i>
+                  <span style="color: #dc2626;">Hutang / Bon</span>
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm edit-tx-method-pill" data-method="Tabungan" onclick="selectEditTxPaymentMethod('Tabungan')" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.5rem 0.2rem; font-size: 0.74rem; font-weight: 700; gap: 0.25rem; border-radius: 8px; border-color: #7dd3fc;">
+                  <i data-lucide="wallet" style="width: 16px; height: 16px;"></i>
+                  <span style="color: #0284c7;">Tabungan</span>
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm edit-tx-method-pill" data-method="QRIS" onclick="selectEditTxPaymentMethod('QRIS')" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.5rem 0.2rem; font-size: 0.74rem; font-weight: 700; gap: 0.25rem; border-radius: 8px;">
                   <i data-lucide="qr-code" style="width: 16px; height: 16px;"></i>
                   <span>QRIS</span>
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm edit-tx-method-pill" data-method="Transfer" onclick="selectEditTxPaymentMethod('Transfer')" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.5rem 0.25rem; font-size: 0.76rem; font-weight: 700; gap: 0.25rem; border-radius: 8px;">
+                <button type="button" class="btn btn-secondary btn-sm edit-tx-method-pill" data-method="Transfer" onclick="selectEditTxPaymentMethod('Transfer')" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.5rem 0.2rem; font-size: 0.74rem; font-weight: 700; gap: 0.25rem; border-radius: 8px;">
                   <i data-lucide="landmark" style="width: 16px; height: 16px;"></i>
                   <span>Transfer</span>
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm edit-tx-method-pill" data-method="Debit" onclick="selectEditTxPaymentMethod('Debit')" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.5rem 0.25rem; font-size: 0.76rem; font-weight: 700; gap: 0.25rem; border-radius: 8px;">
+                <button type="button" class="btn btn-secondary btn-sm edit-tx-method-pill" data-method="Debit" onclick="selectEditTxPaymentMethod('Debit')" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.5rem 0.2rem; font-size: 0.74rem; font-weight: 700; gap: 0.25rem; border-radius: 8px;">
                   <i data-lucide="credit-card" style="width: 16px; height: 16px;"></i>
                   <span>Debit</span>
                 </button>
               </div>
             </div>
 
-            <div id="edit-tx-cash-section" class="edit-tx-cash-wrapper">
+            <!-- Bagian Pembayaran Tunai & DP Hutang -->
+            <div id="edit-tx-cash-section" class="edit-tx-cash-wrapper" style="grid-column: 1 / -1;">
               <div class="edit-tx-form-group">
-                <label for="edit-tx-cash-received">Uang Diterima (Rp)</label>
+                <label for="edit-tx-cash-received" id="edit-tx-cash-label">Uang Diterima / DP Awal (Rp)</label>
                 <input type="text" id="edit-tx-cash-received" class="edit-tx-input" placeholder="0" autocomplete="off" oninput="formatAndCalculateChangeEditTx()">
               </div>
               <div class="edit-tx-change-row">
-                <span class="edit-tx-change-label">Kembalian Baru:</span>
+                <span class="edit-tx-change-label" id="edit-tx-change-label">Kembalian Baru:</span>
                 <span class="edit-tx-change-val" id="edit-tx-change-amount">Rp 0</span>
               </div>
+            </div>
+
+            <!-- Form Khusus Hutang / Bon (Pelanggan, Jatuh Tempo, Catatan) -->
+            <div id="edit-tx-debt-details-section" style="display: none; grid-column: 1 / -1; background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 12px; padding: 0.85rem 1rem; margin-top: 0.25rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
+                <strong style="color: #991b1b; font-size: 0.86rem; display: flex; align-items: center; gap: 0.35rem;">
+                  <span>💳 Rincian Piutang / Hutang Anggota</span>
+                </strong>
+                <span style="font-size: 0.74rem; color: #dc2626; font-weight: 700;">*Wajib Memilih Pelanggan</span>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; margin-bottom: 0.5rem;">
+                <div>
+                  <label style="font-size: 0.78rem; font-weight: 700; color: #991b1b; display: block; margin-bottom: 0.25rem;">Nama / Anggota Peminjam*</label>
+                  <input type="text" id="edit-tx-customer-name" list="customer-list" class="edit-tx-input" placeholder="Ketik nama pelanggan..." style="width: 100%; font-size: 0.82rem; padding: 0.45rem 0.6rem; border-color: #fca5a5;">
+                </div>
+                <div>
+                  <label style="font-size: 0.78rem; font-weight: 700; color: #991b1b; display: block; margin-bottom: 0.25rem;">Rencana Jatuh Tempo</label>
+                  <input type="date" id="edit-tx-debt-due-date" class="edit-tx-input" style="width: 100%; font-size: 0.82rem; padding: 0.45rem 0.6rem; border-color: #fca5a5;">
+                </div>
+              </div>
+              <div>
+                <label style="font-size: 0.78rem; font-weight: 700; color: #991b1b; display: block; margin-bottom: 0.25rem;">Catatan Bon / Keterangan</label>
+                <input type="text" id="edit-tx-debt-note" class="edit-tx-input" placeholder="Contoh: Titip bon belanja, janji bayar akhir pekan..." style="width: 100%; font-size: 0.82rem; padding: 0.45rem 0.6rem; border-color: #fca5a5;">
+              </div>
+            </div>
+
+            <!-- Opsi Ganti Uang Cash ke Laci Kasir saat metode Non-Tunai dipilih -->
+            <div id="edit-tx-replace-cash-section" style="display: none; grid-column: 1 / -1; margin-top: 0.5rem; background: rgba(34, 197, 94, 0.08); border: 1.5px dashed rgba(34, 197, 94, 0.4); border-radius: 10px; padding: 0.75rem 0.95rem;">
+              <label style="display: flex; align-items: flex-start; gap: 0.6rem; cursor: pointer; margin: 0; font-size: 0.85rem; font-weight: 700; color: #166534;">
+                <input type="checkbox" id="edit-tx-replace-cash-checkbox" style="width: 18px; height: 18px; margin-top: 1px; accent-color: #16a34a; cursor: pointer;">
+                <div>
+                  <div>💵 Ganti uang cash ke laci (Masuk Penjualan &amp; Laci Kasir)</div>
+                  <div style="font-size: 0.76rem; font-weight: 500; color: #15803d; margin-top: 2px;">
+                    Centang jika dana transfer/QRIS/Debit/Tabungan ini diambilkan uang cash pengganti ke dalam laci kasir, sehingga total penjualan kasir dan laci kasir tetap masuk utuh.
+                  </div>
+                </div>
+              </label>
             </div>
           </div>
         </div>
@@ -3777,6 +3872,10 @@
             <span>Total</span>
             <span id="rec-total">Rp 0</span>
           </div>
+          <div class="receipt-total-row" id="rec-savings-row" style="display: none; color: #0284c7; font-weight: 700;">
+            <span>Bayar Pakai Tabungan</span>
+            <span id="rec-savings">Rp 0</span>
+          </div>
           <div class="receipt-total-row">
             <span>Uang Bayar</span>
             <span id="rec-cash">Rp 0</span>
@@ -3802,7 +3901,10 @@
           </div>
           <div id="rec-crm-voucher-block" style="display: none;">
             <div>Voucher Digunakan: <span id="rec-vouchers-used">0</span></div>
-            <div>Sisa Voucher Bulan Ini: <span id="rec-vouchers-remaining" style="font-weight: 700;">0</span></div>
+            <div id="rec-vouchers-unclaimed-wrapper" style="margin-top: 2px;">
+              <span id="rec-vouchers-unclaimed-label" style="font-weight: 700; color: #ea580c;">Voucher Belum Diklaim:</span>
+              <div id="rec-vouchers-remaining" style="font-weight: 700; font-size: 0.85rem; margin-top: 2px;">0 Voucher</div>
+            </div>
           </div>
         </div>
         
@@ -4055,6 +4157,7 @@
             <th style="text-align: center; padding: 0.25rem 0; width: 60px;">Terjual</th>
             <th style="text-align: right; padding: 0.25rem 0; width: 65px;">Sisa Stok</th>
             <th style="text-align: center; padding: 0.25rem 0; width: 65px;">Status</th>
+            <th style="text-align: right; padding: 0.25rem 0; width: 95px;">Harga Beli x Stok</th>
           </tr>
         </thead>
         <tbody id="print-rep-stock-status-list">
@@ -4231,28 +4334,34 @@
         <input type="hidden" id="delivery-id" value="">
         <div class="modal-body" style="flex: 1; overflow-y: auto; padding: 1.25rem;">
           <!-- Info Header Nota & Pengaturan PPN -->
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; padding: 0.85rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: 10px;">
-            <div class="form-group">
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1rem; padding: 0.85rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: 10px; align-items: start;">
+            <div class="form-group" style="margin-bottom: 0;">
               <label for="delivery-sales-select" style="font-weight: 700; display: block; margin-bottom: 0.35rem; font-size: 0.85rem;">Pilih Sales*</label>
-              <select id="delivery-sales-select" required onchange="onDeliverySalesChanged()" style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main);">
+              <select id="delivery-sales-select" required onchange="onDeliverySalesChanged()" style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); height: 42px; box-sizing: border-box;">
                 <option value="">-- Pilih Sales --</option>
               </select>
             </div>
-            <div class="form-group">
+            <div class="form-group" style="margin-bottom: 0;">
               <label for="delivery-invoice-no" style="font-weight: 700; display: block; margin-bottom: 0.35rem; font-size: 0.85rem;">No. Nota / Faktur*</label>
-              <input type="text" id="delivery-invoice-no" required placeholder="Misal: INV-2026-0901" style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px;">
+              <input type="text" id="delivery-invoice-no" required placeholder="Misal: INV-2026-0901" style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; height: 42px; box-sizing: border-box;">
             </div>
-            <div class="form-group">
+            <div class="form-group" style="margin-bottom: 0;">
               <label for="delivery-date" style="font-weight: 700; display: block; margin-bottom: 0.35rem; font-size: 0.85rem;">Tanggal Datang Barang*</label>
-              <input type="date" id="delivery-date" required style="width: 100%; padding: 0.5rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px;">
+              <input type="date" id="delivery-date" required style="width: 100%; padding: 0.5rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; height: 42px; box-sizing: border-box;">
             </div>
-            <!-- Pengaturan PPN Otomatis (Minimalis Sesuai Request) -->
-            <div class="form-group" style="display: flex; align-items: flex-end; justify-content: flex-start; padding-bottom: 0.15rem;">
-              <div style="display: inline-flex; align-items: center; gap: 0.45rem; background: var(--bg-surface-elevated); padding: 0.4rem 0.65rem; border-radius: 8px; border: 1.5px solid var(--border-color);">
-                <span style="font-weight: 800; font-size: 0.85rem; color: var(--text-main);">PPN</span>
-                <input type="number" id="delivery-ppn-percent" value="11" min="0" max="100" step="0.5" oninput="onDeliveryPpnPercentChanged()" style="width: 58px; padding: 0.35rem 0.4rem; border: 1.5px solid var(--border-color); border-radius: 6px; font-weight: 800; font-size: 0.85rem; text-align: center;">
-                <span style="font-size: 0.85rem; font-weight: 800; color: var(--text-main);">%</span>
-                <input type="checkbox" id="delivery-has-ppn" checked onchange="toggleDeliveryPpnMode()" title="Aktifkan / Nonaktifkan Potongan PPN" style="accent-color: #ea580c; width: 17px; height: 17px; cursor: pointer; margin-left: 2px;">
+            <!-- Pengaturan PPN Otomatis (Sejajar dengan kolom input lainnya) -->
+            <div class="form-group" style="margin-bottom: 0;">
+              <label style="font-weight: 700; display: block; margin-bottom: 0.35rem; font-size: 0.85rem;">PPN Pembelian</label>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.45rem; background: var(--bg-surface); padding: 0.35rem 0.75rem; border-radius: 8px; border: 1.5px solid var(--border-color); height: 42px; box-sizing: border-box;">
+                <div style="display: flex; align-items: center; gap: 0.35rem;">
+                  <span style="font-weight: 800; font-size: 0.85rem; color: var(--text-main);">PPN</span>
+                  <input type="number" id="delivery-ppn-percent" value="11" min="0" max="100" step="0.5" oninput="onDeliveryPpnPercentChanged()" style="width: 50px; padding: 0.2rem 0.35rem; border: 1.5px solid var(--border-color); border-radius: 6px; font-weight: 800; font-size: 0.85rem; text-align: center;">
+                  <span style="font-size: 0.85rem; font-weight: 800; color: var(--text-main);">%</span>
+                </div>
+                <label style="display: flex; align-items: center; gap: 0.35rem; margin: 0; cursor: pointer;" title="Centang jika nota pembelian ini dikenakan PPN">
+                  <input type="checkbox" id="delivery-has-ppn" checked onchange="toggleDeliveryPpnMode()" style="accent-color: #ea580c; width: 18px; height: 18px; cursor: pointer;">
+                  <span style="font-size: 0.78rem; font-weight: 700; color: #ea580c;">Aktif</span>
+                </label>
               </div>
             </div>
           </div>
@@ -5306,11 +5415,13 @@
 
           <!-- Top Row: Nama Toko & Badge KARTU ANGGOTA -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; position: relative; z-index: 2;">
-            <div style="display: flex; align-items: center; gap: 0.4rem;">
-              <span style="font-size: 1.15rem;">🏪</span>
-              <strong id="vcard-store-name" style="font-size: 0.95rem; letter-spacing: 0.5px; text-transform: uppercase;">TOKO KAMI</strong>
+            <div style="display: flex; align-items: center; gap: 0.5rem; max-width: 65%;">
+              <div id="vcard-store-logo-container" style="display: flex; align-items: center; justify-content: center;">
+                <span style="font-size: 1.15rem;">🏪</span>
+              </div>
+              <strong id="vcard-store-name" style="font-size: 0.95rem; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">TOKO KAMI</strong>
             </div>
-            <span style="font-size: 0.72rem; background: rgba(255,255,255,0.25); padding: 0.2rem 0.65rem; border-radius: 999px; backdrop-filter: blur(4px); font-weight: 800; border: 1px solid rgba(255,255,255,0.35); letter-spacing: 0.5px;">KARTU ANGGOTA</span>
+            <span style="font-size: 0.72rem; background: rgba(255,255,255,0.25); padding: 0.2rem 0.65rem; border-radius: 999px; backdrop-filter: blur(4px); font-weight: 800; border: 1px solid rgba(255,255,255,0.35); letter-spacing: 0.5px; flex-shrink: 0;">KARTU ANGGOTA</span>
           </div>
 
           <!-- Detail Identitas Anggota -->
@@ -5360,6 +5471,75 @@
             <span>Cetak ID Card</span>
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       MODAL: CETAK MASSAL ID CARD ANGGOTA
+  ═══════════════════════════════════════════════════════════ -->
+  <div id="bulk-id-card-modal" class="modal-overlay" style="display: none; align-items: center; justify-content: center; z-index: 10005 !important;">
+    <div class="modal-card" style="max-width: 780px; width: 95vw; max-height: 90vh; border-radius: 20px; overflow: hidden; padding: 0; display: flex; flex-direction: column;">
+      <div style="background: linear-gradient(135deg, #b45309 0%, #ea580c 100%); padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">🪪</div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 900; color: #fff;">Cetak Massal ID Card Anggota</h3>
+            <div style="font-size: 0.8rem; color: rgba(255,255,255,0.85); margin-top: 2px;">Cetak kartu anggota sekaligus dengan barcode scanner standar ID Card (85.6mm x 54mm)</div>
+          </div>
+        </div>
+        <button type="button" onclick="closeBulkIdCardModal()" style="background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 8px; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+      </div>
+
+      <div style="padding: 1.25rem 1.5rem; background: var(--bg-surface); overflow-y: auto; flex: 1;">
+        <!-- Filter & Kontrol Pilihan -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; background: var(--bg-card); padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid var(--border-color);">
+          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; flex: 1;">
+            <div style="position: relative; flex: 1; min-width: 200px;">
+              <input type="text" id="bulk-id-card-search" placeholder="🔍 Cari nama / instansi..." oninput="filterBulkIdCardList()" style="width: 100%; padding: 0.45rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 0.85rem;">
+            </div>
+            <select id="bulk-id-card-instansi-filter" onchange="filterBulkIdCardList()" style="padding: 0.45rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 0.85rem;">
+              <option value="">Semua Instansi</option>
+            </select>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSelectAllBulkIdCards(true)" style="font-size: 0.78rem; font-weight: 700;">Pilih Semua</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSelectAllBulkIdCards(false)" style="font-size: 0.78rem; font-weight: 700;">Hapus Pilihan</button>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <span id="bulk-id-card-selected-count" style="font-size: 0.82rem; font-weight: 700; color: #ea580c;">0 Anggota Dipilih untuk Dicetak</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">Layout rapi 2 kartu per baris ukuran standar kartu</span>
+        </div>
+
+        <!-- Daftar Anggota Checkbox -->
+        <div style="border: 1px solid var(--border-color); border-radius: 12px; max-height: 380px; overflow-y: auto; background: var(--bg-card);">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+            <thead style="background: var(--bg-surface-elevated); position: sticky; top: 0; z-index: 5;">
+              <tr style="border-bottom: 1px solid var(--border-color);">
+                <th style="width: 45px; text-align: center; padding: 0.6rem 0.5rem;">
+                  <input type="checkbox" id="chk-bulk-id-card-all" onchange="toggleSelectAllBulkIdCards(this.checked)" style="width: 16px; height: 16px; accent-color: #ea580c; cursor: pointer;">
+                </th>
+                <th style="text-align: left; padding: 0.6rem 0.5rem;">ID &amp; Nama Anggota</th>
+                <th style="text-align: left; padding: 0.6rem 0.5rem;">Instansi</th>
+                <th style="text-align: left; padding: 0.6rem 0.5rem;">No. Telp</th>
+                <th style="text-align: left; padding: 0.6rem 0.5rem;">Alamat</th>
+              </tr>
+            </thead>
+            <tbody id="bulk-id-card-tbody">
+              <!-- Diisi dinamis -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="padding: 1rem 1.5rem; background: var(--bg-surface-elevated); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <button type="button" class="btn btn-secondary" onclick="closeBulkIdCardModal()">Batal</button>
+        <button type="button" class="btn btn-primary" onclick="executePrintBulkIdCards()" style="background: linear-gradient(135deg, #b45309 0%, #ea580c 100%); border: none; font-weight: 800; padding: 0.65rem 1.5rem; display: inline-flex; align-items: center; gap: 0.45rem;">
+          <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
+          <span>Cetak ID Card Terpilih</span>
+        </button>
       </div>
     </div>
   </div>
@@ -6081,61 +6261,90 @@
   </div>
 
         <!-- ═══════════════════════════════════════════════════════════
-             MODAL: TABUNGAN ANGGOTA (SETOR / TARIK SALDO MANDIRI)
+             MODAL: TABUNGAN ANGGOTA (PREMIUM PRIVATE BANKING EDITION)
         ═══════════════════════════════════════════════════════════ -->
-        <div id="savings-account-modal" class="modal-overlay" style="display: none; z-index: 2950;">
-          <div class="modal-card" style="max-width: 580px; width: 95vw; max-height: 90vh; border-radius: 20px; overflow: hidden; padding: 0; display: flex; flex-direction: column;">
-            <div style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-              <div style="display: flex; align-items: center; gap: 0.65rem;">
-                <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">🏦</div>
+        <div id="savings-account-modal" class="modal-overlay" style="display: none; z-index: 2950; backdrop-filter: blur(8px); background: rgba(15, 23, 42, 0.65);">
+          <div class="modal-card" style="max-width: 620px; width: 95vw; max-height: 92vh; border-radius: 24px; overflow: hidden; padding: 0; display: flex; flex-direction: column; box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1); border: 1px solid rgba(226, 232, 240, 0.2); background: var(--bg-surface, #ffffff);">
+            
+            <!-- Header Mewah & Elegan (Deep Emerald & Gold Accent) -->
+            <div style="background: linear-gradient(135deg, #064e3b 0%, #065f46 45%, #047857 100%); padding: 1.35rem 1.75rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; position: relative; overflow: hidden;">
+              <div style="position: absolute; right: -25px; top: -35px; width: 140px; height: 140px; background: radial-gradient(circle, rgba(251,191,36,0.18) 0%, rgba(251,191,36,0) 70%); border-radius: 50%; pointer-events: none;"></div>
+              <div style="position: absolute; left: 30%; bottom: -40px; width: 100px; height: 100px; background: radial-gradient(circle, rgba(16,185,129,0.2) 0%, rgba(16,185,129,0) 70%); border-radius: 50%; pointer-events: none;"></div>
+              
+              <div style="display: flex; align-items: center; gap: 0.9rem; position: relative; z-index: 1;">
+                <div style="width: 46px; height: 46px; background: linear-gradient(135deg, rgba(251,191,36,0.25) 0%, rgba(245,158,11,0.1) 100%); border: 1.5px solid rgba(251,191,36,0.45); border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.2);">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#fbbf24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v4M12 14v4M16 14v4"/>
+                  </svg>
+                </div>
                 <div>
-                  <h3 style="margin: 0; font-size: 1.1rem; font-weight: 900; color: #fff;">Tabungan Anggota</h3>
-                  <div id="savings-modal-subtitle" style="font-size: 0.8rem; color: rgba(255,255,255,0.85); margin-top: 2px;">Kelola simpanan, setor, dan penarikan saldo mandiri</div>
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <h3 style="margin: 0; font-size: 1.18rem; font-weight: 900; color: #ffffff; letter-spacing: 0.3px;">Rekening Simpanan Anggota</h3>
+                    <span style="font-size: 0.65rem; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff; font-weight: 800; padding: 0.15rem 0.5rem; border-radius: 999px; letter-spacing: 0.5px; text-transform: uppercase; box-shadow: 0 2px 6px rgba(217,119,6,0.3);">Priority</span>
+                  </div>
+                  <div id="savings-modal-subtitle" style="font-size: 0.78rem; color: rgba(209, 250, 229, 0.9); margin-top: 3px; font-weight: 500;">Otorisasi simpanan, mutasi kas, dan proteksi saldo mandiri</div>
                 </div>
               </div>
-              <button onclick="closeSavingsAccountModal()" style="background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 8px; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+              <button type="button" onclick="closeSavingsAccountModal()" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #ffffff; width: 34px; height: 34px; border-radius: 10px; font-size: 1.3rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; position: relative; z-index: 1;" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.12)'">&times;</button>
             </div>
             
-            <div style="padding: 1.5rem; background: var(--bg-surface); overflow-y: auto; flex: 1;">
-              <!-- Card Saldo Sekarang & Status Tabungan -->
-              <div style="background: linear-gradient(135deg, rgba(2,132,199,0.08) 0%, rgba(3,105,161,0.14) 100%); border: 1.5px solid rgba(2,132,199,0.25); border-radius: 14px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; flex-wrap: wrap;">
+            <div style="padding: 1.5rem 1.75rem; background: var(--bg-surface, #ffffff); overflow-y: auto; flex: 1;">
+              
+              <!-- Card Saldo Premium (Metallic Luxury Card Style) -->
+              <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%); border: 1.5px solid rgba(251, 191, 36, 0.3); border-radius: 18px; padding: 1.25rem 1.4rem; margin-bottom: 1.35rem; position: relative; overflow: hidden; box-shadow: 0 12px 28px -6px rgba(15, 23, 42, 0.4), inset 0 1px 0 rgba(255,255,255,0.15);">
+                <!-- Card Background Patterns -->
+                <div style="position: absolute; right: -30px; bottom: -30px; width: 160px; height: 160px; border-radius: 50%; border: 35px solid rgba(251, 191, 36, 0.04); pointer-events: none;"></div>
+                <div style="position: absolute; right: 20px; top: 18px; display: flex; gap: 4px; opacity: 0.7;">
+                  <div style="width: 28px; height: 28px; border-radius: 50%; background: rgba(239, 68, 68, 0.75);"></div>
+                  <div style="width: 28px; height: 28px; border-radius: 50%; background: rgba(245, 158, 11, 0.75); margin-left: -12px;"></div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; flex-wrap: wrap; position: relative; z-index: 1;">
                   <div>
-                    <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Saldo Tabungan Saat Ini</div>
-                    <div id="savings-current-balance" style="font-size: 1.8rem; font-weight: 900; color: #0284c7; margin-top: 2px;">Rp 0</div>
-                    <div id="savings-member-info" style="font-size: 0.82rem; color: var(--text-main); font-weight: 600; margin-top: 2px;">[ANG-001] Ahmad - Koperasi</div>
+                    <div style="display: flex; align-items: center; gap: 0.45rem;">
+                      <span style="font-size: 0.72rem; font-weight: 800; color: #fbbf24; letter-spacing: 1.2px; text-transform: uppercase;">SALDO AKTIF ANGGOTA</span>
+                      <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+                    </div>
+                    <div id="savings-current-balance" style="font-size: 2.1rem; font-weight: 900; color: #ffffff; letter-spacing: -0.5px; margin: 4px 0 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-shadow: 0 2px 10px rgba(0,0,0,0.3);">Rp 0</div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                      <div id="savings-member-info" style="font-size: 0.85rem; color: #cbd5e1; font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem;">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#94a3b8" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <span>[ANG-001] Ahmad - Koperasi</span>
+                      </div>
+                    </div>
                   </div>
-                  <div style="text-align: right;">
-                    <div id="savings-status-badge" style="display: inline-block; font-size: 0.75rem; background: #fee2e2; color: #dc2626; font-weight: 800; padding: 0.25rem 0.65rem; border-radius: 999px;">
+
+                  <div style="text-align: right; margin-top: 2px;">
+                    <div id="savings-status-badge" style="display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.35); color: #fca5a5; font-weight: 800; padding: 0.3rem 0.75rem; border-radius: 999px;">
                       Tabungan Nonaktif
                     </div>
-                    <div style="margin-top: 0.35rem; display: flex; gap: 0.35rem; justify-content: flex-end;">
-                      <button type="button" id="btn-toggle-savings-status" onclick="toggleSavingsActivationPrompt()" style="font-size: 0.74rem; font-weight: 700; padding: 0.25rem 0.55rem; border-radius: 6px; cursor: pointer; background: #0284c7; color: #fff; border: none;">
+                    <div style="margin-top: 0.65rem; display: flex; gap: 0.4rem; justify-content: flex-end;">
+                      <button type="button" id="btn-toggle-savings-status" onclick="toggleSavingsActivationPrompt()" style="font-size: 0.75rem; font-weight: 800; padding: 0.35rem 0.7rem; border-radius: 8px; cursor: pointer; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; border: 1px solid rgba(52,211,153,0.35); box-shadow: 0 2px 8px rgba(5,150,105,0.3); transition: all 0.2s;">
                         Aktifkan Tabungan
                       </button>
-                      <button type="button" onclick="adminResetCustomerPin()" style="font-size: 0.74rem; font-weight: 700; padding: 0.25rem 0.55rem; border-radius: 6px; cursor: pointer; background: rgba(220,38,38,0.12); color: #dc2626; border: 1px solid rgba(220,38,38,0.25);" title="Reset PIN Anggota jika anggota lupa PIN">
+                      <button type="button" onclick="adminResetCustomerPin()" style="font-size: 0.75rem; font-weight: 800; padding: 0.35rem 0.65rem; border-radius: 8px; cursor: pointer; background: rgba(255,255,255,0.08); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.18); transition: all 0.2s;" title="Reset PIN Anggota jika anggota lupa PIN" onmouseover="this.style.background='rgba(255,255,255,0.16)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'">
                         🔑 Reset PIN
                       </button>
                     </div>
                   </div>
                 </div>
 
-                <!-- Bagian Buat / Ubah PIN Tabungan -->
-                <div id="savings-pin-setup-box" style="display: none; margin-top: 0.85rem; padding-top: 0.85rem; border-top: 1px dashed rgba(2,132,199,0.3);">
-                  <div style="font-size: 0.78rem; font-weight: 800; color: #0369a1; margin-bottom: 0.4rem;">
-                    🔐 Setel / Ubah PIN Tabungan Anggota (6 Digit Angka):
+                <!-- Bagian Buat / Ubah PIN Tabungan (Glassmorphic Tray) -->
+                <div id="savings-pin-setup-box" style="display: none; margin-top: 1rem; padding-top: 0.9rem; border-top: 1px dashed rgba(255,255,255,0.15); position: relative; z-index: 1;">
+                  <div style="font-size: 0.78rem; font-weight: 800; color: #fbbf24; margin-bottom: 0.45rem; display: flex; align-items: center; gap: 0.35rem;">
+                    <span>🔐 Otorisasi PIN Tabungan Anggota (6 Digit Angka):</span>
                   </div>
-                  <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
-                    <input type="password" id="savings-new-pin" maxlength="6" pattern="[0-9]*" inputmode="numeric" placeholder="6 digit angka" style="font-size: 0.95rem; font-weight: 800; width: 140px; padding: 0.35rem 0.6rem; border-radius: 8px; border: 1.5px solid #0284c7; text-align: center; letter-spacing: 2px;">
-                    <button type="button" onclick="saveSavingsPin()" style="background: #0284c7; color: white; border: none; font-weight: 700; font-size: 0.78rem; padding: 0.4rem 0.75rem; border-radius: 8px; cursor: pointer;">
+                  <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    <input type="password" id="savings-new-pin" maxlength="6" pattern="[0-9]*" inputmode="numeric" placeholder="••••••" style="font-size: 1.15rem; font-weight: 900; width: 140px; padding: 0.4rem 0.75rem; border-radius: 9px; border: 1.5px solid #fbbf24; background: rgba(15,23,42,0.85); color: #fbbf24; text-align: center; letter-spacing: 4px; outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);">
+                    <button type="button" onclick="saveSavingsPin()" style="background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%); color: #0f172a; border: none; font-weight: 900; font-size: 0.78rem; padding: 0.5rem 0.9rem; border-radius: 9px; cursor: pointer; box-shadow: 0 4px 10px rgba(217,119,6,0.35);">
                       Simpan PIN
                     </button>
-                    <button type="button" onclick="cancelSavingsPinSetup()" style="background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-color); font-weight: 600; font-size: 0.78rem; padding: 0.4rem 0.65rem; border-radius: 8px; cursor: pointer;">
+                    <button type="button" onclick="cancelSavingsPinSetup()" style="background: rgba(255,255,255,0.1); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.2); font-weight: 700; font-size: 0.78rem; padding: 0.5rem 0.75rem; border-radius: 9px; cursor: pointer;">
                       Batal
                     </button>
                   </div>
-                  <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.3rem;">
-                    PIN ini digunakan anggota saat setor, tarik saldo mandiri, bayar belanja di kasir, dan login Portal Anggota.
+                  <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 0.4rem;">
+                    PIN ini bersifat rahasia dan wajib digunakan anggota saat setor, penarikan saldo, serta saat checkout di kasir.
                   </div>
                 </div>
               </div>
@@ -6144,61 +6353,95 @@
               <form id="savings-form" onsubmit="submitSavingsTransaction(event)">
                 <input type="hidden" id="savings-cust-id" value="">
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
-                  <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1.5px solid #0284c7; border-radius: 10px; cursor: pointer; background: rgba(2,132,199,0.05);">
-                    <input type="radio" name="savings-type" value="setor" checked style="accent-color: #0284c7;">
+                <!-- Pilihan Tipe Transaksi (Setor vs Tarik) Modern Pill Cards -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1.15rem;">
+                  <label id="label-savings-type-setor" style="display: flex; align-items: center; gap: 0.65rem; padding: 0.85rem 1rem; border: 2px solid #059669; border-radius: 14px; cursor: pointer; background: rgba(5, 150, 105, 0.06); transition: all 0.2s; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08);">
+                    <input type="radio" name="savings-type" value="setor" checked onchange="onSavingsTypeChange(this.value)" style="accent-color: #059669; width: 17px; height: 17px;">
                     <div>
-                      <strong style="color: #0284c7; font-size: 0.9rem;">📥 Setor Tabungan</strong>
-                      <div style="font-size: 0.74rem; color: var(--text-muted);">Tambah saldo simpanan</div>
+                      <div style="color: #065f46; font-size: 0.92rem; font-weight: 900; display: flex; align-items: center; gap: 0.3rem;">
+                        <span>📥 Setor Tabungan</span>
+                      </div>
+                      <div style="font-size: 0.72rem; color: #047857; margin-top: 1px; font-weight: 600;">Tambah saldo simpanan</div>
                     </div>
                   </label>
-                  <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; border: 1.5px solid var(--border-color); border-radius: 10px; cursor: pointer; background: var(--bg-card);">
-                    <input type="radio" name="savings-type" value="tarik" style="accent-color: #e11d48;">
+                  <label id="label-savings-type-tarik" style="display: flex; align-items: center; gap: 0.65rem; padding: 0.85rem 1rem; border: 2px solid var(--border-color, #e2e8f0); border-radius: 14px; cursor: pointer; background: var(--bg-card, #ffffff); transition: all 0.2s;">
+                    <input type="radio" name="savings-type" value="tarik" onchange="onSavingsTypeChange(this.value)" style="accent-color: #e11d48; width: 17px; height: 17px;">
                     <div>
-                      <strong style="color: #e11d48; font-size: 0.9rem;">📤 Tarik Tunai Mandiri</strong>
-                      <div style="font-size: 0.74rem; color: var(--text-muted);">Ambil uang tabungan</div>
+                      <div style="color: #e11d48; font-size: 0.92rem; font-weight: 900; display: flex; align-items: center; gap: 0.3rem;">
+                        <span>📤 Tarik Tunai</span>
+                      </div>
+                      <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 1px; font-weight: 600;">Ambil uang tabungan</div>
                     </div>
                   </label>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 0.85rem;">
-                  <label for="savings-amount" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Jumlah Nominal (Rp) *</label>
-                  <input type="text" id="savings-amount" class="form-control" placeholder="Masukkan jumlah, contoh: 50.000" required autocomplete="off" oninput="formatSavingsAmount(this)" style="font-size: 1.15rem; font-weight: 800; border-radius: 10px; color: #0284c7;">
-                </div>
-
-                <div class="form-group" style="margin-bottom: 0.85rem;">
-                  <label for="savings-notes" style="font-size: 0.85rem; font-weight: 700; color: var(--text-main);">Catatan / Keterangan</label>
-                  <input type="text" id="savings-notes" class="form-control" placeholder="Contoh: Titip tabungan mingguan" style="border-radius: 10px;">
-                </div>
-
-                <!-- Input PIN Otorisasi Anggota untuk Setor / Tarik -->
-                <div class="form-group" style="margin-bottom: 1rem; background: rgba(2,132,199,0.06); padding: 0.75rem; border-radius: 10px; border: 1px solid rgba(2,132,199,0.25);">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
-                    <label for="savings-trx-pin" style="font-size: 0.85rem; font-weight: 800; color: #0369a1; display: flex; align-items: center; gap: 0.35rem; margin: 0;">
-                      <span>🔒 Masukkan PIN Anggota *</span>
+                <!-- Opsi Sumber/Tujuan Kas Tabungan (Laci Kasir Toko vs Kas Tabungan Sendiri/Terpisah) -->
+                <div class="form-group" style="margin-bottom: 1.15rem; background: var(--bg-card, #f8fafc); border: 1.5px solid var(--border-color, #e2e8f0); border-radius: 14px; padding: 0.85rem 1rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.55rem;">
+                    <label style="font-size: 0.82rem; font-weight: 800; color: var(--text-main, #1e293b); display: flex; align-items: center; gap: 0.35rem; margin: 0;">
+                      <span>🏦 Pengelolaan Aliran Kas Tabungan:</span>
                     </label>
-                    <a href="javascript:void(0)" onclick="adminResetCustomerPin()" style="font-size: 0.75rem; color: #ea580c; font-weight: 700; text-decoration: underline;">
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;">
+                    <label style="display: flex; align-items: center; gap: 0.55rem; cursor: pointer; font-size: 0.82rem; font-weight: 800; color: #047857; background: #ecfdf5; border: 1.5px solid #a7f3d0; padding: 0.65rem 0.85rem; border-radius: 10px; transition: all 0.2s;">
+                      <input type="radio" name="savings-cash-source" value="laci_kasir" checked style="accent-color: #059669; width: 16px; height: 16px; cursor: pointer;">
+                      <span>💵 Masuk/Keluar Laci Kasir</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.55rem; cursor: pointer; font-size: 0.82rem; font-weight: 800; color: #475569; background: #ffffff; border: 1.5px solid #cbd5e1; padding: 0.65rem 0.85rem; border-radius: 10px; transition: all 0.2s;">
+                      <input type="radio" name="savings-cash-source" value="kas_sendiri" style="accent-color: #0f172a; width: 16px; height: 16px; cursor: pointer;">
+                      <span>🔒 Kas Tabungan Sendiri</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.95rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <label for="savings-amount" style="font-size: 0.84rem; font-weight: 800; color: var(--text-main);">Jumlah Nominal Transaksi *</label>
+                    <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">Nominal Rupiah</span>
+                  </div>
+                  <div style="position: relative;">
+                    <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-weight: 900; font-size: 1.15rem; color: #059669;">Rp</span>
+                    <input type="text" id="savings-amount" class="form-control" placeholder="0" required autocomplete="off" oninput="formatSavingsAmount(this)" style="font-size: 1.35rem; font-weight: 900; padding-left: 45px; border-radius: 12px; color: #065f46; border: 2px solid #a7f3d0; background: #f0fdf4; height: 50px;">
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.95rem;">
+                  <label for="savings-notes" style="font-size: 0.84rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.35rem; display: block;">Catatan / Keterangan Transaksi</label>
+                  <input type="text" id="savings-notes" class="form-control" placeholder="Contoh: Titip simpanan mingguan / tabungan qurban..." style="border-radius: 10px; font-size: 0.86rem; padding: 0.55rem 0.85rem;">
+                </div>
+
+                <!-- Input PIN Otorisasi Anggota untuk Setor / Tarik (High Security Card) -->
+                <div class="form-group" style="margin-bottom: 1.25rem; background: linear-gradient(135deg, rgba(6,78,59,0.05) 0%, rgba(4,120,87,0.09) 100%); padding: 0.9rem 1.1rem; border-radius: 14px; border: 1.5px solid rgba(5,150,105,0.25);">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <label for="savings-trx-pin" style="font-size: 0.84rem; font-weight: 800; color: #065f46; display: flex; align-items: center; gap: 0.35rem; margin: 0;">
+                      <span>🔒 Konfirmasi PIN Anggota *</span>
+                    </label>
+                    <a href="javascript:void(0)" onclick="adminResetCustomerPin()" style="font-size: 0.74rem; color: #ea580c; font-weight: 800; text-decoration: underline;">
                       Lupa PIN?
                     </a>
                   </div>
-                  <input type="password" id="savings-trx-pin" class="form-control" placeholder="Masukkan 6 digit PIN anggota" maxlength="6" pattern="[0-9]*" inputmode="numeric" required autocomplete="off" style="font-size: 1.1rem; font-weight: 800; letter-spacing: 3px; border-radius: 8px; text-align: center;">
-                  <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">
-                    Wajib memasukkan PIN anggota agar saldo tidak disalahgunakan orang lain.
+                  <input type="password" id="savings-trx-pin" class="form-control" placeholder="••••••" maxlength="6" pattern="[0-9]*" inputmode="numeric" required autocomplete="off" style="font-size: 1.3rem; font-weight: 900; letter-spacing: 6px; border-radius: 10px; text-align: center; height: 46px; border: 1.5px solid #059669; color: #064e3b; background: #ffffff;">
+                  <div style="font-size: 0.72rem; color: #047857; margin-top: 0.35rem; font-weight: 600; display: flex; align-items: center; gap: 0.3rem;">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    <span>Wajib otorisasi PIN 6 digit untuk validasi keamanan anggota</span>
                   </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.7rem; font-weight: 800; font-size: 0.95rem; border-radius: 10px; background: #0284c7; border-color: #0284c7;">
-                  Proses Transaksi Tabungan
+                <button type="submit" class="btn" style="width: 100%; padding: 0.85rem; font-weight: 900; font-size: 1rem; border-radius: 12px; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; border: none; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35); cursor: pointer; letter-spacing: 0.3px; transition: transform 0.15s, box-shadow 0.15s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 18px rgba(5,150,105,0.4)'" onmouseout="this.style.transform='none'; this.style.boxShadow='0 4px 14px rgba(5,150,105,0.35)'">
+                  ⚡ Proses Transaksi Simpanan
                 </button>
               </form>
 
-              <!-- Riwayat Mutasi Tabungan -->
-              <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
-                  <h4 style="margin: 0; font-size: 0.92rem; font-weight: 800; color: var(--text-main);">Riwayat Mutasi Tabungan</h4>
-                  <span id="savings-history-count" style="font-size: 0.75rem; color: var(--text-muted);">0 Riwayat</span>
+              <!-- Riwayat Mutasi Tabungan (Ledger Style) -->
+              <div style="margin-top: 1.75rem; border-top: 1px solid var(--border-color, #e2e8f0); padding-top: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
+                  <div style="display: flex; align-items: center; gap: 0.4rem;">
+                    <div style="width: 8px; height: 8px; border-radius: 50%; background: #059669;"></div>
+                    <h4 style="margin: 0; font-size: 0.95rem; font-weight: 900; color: var(--text-main);">Buku Mutasi Simpanan</h4>
+                  </div>
+                  <span id="savings-history-count" style="font-size: 0.74rem; color: var(--text-muted); font-weight: 700; background: var(--bg-card, #f1f5f9); padding: 0.2rem 0.6rem; border-radius: 999px;">0 Mutasi</span>
                 </div>
-                <div id="savings-history-list" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem;">
+                <div id="savings-history-list" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; padding-right: 2px;">
                   <!-- Diisi dinamis -->
                 </div>
               </div>
@@ -6314,74 +6557,7 @@
           </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════════════
-             MODAL: CETAK MASSAL ID CARD ANGGOTA
-        ═══════════════════════════════════════════════════════════ -->
-        <div id="bulk-id-card-modal" class="modal-overlay" style="display: none; z-index: 3100;">
-          <div class="modal-card" style="max-width: 780px; width: 95vw; max-height: 90vh; border-radius: 20px; overflow: hidden; padding: 0; display: flex; flex-direction: column;">
-            <div style="background: linear-gradient(135deg, #b45309 0%, #ea580c 100%); padding: 1.25rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-              <div style="display: flex; align-items: center; gap: 0.65rem;">
-                <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">🪪</div>
-                <div>
-                  <h3 style="margin: 0; font-size: 1.1rem; font-weight: 900; color: #fff;">Cetak Massal ID Card Anggota</h3>
-                  <div style="font-size: 0.8rem; color: rgba(255,255,255,0.85); margin-top: 2px;">Cetak kartu anggota sekaligus dengan barcode scanner standar ID Card (85.6mm x 54mm)</div>
-                </div>
-              </div>
-              <button onclick="closeBulkIdCardModal()" style="background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 8px; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
-            </div>
 
-            <div style="padding: 1.25rem 1.5rem; background: var(--bg-surface); overflow-y: auto; flex: 1;">
-              <!-- Filter & Kontrol Pilihan -->
-              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; background: var(--bg-card); padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid var(--border-color);">
-                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; flex: 1;">
-                  <div style="position: relative; flex: 1; min-width: 200px;">
-                    <input type="text" id="bulk-id-card-search" placeholder="🔍 Cari nama / instansi..." oninput="filterBulkIdCardList()" style="width: 100%; padding: 0.45rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 0.85rem;">
-                  </div>
-                  <select id="bulk-id-card-instansi-filter" onchange="filterBulkIdCardList()" style="padding: 0.45rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 0.85rem;">
-                    <option value="">Semua Instansi</option>
-                  </select>
-                </div>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                  <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSelectAllBulkIdCards(true)" style="font-size: 0.78rem; font-weight: 700;">Pilih Semua</button>
-                  <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSelectAllBulkIdCards(false)" style="font-size: 0.78rem; font-weight: 700;">Hapus Pilihan</button>
-                </div>
-              </div>
-
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <span id="bulk-id-card-selected-count" style="font-size: 0.82rem; font-weight: 700; color: #ea580c;">0 Anggota Dipilih untuk Dicetak</span>
-                <span style="font-size: 0.75rem; color: var(--text-muted);">Layout rapi 2 kartu per baris ukuran standar kartu</span>
-              </div>
-
-              <!-- Daftar Anggota Checkbox -->
-              <div style="border: 1px solid var(--border-color); border-radius: 12px; max-height: 380px; overflow-y: auto; background: var(--bg-card);">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
-                  <thead style="background: var(--bg-surface-elevated); position: sticky; top: 0; z-index: 5;">
-                    <tr style="border-bottom: 1px solid var(--border-color);">
-                      <th style="width: 45px; text-align: center; padding: 0.6rem 0.5rem;">
-                        <input type="checkbox" id="chk-bulk-id-card-all" onchange="toggleSelectAllBulkIdCards(this.checked)" style="width: 16px; height: 16px; accent-color: #ea580c; cursor: pointer;">
-                      </th>
-                      <th style="text-align: left; padding: 0.6rem 0.5rem;">ID &amp; Nama Anggota</th>
-                      <th style="text-align: left; padding: 0.6rem 0.5rem;">Instansi</th>
-                      <th style="text-align: left; padding: 0.6rem 0.5rem;">No. Telp</th>
-                      <th style="text-align: left; padding: 0.6rem 0.5rem;">Alamat</th>
-                    </tr>
-                  </thead>
-                  <tbody id="bulk-id-card-tbody">
-                    <!-- Diisi dinamis -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div style="padding: 1rem 1.5rem; background: var(--bg-surface-elevated); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-              <button type="button" class="btn btn-secondary" onclick="closeBulkIdCardModal()">Batal</button>
-              <button type="button" class="btn btn-primary" onclick="executePrintBulkIdCards()" style="background: linear-gradient(135deg, #b45309 0%, #ea580c 100%); border: none; font-weight: 800; padding: 0.65rem 1.5rem; display: inline-flex; align-items: center; gap: 0.45rem;">
-                <i data-lucide="printer" style="width: 16px; height: 16px;"></i>
-                <span>Cetak ID Card Terpilih</span>
-              </button>
-            </div>
-          </div>
-        </div>
 
         <!-- ═══════════════════════════════════════════════════════════
              MODAL: PORTAL MANDIRI ANGGOTA (MEMBER SELF-SERVICE DASHBOARD)

@@ -5558,63 +5558,11 @@ body.print-format-html #receipt-text-content {
     flex: 1 !important;
   }
 
-  /* Kartu Pelanggan Responsif di Mobile agar tidak geser ke samping */
+  /* Kontainer Tabel Pelanggan & Buku Hutang Responsif */
   #pane-customers .table-responsive {
-    overflow-x: hidden !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
     width: 100% !important;
-  }
-  #pane-customers .data-table thead {
-    display: none !important;
-  }
-  #pane-customers .data-table,
-  #pane-customers .data-table tbody,
-  #pane-customers .data-table tr,
-  #pane-customers .data-table td {
-    display: block !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-  }
-  #pane-customers .data-table tr {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 14px;
-    margin-bottom: 0.65rem;
-    padding: 0.75rem 0.85rem;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
-    position: relative;
-  }
-  #pane-customers .data-table td {
-    border: none !important;
-    padding: 0.2rem 0 !important;
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    font-size: 0.85rem !important;
-  }
-  #pane-customers .data-table td:nth-child(1) {
-    font-size: 0.95rem !important;
-    font-weight: 700 !important;
-    color: var(--text-main);
-    margin-bottom: 0.2rem;
-  }
-  #pane-customers .data-table td:nth-child(2)::before {
-    content: "No. WA / Telp:";
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-  #pane-customers .data-table td:nth-child(3)::before {
-    content: "Poin Loyalitas:";
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-  #pane-customers .data-table td:nth-child(4) {
-    margin-top: 0.5rem;
-    padding-top: 0.5rem !important;
-    border-top: 1px dashed var(--border-color) !important;
-    justify-content: flex-end !important;
-    gap: 0.4rem;
   }
 
   /* Filter Pencarian Riwayat Transaksi agar pas di layar */
