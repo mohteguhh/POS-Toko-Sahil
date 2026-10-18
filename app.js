@@ -19687,6 +19687,7 @@ function saveSalesDelivery(e) {
 
   // 1. Update Stok, Harga Beli, Harga Jual, dan Tanggal Kadaluarsa pada masing-masing produk
   let updatedAnyProduct = false;
+  const priceIncreasedProducts = [];
 
   // Jika sedang edit, kembalikan stok lama terlebih dahulu
   if (existingDelivery && existingDelivery.items) {
@@ -19703,6 +19704,16 @@ function saveSalesDelivery(e) {
   items.forEach(item => {
     const prod = products.find(p => p.id === item.productId);
     if (prod) {
+      const oldHargaJual = Number(prod.harga_jual || prod.harga || 0);
+      const newHargaJual = Number(item.hargaJual || 0);
+      if (newHargaJual > oldHargaJual && oldHargaJual > 0) {
+        priceIncreasedProducts.push({
+          product: prod,
+          oldPrice: oldHargaJual,
+          newPrice: newHargaJual
+        });
+      }
+
       prod.stok = (Number(prod.stok) || 0) + item.qty;
       prod.harga_beli = item.hargaBeli;
       prod.harga_jual = item.hargaJual;
@@ -19802,6 +19813,22 @@ function saveSalesDelivery(e) {
   const statusMsg = isFullyPaid ? 'Status: LUNAS' : `Status: TEMPO (Sisa Hutang: ${formatRupiah(sisaTagihan)}, Jatuh Tempo: ${dueDate})`;
   const returMsg = totalReturPotongan > 0 ? `\n(Potongan retur langsung diterapkan: ${formatRupiah(totalReturPotongan)})` : '';
   alert(`✅ Nota ${noNota} dari ${salesName} berhasil disimpan!\n${statusMsg}${returMsg}\nStok ${items.length} jenis barang telah otomatis bertambah ke database.`);
+
+  // Dialog cetak label rak jika ada produk yang harga jualnya naik
+  if (priceIncreasedProducts.length > 0) {
+    const daftarNama = priceIncreasedProducts.map(p => `• ${p.product.nama}: ${formatRupiah(p.oldPrice)} ➔ ${formatRupiah(p.newPrice)}`).join('\n');
+    setTimeout(() => {
+      if (confirm(`🏷️ PERUBAHAN HARGA JUAL TERDETEKSI!\n\nAda ${priceIncreasedProducts.length} produk yang harga jualnya naik:\n${daftarNama}\n\nBuka dialog Cetak Label Rak sekarang agar harga di rak toko sama dengan sistem kasir?`)) {
+        selectedProductIds.clear();
+        priceIncreasedProducts.forEach(item => {
+          selectedProductIds.add(item.product.id);
+        });
+        if (typeof openBulkPrintLabelModal === 'function') {
+          openBulkPrintLabelModal();
+        }
+      }
+    }, 200);
+  }
 }
 
 function resetInvoiceFilters() {
@@ -24508,6 +24535,8 @@ function populateOpnameDropdowns() {
   }
 }
 
+let currentOpnamePage = 1;
+
 function renderStockOpnameTable() {
   const tbody = document.getElementById('stock-opname-tbody');
   if (!tbody) return;
@@ -24516,6 +24545,8 @@ function renderStockOpnameTable() {
   const rackFilter = document.getElementById('opname-rack-filter')?.value || 'ALL';
   const catFilter = document.getElementById('opname-category-filter')?.value || 'ALL';
   const diffFilter = document.getElementById('opname-difference-filter')?.value || 'ALL';
+  const paginationEl = document.getElementById('opname-pagination');
+  const countEl = document.getElementById('opname-table-count');
 
   const filtered = products.filter(p => {
     if (rackFilter !== 'ALL' && p.rak !== rackFilter) return false;
@@ -24530,12 +24561,30 @@ function renderStockOpnameTable() {
     return true;
   });
 
-  if (filtered.length === 0) {
+  const totalCount = filtered.length;
+
+  if (totalCount === 0) {
     tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Tidak ada produk yang sesuai filter.</td></tr>`;
+    if (paginationEl) paginationEl.style.display = 'none';
+    if (countEl) countEl.textContent = 'Tidak ada produk.';
     return;
   }
 
-  tbody.innerHTML = filtered.map(p => {
+  const ITEMS_PER_PAGE = 10;
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  if (currentOpnamePage < 1) currentOpnamePage = 1;
+  if (currentOpnamePage > totalPages) currentOpnamePage = totalPages || 1;
+
+  const startIdx = (currentOpnamePage - 1) * ITEMS_PER_PAGE;
+  const endIdx = Math.min(startIdx + ITEMS_PER_PAGE, totalCount);
+  const itemsToRender = filtered.slice(startIdx, endIdx);
+
+  if (countEl) {
+    countEl.textContent = `Menampilkan ${startIdx + 1}–${endIdx} dari total ${totalCount} produk (Halaman ${currentOpnamePage} dari ${totalPages})`;
+  }
+
+  tbody.innerHTML = itemsToRender.map(p => {
     const isChecked = selectedOpnameProductIds.has(p.id);
     const barcodeStr = p.barcode || '-';
 
@@ -24574,6 +24623,96 @@ function renderStockOpnameTable() {
       </tr>
     `;
   }).join('');
+
+  // Sinkronkan checkbox master header
+  const masterCb = document.getElementById('opname-select-all');
+  if (masterCb) {
+    const pageCheckboxes = tbody.querySelectorAll('.opname-checkbox');
+    if (pageCheckboxes.length > 0) {
+      masterCb.checked = Array.from(pageCheckboxes).every(cb => cb.checked);
+    } else {
+      masterCb.checked = false;
+    }
+  }
+
+  // Render pagination controls
+  if (paginationEl) {
+    if (totalPages > 1) {
+      paginationEl.style.display = 'flex';
+      renderOpnamePagination(totalPages, currentOpnamePage);
+    } else {
+      paginationEl.style.display = 'none';
+      paginationEl.innerHTML = '';
+    }
+  }
+}
+
+function renderOpnamePagination(totalPages, currentPage) {
+  const paginationEl = document.getElementById('opname-pagination');
+  if (!paginationEl) return;
+  paginationEl.innerHTML = '';
+
+  const btnStyle = (active) => `
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 2.1rem; height: 2.1rem; padding: 0 0.5rem;
+    border-radius: 6px; font-size: 0.85rem; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--border-color);
+    background: ${active ? '#ea580c' : 'var(--bg-card, #fff)'};
+    color: ${active ? '#fff' : 'var(--text-main)'};
+    transition: all 0.15s;
+    font-family: var(--font-main);
+  `;
+
+  const makeBtn = (label, page, active = false, disabled = false) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.innerHTML = label;
+    btn.style.cssText = btnStyle(active);
+    if (disabled) {
+      btn.disabled = true;
+      btn.style.opacity = '0.4';
+      btn.style.cursor = 'not-allowed';
+    }
+    if (!disabled && !active) {
+      btn.addEventListener('mouseenter', () => { btn.style.background = 'var(--bg-body, #f1f5f9)'; });
+      btn.addEventListener('mouseleave', () => { btn.style.background = 'var(--bg-card, #fff)'; });
+    }
+    if (!disabled) {
+      btn.onclick = () => { currentOpnamePage = page; renderStockOpnameTable(); };
+    }
+    return btn;
+  };
+
+  // Tombol « Sebelumnya
+  paginationEl.appendChild(makeBtn('&#8249;', currentPage - 1, false, currentPage === 1));
+
+  // Nomor halaman dengan ellipsis
+  const pageRange = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pageRange.push(i);
+  } else {
+    pageRange.push(1);
+    if (currentPage > 4) pageRange.push('...');
+    const start = Math.max(2, currentPage - 2);
+    const end = Math.min(totalPages - 1, currentPage + 2);
+    for (let i = start; i <= end; i++) pageRange.push(i);
+    if (currentPage < totalPages - 3) pageRange.push('...');
+    pageRange.push(totalPages);
+  }
+
+  pageRange.forEach(item => {
+    if (item === '...') {
+      const ellipsis = document.createElement('span');
+      ellipsis.textContent = '...';
+      ellipsis.style.cssText = 'padding: 0 0.25rem; color: var(--text-muted); font-weight: 600;';
+      paginationEl.appendChild(ellipsis);
+    } else {
+      paginationEl.appendChild(makeBtn(item, item, item === currentPage));
+    }
+  });
+
+  // Tombol » Berikutnya
+  paginationEl.appendChild(makeBtn('&#8250;', currentPage + 1, false, currentPage === totalPages));
 }
 
 function calcOpnameDiff(productId) {

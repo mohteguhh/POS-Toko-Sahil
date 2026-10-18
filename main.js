@@ -130,6 +130,8 @@ function createWindow() {
     height: 800,
     minWidth: 1024,
     minHeight: 700,
+    show: false,
+    backgroundColor: '#f8fafc',
     autoHideMenuBar: true,
     title: "Aplikasi Kasir POS Sahil",
     webPreferences: {
@@ -139,7 +141,10 @@ function createWindow() {
     }
   });
 
-  mainWindow.maximize();
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize();
+    mainWindow.show();
+  });
 
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     console.error('Gagal memuat halaman:', errorCode, errorDescription, validatedURL);
@@ -147,6 +152,10 @@ function createWindow() {
 
   mainWindow.webContents.on('render-process-gone', (event, details) => {
     console.error('Render process crash/gone:', details);
+  });
+
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[Renderer Console] (${level}) ${message} [${sourceId}:${line}]`);
   });
 
   // Dukung cetak struk/laporan popup (window.open) dan link eksternal (WhatsApp, Browser)
