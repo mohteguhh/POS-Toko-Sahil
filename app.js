@@ -171,8 +171,54 @@ function resetVoucherDateRangeFilter() {
   setVoucherTableFilter('all');
 }
 
-// --- Helper Gambar Offline (Flicker-Free) & Lightbox Perbesar Gambar ---
+// --- Helper Gambar (Google Drive Direct URL, Dropbox, Imgur, Offline Fallback) ---
+function normalizeImageUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  let cleanUrl = url.trim();
+
+  // 1. Google Drive Link: Konversi link view / sharing ke direct thumbnail image stream
+  // Format contoh:
+  // https://drive.google.com/file/d/1EtVgshFY84BznfWiXXpx1cpuKDLFqoOO/view?usp=drive_link
+  // https://drive.google.com/open?id=1EtVgshFY84BznfWiXXpx1cpuKDLFqoOO
+  // https://drive.google.com/uc?id=1EtVgshFY84BznfWiXXpx1cpuKDLFqoOO
+  if (cleanUrl.includes('drive.google.com')) {
+    let fileId = null;
+    const matchFileD = cleanUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (matchFileD && matchFileD[1]) {
+      fileId = matchFileD[1];
+    } else {
+      const matchIdParam = cleanUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (matchIdParam && matchIdParam[1]) {
+        fileId = matchIdParam[1];
+      }
+    }
+    if (fileId) {
+      // Menggunakan endpoint lh3.googleusercontent.com yang sangat cepat, andal, dan tidak diblokir CORS
+      return `https://lh3.googleusercontent.com/d/${fileId}`;
+    }
+  }
+
+  // 2. Dropbox Link: ubah dl=0 jadi raw=1
+  if (cleanUrl.includes('dropbox.com') && cleanUrl.includes('dl=0')) {
+    return cleanUrl.replace('dl=0', 'raw=1');
+  }
+
+  return cleanUrl;
+}
+
 function handleImageError(img) {
+  if (!img) return;
+  // Coba fallback kedua jika gambar dari Google Drive gagal load via lh3 (misal file permission private)
+  const originalSrc = img.getAttribute('data-original-src') || img.src;
+  if (originalSrc && originalSrc.includes('lh3.googleusercontent.com/d/')) {
+    const fileId = originalSrc.split('/d/')[1];
+    if (fileId && !img.hasAttribute('data-tried-uc')) {
+      img.setAttribute('data-tried-uc', 'true');
+      img.src = `https://drive.google.com/uc?export=view&id=${fileId}`;
+      return;
+    }
+  }
+
   img.onerror = null; // Mencegah loop tak terbatas
   img.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="%23cbd5e1" stroke-width="2"><rect width="100" height="100" fill="%23f8fafc"/><circle cx="50" cy="45" r="15"/><path d="M20,80 C20,60 80,60 80,80"/></svg>';
   img.style.cursor = 'default';
@@ -182,11 +228,13 @@ function handleImageError(img) {
 // Buka dialog lightbox perbesar gambar produk
 function openProductImageLightbox(src, name = 'Gambar Produk') {
   if (!src || src.includes('data:image/svg+xml')) return;
+  const directSrc = normalizeImageUrl(src);
   const modal = document.getElementById('product-image-lightbox-modal');
   const img = document.getElementById('lightbox-img');
   const caption = document.getElementById('lightbox-caption');
   if (modal && img) {
-    img.src = src;
+    img.setAttribute('data-original-src', directSrc);
+    img.src = directSrc;
     if (caption) caption.textContent = name;
     modal.classList.add('active');
     modal.style.display = 'flex';
@@ -10069,7 +10117,7 @@ function renderProductsTable(highlightProductId = null) {
       }, 100);
     }
     
-    const imgUrl = p.gambar || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=100';
+    const imgUrl = normalizeImageUrl(p.gambar) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=100';
     
     // Tampilkan label kadaluarsa merah jika lewat tanggal, atau orange jika kurang dari 30 hari
     let expBadge = p.tanggal_kadaluarsa || '-';
@@ -10277,7 +10325,8 @@ function saveProduct(event) {
   const barcodeInput = document.getElementById('prod-barcode').value.trim();
   const rackInput = document.getElementById('prod-rack') ? document.getElementById('prod-rack').value.trim() : '';
   const expiryInput = document.getElementById('prod-expiry').value;
-  const imageInput = document.getElementById('prod-image').value.trim();
+  const rawImageInput = document.getElementById('prod-image').value.trim();
+  const imageInput = normalizeImageUrl(rawImageInput);
   const promoPriceInput = parseFloat(document.getElementById('prod-promo-price').value) || 0;
   const promoQuotaEl = document.getElementById('prod-promo-quota');
   const promoQuotaInput = promoQuotaEl ? (parseInt(promoQuotaEl.value) || 0) : 0;
@@ -10697,6 +10746,7 @@ function editProduct(index) {
   document.getElementById('prod-barcode').value = p.barcode || '';
   document.getElementById('prod-expiry').value = p.tanggal_kadaluarsa || '';
   document.getElementById('prod-image').value = p.gambar || '';
+  previewProductImage(p.gambar || '');
   document.getElementById('prod-promo-price').value = p.harga_diskon || '';
   document.getElementById('prod-promo-quota').value = p.kuota_diskon || '';
   document.getElementById('prod-grosir-qty').value = p.grosir_qty || '';
@@ -10764,6 +10814,7 @@ function resetProductForm() {
   document.getElementById('prod-barcode').value = "";
   document.getElementById('prod-expiry').value = "";
   document.getElementById('prod-image').value = "";
+  previewProductImage('');
   document.getElementById('prod-promo-price').value = "";
   document.getElementById('prod-promo-quota').value = "";
   document.getElementById('prod-grosir-qty').value = "";
@@ -20845,108 +20896,47 @@ function shareEmptyStockToSalesWhatsApp(salesId) {
   openSalesWaModal(salesId);
 }
 
-// Preview Gambar Nota Datang (Mendukung URL, Google Drive Link, & Base64 Data URL)
+// Preview Gambar Produk Baru / Edit
+function previewProductImage(url) {
+  const container = document.getElementById('prod-image-preview-container');
+  const img = document.getElementById('prod-image-preview');
+  const tip = document.getElementById('prod-image-preview-tip');
+  if (!container || !img) return;
+
+  const normalized = normalizeImageUrl(url);
+  if (normalized && normalized.startsWith('http')) {
+    img.setAttribute('data-original-src', normalized);
+    img.src = normalized;
+    container.style.display = 'block';
+    if (tip) {
+      if (url.includes('drive.google.com')) {
+        tip.innerHTML = '✨ Link Google Drive berhasil dikonversi ke gambar langsung!';
+        tip.style.color = '#15803d';
+      } else {
+        tip.innerHTML = '';
+      }
+    }
+  } else {
+    container.style.display = 'none';
+    img.src = '';
+    if (tip) tip.innerHTML = '';
+  }
+}
+
+// Preview Gambar Nota Datang
 function previewDeliveryImage(url) {
   const container = document.getElementById('delivery-image-preview-container');
   const img = document.getElementById('delivery-image-preview');
-  const clearBtn = document.getElementById('btn-clear-delivery-img');
-  const urlInput = document.getElementById('delivery-image-url');
   if (!container || !img) return;
 
-  if (url) {
-    let cleanUrl = url.trim();
-
-    // Otomatis ubah link sharing Google Drive menjadi link gambar langsung
-    // Contoh format: https://drive.google.com/file/d/ID_FILE/view?usp=sharing
-    const driveMatch = cleanUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
-    if (driveMatch && driveMatch[1]) {
-      cleanUrl = `https://lh3.googleusercontent.com/d/${driveMatch[1]}`;
-      if (urlInput && urlInput.value !== cleanUrl) {
-        urlInput.value = cleanUrl;
-      }
-    }
-
-    if (cleanUrl.startsWith('http') || cleanUrl.startsWith('data:image')) {
-      img.src = cleanUrl;
-      container.style.display = 'block';
-      if (clearBtn) clearBtn.style.display = 'inline-block';
-      return;
-    }
-  }
-
-  container.style.display = 'none';
-  img.src = '';
-  if (clearBtn) clearBtn.style.display = 'none';
-}
-
-// Handler Upload File Gambar Nota Fisik (Otomatis Kompres Ringan agar Penyimpanan Hemat)
-function handleDeliveryImageFileUpload(event) {
-  const file = event.target.files && event.target.files[0];
-  if (!file) return;
-
-  const nameDisplay = document.getElementById('delivery-file-name-display');
-  if (nameDisplay) nameDisplay.textContent = file.name;
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const rawDataUrl = e.target.result;
-    // Kompres gambar nota jika ukurannya besar agar database tetap ringan dan cepat
-    const img = new Image();
-    img.onload = function() {
-      const maxWidth = 1200;
-      const maxHeight = 1600;
-      let width = img.width;
-      let height = img.height;
-
-      if (width > maxWidth || height > maxHeight) {
-        if (width / height > maxWidth / maxHeight) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        } else {
-          width = Math.round((width * maxHeight) / height);
-          height = maxHeight;
-        }
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.78);
-
-      const urlInput = document.getElementById('delivery-image-url');
-      if (urlInput) urlInput.value = compressedDataUrl;
-      previewDeliveryImage(compressedDataUrl);
-    };
-    img.src = rawDataUrl;
-  };
-  reader.readAsDataURL(file);
-}
-
-function clearDeliveryImage() {
-  const fileInput = document.getElementById('delivery-image-file');
-  if (fileInput) fileInput.value = '';
-  const urlInput = document.getElementById('delivery-image-url');
-  if (urlInput) urlInput.value = '';
-  const nameDisplay = document.getElementById('delivery-file-name-display');
-  if (nameDisplay) nameDisplay.textContent = 'Belum ada file dipilih';
-  previewDeliveryImage('');
-}
-
-function openFullDeliveryImage(src) {
-  if (!src) return;
-  const w = window.open('', '_blank');
-  if (w) {
-    w.document.write(`
-      <html>
-        <head><title>Foto Nota Pembelian Sales</title></head>
-        <body style="margin:0; background:#0f172a; display:flex; justify-content:center; align-items:center; min-height:100vh;">
-          <img src="${src}" style="max-width:98%; max-height:98vh; object-fit:contain; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
-        </body>
-      </html>
-    `);
-    w.document.close();
+  const normalized = normalizeImageUrl(url);
+  if (normalized && normalized.startsWith('http')) {
+    img.setAttribute('data-original-src', normalized);
+    img.src = normalized;
+    container.style.display = 'block';
+  } else {
+    container.style.display = 'none';
+    img.src = '';
   }
 }
 
@@ -21543,7 +21533,8 @@ function saveSalesDelivery(e) {
   const tanggal = document.getElementById('delivery-date').value;
   const diskon = Number(document.getElementById('delivery-discount').value) || 0;
   const bonusInfo = document.getElementById('delivery-bonus-info').value.trim();
-  const imageUrl = document.getElementById('delivery-image-url') ? document.getElementById('delivery-image-url').value.trim() : '';
+  const rawImageUrl = document.getElementById('delivery-image-url') ? document.getElementById('delivery-image-url').value.trim() : '';
+  const imageUrl = normalizeImageUrl(rawImageUrl);
 
   // Status Pembayaran & Tempo
   const payStatus = document.getElementById('delivery-pay-status').value;
@@ -22047,8 +22038,10 @@ function previewReturnImage(url) {
   const img = document.getElementById('return-image-preview');
   if (!container || !img) return;
 
-  if (url && url.trim().startsWith('http')) {
-    img.src = url.trim();
+  const normalized = normalizeImageUrl(url);
+  if (normalized && normalized.startsWith('http')) {
+    img.setAttribute('data-original-src', normalized);
+    img.src = normalized;
     container.style.display = 'block';
   } else {
     container.style.display = 'none';
@@ -22059,6 +22052,7 @@ function previewReturnImage(url) {
 // Viewer Popup untuk foto nota / retur
 function viewReceiptImage(url, title = 'Foto Nota') {
   if (!url) return;
+  const directUrl = normalizeImageUrl(url);
   // Buka tab baru atau tampilkan lightbox
   const win = window.open('', '_blank');
   if (win) {
@@ -22069,16 +22063,37 @@ function viewReceiptImage(url, title = 'Foto Nota') {
         <title>${title}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { margin: 0; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; color: #fff; padding: 1rem; box-sizing: border-box; }
-          img { max-width: 95vw; max-height: 85vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-          .header { margin-bottom: 1rem; font-weight: 700; font-size: 1.1rem; }
-          .btn { background: #2563eb; color: #fff; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-size: 0.9rem; margin-top: 1rem; }
+          body {
+            margin: 0;
+            padding: 20px;
+            background: #0f172a;
+            color: #f8fafc;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 90vh;
+          }
+          img {
+            max-width: 95vw;
+            max-height: 85vh;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            background: #fff;
+            object-fit: contain;
+          }
+          .title {
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            font-weight: 700;
+          }
         </style>
       </head>
       <body>
-        <div class="header">📄 ${title}</div>
-        <img src="${url}" alt="${title}">
-        <a href="${url}" target="_blank" class="btn">Buka Gambar Asli</a>
+        <div class="title">📄 ${title}</div>
+        <img src="${directUrl}" alt="${title}" onerror="this.onerror=null; this.src='https://drive.google.com/uc?export=view&id=' + (this.src.includes('/d/') ? this.src.split('/d/')[1] : '');">
+        <a href="${url}" target="_blank" style="background: #2563eb; color: #fff; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-size: 0.9rem; margin-top: 1rem;">Buka Gambar Asli</a>
       </body>
       </html>
     `);
@@ -22281,7 +22296,8 @@ function saveSalesReturn(e) {
   const reason = document.getElementById('return-reason').value;
   const status = document.getElementById('return-status').value;
   const notes = document.getElementById('return-notes').value.trim();
-  const imageUrl = document.getElementById('return-image-url') ? document.getElementById('return-image-url').value.trim() : '';
+  const rawImageUrl = document.getElementById('return-image-url') ? document.getElementById('return-image-url').value.trim() : '';
+  const imageUrl = normalizeImageUrl(rawImageUrl);
 
   if (!salesId) {
     alert('Pilih sales tujuan retur!');
