@@ -45,8 +45,9 @@ self.addEventListener('activate', (event) => {
 
 // Fetch Event (Network First, Fallback to Cache)
 self.addEventListener('fetch', (event) => {
-  // Hanya tangani request HTTP/HTTPS lokal/GET
+  // Hanya tangani request HTTP/HTTPS lokal/GET (Abaikan file:// di Electron agar tidak blank putih)
   if (event.request.method !== 'GET') return;
+  if (!event.request.url.startsWith('http://') && !event.request.url.startsWith('https://')) return;
 
   // Jangan cache request API eksternal Firebase atau Google
   const url = new URL(event.request.url);

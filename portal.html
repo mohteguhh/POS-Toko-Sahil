@@ -99,9 +99,47 @@
     .portal-main {
       flex: 1;
       width: 100%;
-      max-width: 860px;
-      margin: 0 auto;
-      padding: 1.25rem 1rem 3rem 1rem;
+      max-width: 100%;
+      margin: 0;
+      padding: 1.5rem 2rem 4rem 2rem;
+      box-sizing: border-box;
+    }
+
+    /* Container data table modern portal */
+    .portal-table-card {
+      background: var(--bg-card);
+      border: 1.5px solid var(--border-color);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .portal-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .portal-table th {
+      background: #f8fafc;
+      padding: 0.85rem 1rem;
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .portal-table td {
+      padding: 0.85rem 1rem;
+      font-size: 0.86rem;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    .portal-table tr:hover td {
+      background: rgba(241, 245, 249, 0.5);
     }
 
     /* Login Box */
@@ -268,18 +306,68 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    /* ID Card Modal / Preview */
-    .idcard-preview {
+    /* Modal Overlay & Card */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
       width: 100%;
-      max-width: 360px;
-      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-      color: #fff;
-      border-radius: 16px;
-      padding: 1.25rem;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(5px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+
+    .modal-card {
+      background: var(--bg-card);
+      border-radius: 20px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+      width: 100%;
+      max-width: 480px;
+      overflow: hidden;
+      border: 1.5px solid var(--border-color);
+      animation: fadeIn 0.25s ease-out;
+    }
+
+    .modal-header {
+      padding: 1rem 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .btn-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--text-muted);
+      line-height: 1;
+    }
+
+    /* ID Card Digital Preview - Samakan dengan Halaman Anggota */
+    .voucher-card-box-preview {
       position: relative;
-      border: 2px solid var(--primary);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-      margin: 1rem auto;
+      overflow: hidden;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #b45309 0%, #d97706 40%, #ea580c 100%);
+      color: #fff;
+      padding: 1.25rem 1.4rem;
+      box-shadow: 0 10px 25px rgba(217,119,6,0.35);
+      border: 1.5px solid rgba(255,255,255,0.4);
+      width: 100%;
+      max-width: 440px;
+      min-height: 255px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      margin: 0 auto;
     }
 
     @media print {
@@ -362,9 +450,14 @@
             <span>Alamat: <b id="prof-address" style="color: #fff;">-</b></span>
           </div>
         </div>
-        <div style="display: flex; gap: 0.5rem;">
-          <button type="button" onclick="printMyIdCard()" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.45rem 0.85rem; border-radius: 9px;">
-            🪪 Cetak ID Card
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button type="button" onclick="openIdCardModal()" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.45rem 0.85rem; border-radius: 9px; display: inline-flex; align-items: center; gap: 0.35rem;">
+            <span>🪪</span>
+            <span>Lihat ID Card</span>
+          </button>
+          <button type="button" onclick="openResetPinModal()" class="btn btn-outline" style="font-size: 0.8rem; padding: 0.45rem 0.85rem; border-radius: 9px; color: #fff; border-color: rgba(255,255,255,0.3); display: inline-flex; align-items: center; gap: 0.35rem; background: rgba(255,255,255,0.08);">
+            <span>🔒</span>
+            <span>Ganti PIN</span>
           </button>
         </div>
       </div>
@@ -387,15 +480,26 @@
 
         <!-- Voucher Aktif -->
         <div class="stat-card" style="background: linear-gradient(135deg, rgba(234,88,12,0.08) 0%, rgba(194,65,12,0.14) 100%); border-color: rgba(234,88,12,0.3);">
-          <div style="font-size: 0.78rem; font-weight: 800; color: #ea580c; text-transform: uppercase;">🎟️ Voucher Belanja Aktif</div>
+          <div style="font-size: 0.78rem; font-weight: 800; color: #ea580c; text-transform: uppercase;">🎟️ Voucher Belanja Anda</div>
           <div id="stat-voucher" style="font-size: 1.65rem; font-weight: 900; color: #ea580c; margin-top: 4px;">0 Voucher</div>
-          <div id="stat-voucher-info" style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">Siap digunakan di kasir</div>
+          <div id="stat-voucher-info" style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">Belum Klaim: 0 | Sudah Klaim: 0</div>
+        </div>
+
+        <!-- Poin Loyalitas (Tampil jika Mode Poin Aktif atau Member Memiliki Poin) -->
+        <div id="stat-card-points" class="stat-card" style="display: none; background: linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(217,119,6,0.14) 100%); border-color: rgba(245,158,11,0.35);">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 0.78rem; font-weight: 800; color: #d97706; text-transform: uppercase;">🪙 Poin Reward Anda</div>
+            <button type="button" onclick="switchTab('points')" style="background: rgba(245,158,11,0.15); color: #b45309; border: 1px solid rgba(245,158,11,0.3); padding: 0.2rem 0.55rem; border-radius: 6px; font-size: 0.72rem; font-weight: 800; cursor: pointer;">Klaim Poin</button>
+          </div>
+          <div id="stat-points" style="font-size: 1.65rem; font-weight: 900; color: #d97706; margin-top: 4px; font-family: monospace;">0 Poin</div>
+          <div id="stat-points-value" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">Senilai: <b style="color: #b45309;">Rp 0</b> (1 Poin = Rp 100)</div>
         </div>
       </div>
 
       <!-- Navigation Tabs -->
       <div class="tabs-nav">
         <button type="button" class="tab-btn active" id="btn-tab-vouchers" onclick="switchTab('vouchers')">🎟️ Voucher Saya</button>
+        <button type="button" class="tab-btn" id="btn-tab-points" onclick="switchTab('points')" style="display: none;">🪙 Poin &amp; Klaim</button>
         <button type="button" class="tab-btn" id="btn-tab-savings" onclick="switchTab('savings')">🏦 Mutasi Tabungan</button>
         <button type="button" class="tab-btn" id="btn-tab-history" onclick="switchTab('history')">🛍️ Riwayat Belanja</button>
         <button type="button" class="tab-btn" id="btn-tab-debt" onclick="switchTab('debt')">💳 Hutang &amp; Ajukan Bon</button>
@@ -403,29 +507,98 @@
 
       <!-- TAB 1: VOUCHER SAYA -->
       <div id="tab-vouchers" class="tab-pane active">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-          <h3 style="font-size: 0.95rem; font-weight: 800;">Daftar Voucher Belanja Anda</h3>
-          <span style="font-size: 0.75rem; color: var(--text-muted);">Sebutkan kode/nama voucher ke kasir saat checkout</span>
+        <!-- Voucher Summary & Filter Pills -->
+        <div style="background: var(--bg-card); border: 1.5px solid var(--border-color); border-radius: 14px; padding: 1rem 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow-sm);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.85rem;">
+            <div>
+              <h3 style="font-size: 0.98rem; font-weight: 900; color: var(--text-main); margin: 0;">Voucher Belanja Anggota</h3>
+              <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">Tukarkan voucher aktif saat transaksi checkout di meja kasir</p>
+            </div>
+            <!-- Filter Buttons -->
+            <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+              <button type="button" class="btn btn-outline voucher-filter-btn active" id="vfilter-all" onclick="filterVoucherDisplay('all')" style="padding: 0.35rem 0.75rem; font-size: 0.78rem; border-radius: 8px;">
+                Semua (<span id="vfilter-cnt-all">0</span>)
+              </button>
+              <button type="button" class="btn btn-outline voucher-filter-btn" id="vfilter-unclaimed" onclick="filterVoucherDisplay('unclaimed')" style="padding: 0.35rem 0.75rem; font-size: 0.78rem; border-radius: 8px; color: #059669; border-color: rgba(5,150,105,0.3); background: rgba(5,150,105,0.06);">
+                🟢 Belum Digunakan (<span id="vfilter-cnt-unclaimed">0</span>)
+              </button>
+              <button type="button" class="btn btn-outline voucher-filter-btn" id="vfilter-claimed" onclick="filterVoucherDisplay('claimed')" style="padding: 0.35rem 0.75rem; font-size: 0.78rem; border-radius: 8px; color: #64748b; border-color: rgba(100,116,139,0.3);">
+                ⚪ Sudah Digunakan (<span id="vfilter-cnt-claimed">0</span>)
+              </button>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; border-top: 1px dashed var(--border-color); padding-top: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <span style="font-size: 1.35rem;">🎫</span>
+              <div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">TOTAL BELUM DIKLAIM</div>
+                <div id="vsum-unclaimed" style="font-size: 1rem; font-weight: 900; color: #059669; font-family: monospace;">0 Voucher (Rp 0)</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <span style="font-size: 1.35rem;">✅</span>
+              <div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700;">TOTAL SUDAH DIKLAIM</div>
+                <div id="vsum-claimed" style="font-size: 1rem; font-weight: 900; color: #64748b; font-family: monospace;">0 Voucher (Rp 0)</div>
+              </div>
+            </div>
+          </div>
         </div>
+
         <div id="list-vouchers" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.85rem;"></div>
       </div>
 
       <!-- TAB 2: MUTASI TABUNGAN -->
       <div id="tab-savings" class="tab-pane">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-          <h3 style="font-size: 0.95rem; font-weight: 800;">Riwayat Setor, Tarik, & Pembayaran Saldo</h3>
-          <span id="savings-count" style="font-size: 0.75rem; color: var(--text-muted);">0 Mutasi</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
+          <h3 style="font-size: 1rem; font-weight: 800; color: var(--text-main); margin: 0;">Riwayat Setor, Tarik, &amp; Pembayaran Saldo</h3>
+          <span id="savings-count" style="font-size: 0.78rem; font-weight: 700; background: rgba(2,132,199,0.1); color: #0284c7; padding: 0.2rem 0.6rem; border-radius: 999px;">0 Mutasi</span>
         </div>
-        <div id="list-savings" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 480px; overflow-y: auto;"></div>
+        <div class="portal-table-card">
+          <div style="overflow-x: auto;">
+            <table class="portal-table">
+              <thead>
+                <tr>
+                  <th style="width: 170px;">Waktu &amp; Tanggal</th>
+                  <th style="width: 140px;">Jenis Mutasi</th>
+                  <th>Keterangan / Catatan</th>
+                  <th style="text-align: right; width: 150px;">Nominal</th>
+                  <th style="text-align: right; width: 150px;">Sisa Saldo</th>
+                </tr>
+              </thead>
+              <tbody id="list-savings">
+                <!-- Diisi JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- TAB 3: RIWAYAT BELANJA -->
       <div id="tab-history" class="tab-pane">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-          <h3 style="font-size: 0.95rem; font-weight: 800;">Daftar Transaksi & Produk yang Pernah Dibeli</h3>
-          <span id="history-count" style="font-size: 0.75rem; color: var(--text-muted);">0 Transaksi</span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
+          <h3 style="font-size: 1rem; font-weight: 800; color: var(--text-main); margin: 0;">Daftar Transaksi &amp; Produk yang Pernah Dibeli</h3>
+          <span id="history-count" style="font-size: 0.78rem; font-weight: 700; background: rgba(234,88,12,0.1); color: var(--primary); padding: 0.2rem 0.6rem; border-radius: 999px;">0 Transaksi</span>
         </div>
-        <div id="list-history" style="display: flex; flex-direction: column; gap: 0.65rem; max-height: 500px; overflow-y: auto;"></div>
+        <div class="portal-table-card">
+          <div style="overflow-x: auto;">
+            <table class="portal-table">
+              <thead>
+                <tr>
+                  <th style="width: 160px;">No. Transaksi</th>
+                  <th style="width: 170px;">Waktu Belanja</th>
+                  <th>Rincian Produk yang Dibeli</th>
+                  <th style="width: 130px; text-align: center;">Status</th>
+                  <th style="text-align: right; width: 150px;">Total Tagihan</th>
+                </tr>
+              </thead>
+              <tbody id="list-history">
+                <!-- Diisi JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- TAB 4: HUTANG & PENGAJUAN -->
@@ -474,6 +647,199 @@
         </div>
       </div>
 
+      <!-- TAB 5: POIN REWARD & KLAIM POIN -->
+      <div id="tab-points" class="tab-pane">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem;">
+          <!-- Card 1: Informasi Poin & Konversi Nilai Rupiah -->
+          <div style="background: var(--bg-card); border: 1.5px solid rgba(245,158,11,0.3); border-radius: 14px; padding: 1.25rem; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.85rem;">
+              <span style="font-size: 1.3rem;">🪙</span>
+              <div>
+                <h3 style="font-size: 1rem; font-weight: 900; color: #b45309; margin: 0;">Poin Belanja Anggota</h3>
+                <p style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">Kumpulkan poin setiap belanja dan klaim menjadi uang tunai / saldo belanja</p>
+              </div>
+            </div>
+
+            <div style="background: linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(217,119,6,0.18) 100%); border: 1.5px dashed rgba(245,158,11,0.4); border-radius: 12px; padding: 1.1rem; text-align: center; margin-bottom: 1rem;">
+              <div style="font-size: 0.8rem; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">Saldo Poin Anda Saat Ini</div>
+              <div id="card-points-display" style="font-size: 2.2rem; font-weight: 900; color: #b45309; font-family: monospace; line-height: 1.2; margin: 0.35rem 0;">0 Poin</div>
+              <div id="card-points-rupiah" style="font-size: 0.95rem; font-weight: 800; color: #16a34a; background: #fff; display: inline-block; padding: 0.25rem 0.85rem; border-radius: 999px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid rgba(22,163,74,0.3);">
+                Senilai: Rp 0
+              </div>
+              <div id="card-points-rate-info" style="font-size: 0.72rem; color: #78350f; margin-top: 0.5rem;">
+                *Nilai tukar: 1 Poin = Rp 100
+              </div>
+            </div>
+
+            <!-- Ketentuan Klaim Poin -->
+            <div style="background: var(--bg-body); border-radius: 10px; border: 1px solid var(--border-color); padding: 0.85rem; font-size: 0.76rem; color: var(--text-muted);">
+              <div style="font-weight: 800; color: var(--text-main); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.35rem;">
+                <span>💡</span>
+                <span>Cara &amp; Ketentuan Klaim Poin:</span>
+              </div>
+              <ul style="margin: 0; padding-left: 1.15rem; line-height: 1.5;">
+                <li>Poin dapat diclaim kapan saja sesuai jumlah poin yang Anda miliki.</li>
+                <li>Setelah pengajuan klaim dikirim, admin/kasir akan menerima notifikasi otomatis.</li>
+                <li>Admin akan memverifikasi dan menyetujui (ACC) klaim poin Anda.</li>
+                <li>Pencairan dapat diambil tunai di meja kasir atau ditransfer sesuai persetujuan.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Card 2: Formulir Pengajuan Klaim Poin Mandiri -->
+          <div style="background: var(--bg-card); border: 1.5px solid var(--border-color); border-radius: 14px; padding: 1.25rem; box-shadow: var(--shadow-sm);">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.85rem;">
+              <span style="font-size: 1.3rem;">📝</span>
+              <div>
+                <h3 style="font-size: 1rem; font-weight: 900; color: var(--text-main); margin: 0;">Ajukan Klaim Poin</h3>
+                <p style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">Pencairan poin menunggu persetujuan (ACC) dari Admin / Kasir</p>
+              </div>
+            </div>
+
+            <form id="form-claim-points" onsubmit="submitPointClaimApplication(event)">
+              <div class="form-group">
+                <label class="form-label" for="claim-points-qty">Jumlah Poin yang Mau Diclaim *</label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <input type="number" id="claim-points-qty" class="form-control" placeholder="Contoh: 50" min="1" step="1" required oninput="calculatePointClaimRp()" style="font-weight: 800; font-size: 1.1rem; color: #b45309;">
+                  <button type="button" class="btn btn-outline" onclick="claimAllPointsMax()" style="padding: 0.55rem 0.75rem; font-size: 0.75rem; font-weight: 800; white-space: nowrap; border-color: rgba(245,158,11,0.4); color: #b45309; background: rgba(245,158,11,0.08);">
+                    Klaim Semua
+                  </button>
+                </div>
+                <!-- Live preview nominal rupiah yang akan didapat -->
+                <div id="claim-preview-rupiah" style="margin-top: 0.4rem; font-size: 0.8rem; font-weight: 800; color: #16a34a; background: rgba(22,163,74,0.08); padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px dashed rgba(22,163,74,0.3);">
+                  💵 Akan menerima: <b>Rp 0</b>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="claim-points-notes">Catatan / Keperluan (Opsional)</label>
+                <textarea id="claim-points-notes" class="form-control" rows="2" placeholder="Tuliskan catatan tambahan jika ada..."></textarea>
+              </div>
+
+              <button type="submit" id="btn-submit-point-claim" class="btn btn-primary" style="width: 100%; background: #d97706; border-color: #d97706; font-weight: 800; padding: 0.65rem;">
+                🚀 Kirim Pengajuan Klaim Poin
+              </button>
+            </form>
+
+            <div style="margin-top: 1.25rem; border-top: 1px dashed var(--border-color); padding-top: 0.85rem;">
+              <div style="font-size: 0.78rem; font-weight: 800; color: var(--text-muted); margin-bottom: 0.45rem;">Riwayat Pengajuan Klaim Poin:</div>
+              <div id="list-point-claims" style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 160px; overflow-y: auto;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- MODAL ID CARD ANGGOTA (Sama persis dengan Halaman Anggota) -->
+    <div class="modal-overlay" id="modal-id-card" style="display: none;">
+      <div class="modal-card" style="max-width: 480px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 1.3rem;">🪪</span>
+            <h3 style="margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-main);">ID Card Anggota Resmi</h3>
+          </div>
+          <button type="button" class="btn-close" onclick="closeIdCardModal()">&times;</button>
+        </div>
+
+        <div style="padding: 1.25rem; display: flex; flex-direction: column; align-items: center;">
+          <div class="voucher-card-box-preview">
+            <!-- Ornamen glow -->
+            <div style="position: absolute; right: -25px; top: -25px; width: 120px; height: 120px; background: rgba(255,255,255,0.14); border-radius: 50%; pointer-events: none;"></div>
+            <div style="position: absolute; left: -25px; bottom: -25px; width: 90px; height: 90px; background: rgba(255,255,255,0.08); border-radius: 50%; pointer-events: none;"></div>
+
+            <!-- Top Row: Nama Toko & Badge KARTU ANGGOTA -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; position: relative; z-index: 2;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; max-width: 65%;">
+                <div id="vcard-store-logo-container" style="display: flex; align-items: center; justify-content: center;">
+                  <span style="font-size: 1.15rem;">🏪</span>
+                </div>
+                <strong id="vcard-store-name" style="font-size: 0.95rem; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">TOKO KAMI</strong>
+              </div>
+              <span style="font-size: 0.72rem; background: rgba(255,255,255,0.25); padding: 0.2rem 0.65rem; border-radius: 999px; backdrop-filter: blur(4px); font-weight: 800; border: 1px solid rgba(255,255,255,0.35); letter-spacing: 0.5px; flex-shrink: 0;">KARTU ANGGOTA</span>
+            </div>
+
+            <!-- Detail Identitas Anggota -->
+            <div style="position: relative; z-index: 2; margin-bottom: 0.5rem;">
+              <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.85); font-weight: 700;">Nama Lengkap:</div>
+              <div id="vcard-cust-name" style="font-size: 1.35rem; font-weight: 900; line-height: 1.2; text-shadow: 0 1px 3px rgba(0,0,0,0.25); word-break: break-word;">Nama Anggota</div>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 0.45rem; font-size: 0.76rem;">
+                <div>
+                  <span style="opacity: 0.85;">ID Anggota:</span>
+                  <div id="vcard-cust-id" style="font-weight: 800; font-family: monospace; font-size: 0.85rem;">-</div>
+                </div>
+                <div>
+                  <span style="opacity: 0.85;">Instansi:</span>
+                  <div id="vcard-cust-instansi" style="font-weight: 700;">-</div>
+                </div>
+                <div>
+                  <span style="opacity: 0.85;">No. Telp / WA:</span>
+                  <div id="vcard-cust-phone" style="font-weight: 700; font-family: monospace;">-</div>
+                </div>
+                <div>
+                  <span style="opacity: 0.85;">Alamat / Domisili:</span>
+                  <div id="vcard-cust-alamat" style="font-weight: 600; font-size: 0.74rem;">-</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Barcode Box (Bisa Discan Scanner Barcode Kasir) -->
+            <div style="position: relative; z-index: 2; background: #ffffff; border-radius: 10px; padding: 0.4rem 0.5rem; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">
+              <svg id="idcard-barcode" style="max-width: 100%; height: 44px; display: block; margin: 0 auto;"></svg>
+              <div style="font-size: 0.65rem; color: #64748b; font-weight: 700; margin-top: 2px;">Barcode ID Anggota (Scan saat Pembayaran Checkout)</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 0.75rem; padding: 0.5rem 0.75rem; background: var(--bg-body); border-radius: 10px; border: 1px solid var(--border-color); font-size: 0.76rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.4rem; width: 100%; max-width: 440px;">
+            <span>📷</span>
+            <span><b>Bisa Discan:</b> Barcode di atas dapat langsung discan dengan barcode scanner fisik / kamera kasir.</span>
+          </div>
+        </div>
+
+        <div style="padding: 0.85rem 1.25rem; background: var(--bg-body); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+          <button type="button" class="btn btn-outline" onclick="closeIdCardModal()" style="font-size: 0.84rem; padding: 0.45rem 0.9rem;">Tutup</button>
+          <button type="button" class="btn btn-primary" onclick="printMyIdCard()" style="font-size: 0.84rem; padding: 0.45rem 1rem;">
+            🖨️ Cetak ID Card Fisik
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL RESET PIN MANDIRI -->
+    <div class="modal-overlay" id="modal-reset-pin" style="display: none;">
+      <div class="modal-card" style="max-width: 420px;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 1.3rem;">🔒</span>
+            <h3 style="margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-main);">Ganti / Reset PIN Anggota</h3>
+          </div>
+          <button type="button" class="btn-close" onclick="closeResetPinModal()">&times;</button>
+        </div>
+
+        <form onsubmit="handleResetPinSubmit(event)" style="padding: 1.25rem;">
+          <div class="form-group">
+            <label class="form-label" for="reset-old-pin">PIN Lama (6 Digit) *</label>
+            <input type="password" id="reset-old-pin" class="form-control" maxlength="6" pattern="[0-9]*" inputmode="numeric" placeholder="Masukkan PIN lama" required style="letter-spacing: 4px; text-align: center; font-size: 1.1rem; font-weight: 800;">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="reset-new-pin">PIN Baru (6 Digit Angka) *</label>
+            <input type="password" id="reset-new-pin" class="form-control" maxlength="6" pattern="[0-9]*" inputmode="numeric" placeholder="Contoh: 123456" required style="letter-spacing: 4px; text-align: center; font-size: 1.1rem; font-weight: 800;">
+            <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 0.25rem;">Wajib 6 digit angka angka.</small>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="reset-confirm-pin">Ulangi PIN Baru *</label>
+            <input type="password" id="reset-confirm-pin" class="form-control" maxlength="6" pattern="[0-9]*" inputmode="numeric" placeholder="Ketik ulang PIN baru" required style="letter-spacing: 4px; text-align: center; font-size: 1.1rem; font-weight: 800;">
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; margin-top: 1.25rem;">
+            <button type="button" class="btn btn-outline" onclick="closeResetPinModal()" style="flex: 1; padding: 0.65rem;">Batal</button>
+            <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.65rem;">Simpan PIN Baru</button>
+          </div>
+        </form>
+      </div>
     </div>
 
   </main>
@@ -483,8 +849,16 @@
     let portalCustomerId = null;
     let customersData = [];
     let transactionsData = [];
+    let customVouchersData = [];
+    let activeVoucherFilter = 'all';
     let appConfigData = {};
     let receiptSettingsData = {};
+    let loyaltySettingsData = {
+      rewardMode: 'voucher',
+      pointsPerRp: 50000,
+      rpPerPoint: 100,
+      minPurchaseForPoints: 0
+    };
     let firebaseDb = null;
 
     function formatRupiah(num) {
@@ -517,6 +891,16 @@
         const t = localStorage.getItem('kasir_transactions');
         if (t) transactionsData = JSON.parse(t);
       } catch (e) { transactionsData = []; }
+
+      try {
+        const cv = localStorage.getItem('kasir_custom_vouchers');
+        if (cv) customVouchersData = JSON.parse(cv);
+      } catch (e) { customVouchersData = []; }
+
+      try {
+        const l = localStorage.getItem('kasir_loyalty_settings');
+        if (l) loyaltySettingsData = Object.assign({}, loyaltySettingsData, JSON.parse(l));
+      } catch (e) {}
 
       try {
         const cfg = localStorage.getItem('kasir_app_config');
@@ -562,7 +946,7 @@
         }
         if (typeof firebase !== 'undefined' && firebase.database) {
           firebaseDb = firebase.database();
-          const storeCode = (appConfigData.firebaseStoreCode || 'default_store').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const storeCode = (appConfigData.firebaseStoreCode || localStorage.getItem('kasir_license_key') || 'default_store').replace(/[^a-zA-Z0-9_-]/g, '_');
 
           // Listener live customers
           firebaseDb.ref(`stores/${storeCode}/customers`).on('value', snap => {
@@ -584,6 +968,26 @@
             }
           });
 
+          // Listener live custom vouchers
+          firebaseDb.ref(`stores/${storeCode}/customVouchers`).on('value', snap => {
+            const val = snap.val();
+            if (val) {
+              customVouchersData = Array.isArray(val) ? val : Object.values(val);
+              localStorage.setItem('kasir_custom_vouchers', JSON.stringify(customVouchersData));
+              if (portalCustomerId) renderDashboard();
+            }
+          });
+
+          // Listener live loyalty settings
+          firebaseDb.ref(`stores/${storeCode}/settings/loyalty`).on('value', snap => {
+            const val = snap.val();
+            if (val) {
+              loyaltySettingsData = Object.assign({}, loyaltySettingsData, val);
+              localStorage.setItem('kasir_loyalty_settings', JSON.stringify(loyaltySettingsData));
+              if (portalCustomerId) renderDashboard();
+            }
+          });
+
           if (cloudBadge) {
             cloudBadge.textContent = '🟢 Cloud Terhubung';
             cloudBadge.style.background = 'rgba(16,185,129,0.2)';
@@ -599,12 +1003,73 @@
       localStorage.setItem('kasir_customers', JSON.stringify(customersData));
       if (firebaseDb && appConfigData.enableCloudSync && cust) {
         try {
-          const storeCode = (appConfigData.firebaseStoreCode || 'default_store').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const storeCode = (appConfigData.firebaseStoreCode || localStorage.getItem('kasir_license_key') || 'default_store').replace(/[^a-zA-Z0-9_-]/g, '_');
           const clean = JSON.parse(JSON.stringify(cust));
           const key = clean.id || clean.no_hp || ('CUST-' + Date.now());
           firebaseDb.ref(`stores/${storeCode}/customers/${key}`).set(clean).catch(e => console.warn(e));
         } catch (e) {}
       }
+    }
+
+    // Helper: Menggabungkan semua voucher milik customer (customVouchers & personal vouchers)
+    function getCustomerAllVouchers(c) {
+      if (!c) return [];
+      const results = [];
+      const cId = String(c.id || '');
+      const cCode = String(c.kode_anggota || c.id || '');
+      const cName = String(c.nama || '').toLowerCase().trim();
+      const today = new Date(new Date().setHours(0,0,0,0));
+
+      // 1. Ambil dari customVouchersData
+      if (Array.isArray(customVouchersData)) {
+        customVouchersData.forEach(v => {
+          if (!Array.isArray(v.allocations)) return;
+          v.allocations.forEach(alloc => {
+            const aId = String(alloc.anggotaId || '');
+            const aName = String(alloc.anggotaNama || '').toLowerCase().trim();
+            if (aId === cId || aId === cCode || (aName && aName === cName)) {
+              const isUsed = alloc.status === 'sudah_diambil';
+              const isExp = (v.tipeKadaluarsa !== 'tanpa_kadaluarsa' && v.tanggalKadaluarsa && new Date(v.tanggalKadaluarsa) < today);
+              results.push({
+                source: 'custom',
+                voucherId: v.id,
+                namaVoucher: v.namaVoucher || 'Voucher Belanja',
+                kategori: v.kategori || 'Umum',
+                nominal: parseInt(alloc.nominal, 10) || 0,
+                status: isUsed ? 'sudah_diambil' : 'belum_diambil',
+                claimed: isUsed,
+                tanggalAmbil: alloc.tanggalAmbil || null,
+                expiry: v.tanggalKadaluarsa || null,
+                isExpired: isExp,
+                txId: alloc.txId || null
+              });
+            }
+          });
+        });
+      }
+
+      // 2. Ambil dari customer.vouchers
+      if (Array.isArray(c.vouchers)) {
+        c.vouchers.forEach((v, idx) => {
+          const isUsed = v.claimed === true || v.status === 'sudah_diambil';
+          const isExp = v.expiry && new Date(v.expiry) < today;
+          results.push({
+            source: 'personal',
+            voucherId: v.voucherId || v.id || ('VOUCHER-P-' + idx),
+            namaVoucher: v.namaVoucher || v.nama || 'Voucher Belanja',
+            kategori: v.kategori || 'Umum',
+            nominal: parseInt(v.nominal, 10) || 0,
+            status: isUsed ? 'sudah_diambil' : 'belum_diambil',
+            claimed: isUsed,
+            tanggalAmbil: v.tanggalAmbil || null,
+            expiry: v.expiry || null,
+            isExpired: isExp,
+            txId: v.txId || null
+          });
+        });
+      }
+
+      return results;
     }
 
     // Login Handler
@@ -699,15 +1164,55 @@
       document.getElementById('stat-debt').textContent = `Rp ${formatRupiah(totalUnpaid)}`;
       document.getElementById('stat-debt-info').textContent = `${unpaidTxs.length} Transaksi Belum Lunas`;
 
-      // 3. Voucher Aktif
-      const vouchers = Array.isArray(c.vouchers) ? c.vouchers : [];
-      const today = new Date(new Date().setHours(0,0,0,0));
-      const activeVouchers = vouchers.filter(v => v.claimed !== true && (!v.expiry || new Date(v.expiry) >= today));
-      document.getElementById('stat-voucher').textContent = `${activeVouchers.length} Voucher`;
-      document.getElementById('stat-voucher-info').textContent = activeVouchers.length > 0 ? `Total: Rp ${formatRupiah(activeVouchers.reduce((s,v) => s + (Number(v.nominal)||0), 0))}` : 'Belum ada voucher aktif';
+      // 3. Voucher: Tampilkan detail yang diklaim dan yang belum diklaim
+      const allVouchers = getCustomerAllVouchers(c);
+      const unclaimedVouchers = allVouchers.filter(v => v.status === 'belum_diambil' && !v.isExpired);
+      const claimedVouchers = allVouchers.filter(v => v.status === 'sudah_diambil');
+
+      const totalNominalUnclaimed = unclaimedVouchers.reduce((s, v) => s + (Number(v.nominal) || 0), 0);
+      const totalNominalClaimed = claimedVouchers.reduce((s, v) => s + (Number(v.nominal) || 0), 0);
+
+      document.getElementById('stat-voucher').textContent = `${unclaimedVouchers.length} Voucher Aktif`;
+      document.getElementById('stat-voucher-info').innerHTML = `
+        <span style="color: #059669; font-weight: 700;">Belum Klaim: ${unclaimedVouchers.length}</span> | 
+        <span style="color: #64748b; font-weight: 700;">Sudah Klaim: ${claimedVouchers.length}</span>
+      `;
+
+      // Update counters di tab voucher
+      const cntAllEl = document.getElementById('vfilter-cnt-all');
+      const cntUnclaimedEl = document.getElementById('vfilter-cnt-unclaimed');
+      const cntClaimedEl = document.getElementById('vfilter-cnt-claimed');
+      if (cntAllEl) cntAllEl.textContent = allVouchers.length;
+      if (cntUnclaimedEl) cntUnclaimedEl.textContent = unclaimedVouchers.length;
+      if (cntClaimedEl) cntClaimedEl.textContent = claimedVouchers.length;
+
+      const sumUnclaimedEl = document.getElementById('vsum-unclaimed');
+      const sumClaimedEl = document.getElementById('vsum-claimed');
+      if (sumUnclaimedEl) sumUnclaimedEl.textContent = `${unclaimedVouchers.length} Voucher (Rp ${formatRupiah(totalNominalUnclaimed)})`;
+      // 4. Poin Loyalitas (Tampil jika Mode Poin Aktif atau Member Memiliki Poin)
+      const isPointsMode = loyaltySettingsData.rewardMode === 'points';
+      const custPoints = Math.max(0, parseInt(c.poin, 10) || 0);
+      const rpPerPoint = Math.max(1, parseInt(loyaltySettingsData.rpPerPoint, 10) || 100);
+      const pointsRupiahValue = custPoints * rpPerPoint;
+
+      const statPointsCard = document.getElementById('stat-card-points');
+      const btnTabPoints = document.getElementById('btn-tab-points');
+
+      if (isPointsMode || custPoints > 0) {
+        if (statPointsCard) statPointsCard.style.display = 'block';
+        if (btnTabPoints) btnTabPoints.style.display = 'inline-flex';
+        const statPointsEl = document.getElementById('stat-points');
+        const statPointsValEl = document.getElementById('stat-points-value');
+        if (statPointsEl) statPointsEl.textContent = `${formatRupiah(custPoints)} Poin`;
+        if (statPointsValEl) statPointsValEl.innerHTML = `Senilai: <b style="color: #b45309;">Rp ${formatRupiah(pointsRupiahValue)}</b> (1 Poin = Rp ${formatRupiah(rpPerPoint)})`;
+      } else {
+        if (statPointsCard) statPointsCard.style.display = 'none';
+        if (btnTabPoints) btnTabPoints.style.display = 'none';
+      }
 
       // Render Tabs
-      renderVouchersTab(vouchers);
+      renderVouchersTab(allVouchers);
+      renderPointsTab(c);
       renderSavingsTab(c);
       renderHistoryTab(memberTxs);
       renderDebtTab(unpaidTxs, c);
@@ -715,7 +1220,7 @@
     }
 
     function switchTab(tabId) {
-      ['vouchers', 'savings', 'history', 'debt'].forEach(t => {
+      ['vouchers', 'points', 'savings', 'history', 'debt'].forEach(t => {
         const btn = document.getElementById(`btn-tab-${t}`);
         const pane = document.getElementById(`tab-${t}`);
         if (btn) btn.classList.toggle('active', t === tabId);
@@ -723,54 +1228,107 @@
       });
     }
 
-    function renderVouchersTab(vouchers) {
+    function filterVoucherDisplay(filterType) {
+      activeVoucherFilter = filterType;
+      ['all', 'unclaimed', 'claimed'].forEach(t => {
+        const btn = document.getElementById(`vfilter-${t}`);
+        if (btn) {
+          if (t === filterType) {
+            btn.classList.add('active');
+            btn.style.fontWeight = '900';
+            btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.1)';
+          } else {
+            btn.classList.remove('active');
+            btn.style.fontWeight = '600';
+            btn.style.boxShadow = 'none';
+          }
+        }
+      });
+
+      const c = customersData.find(x => x.id === portalCustomerId);
+      if (c) {
+        const allVouchers = getCustomerAllVouchers(c);
+        renderVouchersTab(allVouchers);
+      }
+    }
+
+    function renderVouchersTab(allVouchers) {
       const container = document.getElementById('list-vouchers');
-      if (!vouchers || vouchers.length === 0) {
+      if (!allVouchers) {
+        const c = customersData.find(x => x.id === portalCustomerId);
+        allVouchers = c ? getCustomerAllVouchers(c) : [];
+      }
+
+      let displayedList = allVouchers;
+      if (activeVoucherFilter === 'unclaimed') {
+        displayedList = allVouchers.filter(v => v.status === 'belum_diambil' && !v.isExpired);
+      } else if (activeVoucherFilter === 'claimed') {
+        displayedList = allVouchers.filter(v => v.status === 'sudah_diambil');
+      }
+
+      if (!displayedList || displayedList.length === 0) {
+        let emptyMsg = 'Belum Ada Voucher Belanja';
+        let subMsg = 'Voucher reward atau voucher custom yang diterbitkan admin akan tampil otomatis di sini.';
+        if (activeVoucherFilter === 'unclaimed') {
+          emptyMsg = 'Tidak Ada Voucher yang Belum Digunakan';
+          subMsg = 'Semua voucher belanja Anda sudah diklaim / digunakan atau telah kadaluarsa.';
+        } else if (activeVoucherFilter === 'claimed') {
+          emptyMsg = 'Belum Ada Voucher yang Diklaim';
+          subMsg = 'Anda belum pernah menukarkan atau mengklaim voucher belanja di meja kasir.';
+        }
+
         container.innerHTML = `
           <div style="grid-column: 1/-1; text-align: center; padding: 2.5rem 1rem; background: var(--bg-card); border-radius: 14px; border: 1.5px dashed var(--border-color); color: var(--text-muted);">
             <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">🎟️</div>
-            <div style="font-weight: 800;">Belum Ada Voucher Belanja</div>
-            <div style="font-size: 0.8rem; margin-top: 0.2rem;">Voucher reward atau voucher custom yang diterbitkan admin akan tampil otomatis di sini.</div>
+            <div style="font-weight: 800; color: var(--text-main);">${emptyMsg}</div>
+            <div style="font-size: 0.8rem; margin-top: 0.2rem;">${subMsg}</div>
           </div>
         `;
         return;
       }
 
-      const today = new Date(new Date().setHours(0,0,0,0));
-      container.innerHTML = vouchers.map(v => {
-        const isExpired = v.expiry && new Date(v.expiry) < today;
-        const isUsed = v.claimed === true;
-        let badgeText = 'AKTIF';
+      container.innerHTML = displayedList.map(v => {
+        const isUsed = v.status === 'sudah_diambil' || v.claimed === true;
+        const isExpired = v.isExpired;
+        let badgeText = '🟢 BELUM DIKLAIM (AKTIF)';
         let badgeColor = '#059669';
         let badgeBg = '#dcfce7';
 
         if (isUsed) {
-          badgeText = 'SUDAH DIGUNAKAN';
-          badgeColor = '#64748b';
+          badgeText = '⚪ SUDAH DIKLAIM / DIGUNAKAN';
+          badgeColor = '#475569';
           badgeBg = '#f1f5f9';
         } else if (isExpired) {
-          badgeText = 'KADALUARSA';
+          badgeText = '🔴 KADALUARSA';
           badgeColor = '#dc2626';
           badgeBg = '#fee2e2';
         }
 
+        let claimInfo = '';
+        if (isUsed) {
+          const claimDate = v.tanggalAmbil ? new Date(v.tanggalAmbil).toLocaleDateString('id-ID') : '-';
+          claimInfo = `Diklaim pada: <b>${claimDate}</b> ${v.txId ? `(${escapeHtml(v.txId)})` : ''}`;
+        } else {
+          claimInfo = `Berlaku s/d: <b>${v.expiry ? v.expiry : 'Selamanya'}</b>`;
+        }
+
         return `
-          <div style="background: var(--bg-card); border: 1.5px solid ${isUsed ? 'var(--border-color)' : (isExpired ? '#fca5a5' : 'var(--primary)')}; border-radius: 14px; padding: 1.15rem; box-shadow: var(--shadow-sm); opacity: ${isUsed || isExpired ? '0.75' : '1'};">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
-              <span style="font-size: 0.72rem; font-weight: 800; background: ${badgeBg}; color: ${badgeColor}; padding: 0.15rem 0.55rem; border-radius: 999px;">
+          <div style="background: var(--bg-card); border: 1.5px solid ${isUsed ? 'var(--border-color)' : (isExpired ? '#fca5a5' : 'var(--primary)')}; border-radius: 14px; padding: 1.15rem; box-shadow: var(--shadow-sm); opacity: ${isUsed || isExpired ? '0.85' : '1'}; position: relative; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; gap: 0.5rem;">
+              <span style="font-size: 0.72rem; font-weight: 800; background: ${badgeBg}; color: ${badgeColor}; padding: 0.2rem 0.55rem; border-radius: 999px;">
                 ${badgeText}
               </span>
               <span style="font-size: 0.76rem; color: var(--text-muted); font-weight: 600;">${escapeHtml(v.kategori || 'Umum')}</span>
             </div>
-            <div style="font-weight: 800; font-size: 1.05rem; color: var(--text-main); margin-bottom: 0.25rem;">
+            <div style="font-weight: 900; font-size: 1.1rem; color: var(--text-main); margin-bottom: 0.25rem;">
               ${escapeHtml(v.namaVoucher || 'Voucher Belanja')}
             </div>
-            <div style="font-size: 1.4rem; font-weight: 900; color: var(--primary); font-family: monospace;">
+            <div style="font-size: 1.5rem; font-weight: 900; color: ${isUsed ? '#64748b' : 'var(--primary)'}; font-family: monospace;">
               Rp ${formatRupiah(v.nominal || 0)}
             </div>
-            <div style="margin-top: 0.65rem; border-top: 1px dashed var(--border-color); padding-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between;">
-              <span>Berlaku s/d:</span>
-              <b>${v.expiry ? v.expiry : 'Selamanya'}</b>
+            <div style="margin-top: 0.75rem; border-top: 1px dashed var(--border-color); padding-top: 0.55rem; font-size: 0.76rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.35rem;">
+              <span>${claimInfo}</span>
+              ${!isUsed && !isExpired ? `<span style="color: var(--primary); font-weight: 800; font-size: 0.74rem;">✓ Siap Ditukar</span>` : ''}
             </div>
           </div>
         `;
@@ -785,9 +1343,11 @@
 
       if (history.length === 0) {
         container.innerHTML = `
-          <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); background: var(--bg-card); border-radius: 14px; border: 1.5px dashed var(--border-color);">
-            Belum ada catatan mutasi tabungan (setor, tarik tunai, atau bayar belanja di kasir).
-          </div>
+          <tr>
+            <td colspan="5" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); font-style: italic;">
+              Belum ada catatan mutasi tabungan (setor, tarik tunai, atau bayar belanja di kasir).
+            </td>
+          </tr>
         `;
         return;
       }
@@ -805,23 +1365,21 @@
         const sisa = h.sisa_saldo !== undefined ? h.sisa_saldo : (h.saldo_setelah || 0);
 
         return `
-          <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.85rem 1.15rem; box-shadow: var(--shadow-sm);">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <span style="font-size: 0.76rem; font-weight: 800; background: ${bg}; color: ${color}; padding: 0.25rem 0.6rem; border-radius: 8px;">
+          <tr>
+            <td style="font-size: 0.82rem; color: var(--text-muted); font-family: monospace;">${dateFormatted}</td>
+            <td>
+              <span style="font-size: 0.74rem; font-weight: 800; background: ${bg}; color: ${color}; padding: 0.25rem 0.6rem; border-radius: 8px; display: inline-block;">
                 ${label}
               </span>
-              <div>
-                <div style="font-size: 0.78rem; color: var(--text-muted);">${dateFormatted}</div>
-                <div style="font-size: 0.84rem; font-weight: 700; color: var(--text-main);">${escapeHtml(h.catatan || '-')}</div>
-              </div>
-            </div>
-            <div style="text-align: right;">
-              <div style="font-size: 1.05rem; font-weight: 900; color: ${color}; font-family: monospace;">
-                ${sign} Rp ${formatRupiah(nominal)}
-              </div>
-              <div style="font-size: 0.74rem; color: var(--text-muted);">Saldo: Rp ${formatRupiah(sisa)}</div>
-            </div>
-          </div>
+            </td>
+            <td style="font-weight: 600;">${escapeHtml(h.catatan || '-')}</td>
+            <td style="text-align: right; font-weight: 900; color: ${color}; font-family: monospace; font-size: 0.95rem;">
+              ${sign} Rp ${formatRupiah(nominal)}
+            </td>
+            <td style="text-align: right; font-weight: 800; color: var(--text-main); font-family: monospace;">
+              Rp ${formatRupiah(sisa)}
+            </td>
+          </tr>
         `;
       }).join('');
     }
@@ -833,9 +1391,11 @@
 
       if (memberTxs.length === 0) {
         container.innerHTML = `
-          <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); background: var(--bg-card); border-radius: 14px; border: 1.5px dashed var(--border-color);">
-            Belum ada riwayat transaksi belanja di kasir.
-          </div>
+          <tr>
+            <td colspan="5" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); font-style: italic;">
+              Belum ada riwayat transaksi belanja di kasir.
+            </td>
+          </tr>
         `;
         return;
       }
@@ -846,36 +1406,24 @@
         const items = Array.isArray(tx.items) ? tx.items : [];
         const isBon = (tx.status_pembayaran === 'Bon') || ((tx.sisa_piutang || 0) > 0);
 
+        const itemsSummary = items.length > 0 
+          ? items.map(it => `${escapeHtml(it.nama)} <b style="color: var(--primary);">x${it.qty}</b> <span style="color: var(--text-muted); font-size: 0.78rem;">(@Rp ${formatRupiah(it.harga || 0)})</span>`).join('<br>')
+          : `<span style="color: var(--text-muted); font-style: italic;">${escapeHtml(tx.catatan_bon || tx.keterangan_manual || 'Transaksi Belanja')}</span>`;
+
         return `
-          <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 1.15rem; box-shadow: var(--shadow-sm);">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-color); padding-bottom: 0.5rem; margin-bottom: 0.65rem;">
-              <div>
-                <strong style="font-size: 0.92rem; font-family: monospace; color: var(--text-main);">${escapeHtml(tx.id)}</strong>
-                <span style="font-size: 0.76rem; color: var(--text-muted); margin-left: 0.5rem;">${dateFormatted}</span>
-              </div>
-              <span style="font-size: 0.75rem; font-weight: 800; padding: 0.15rem 0.6rem; border-radius: 999px; background: ${isBon ? '#fee2e2' : '#dcfce7'}; color: ${isBon ? '#dc2626' : '#15803d'};">
+          <tr>
+            <td style="font-family: monospace; font-weight: 800; color: var(--primary); font-size: 0.88rem;">${escapeHtml(tx.id)}</td>
+            <td style="font-size: 0.82rem; color: var(--text-muted); font-family: monospace;">${dateFormatted}</td>
+            <td style="font-size: 0.84rem; line-height: 1.5;">${itemsSummary}</td>
+            <td style="text-align: center;">
+              <span style="font-size: 0.74rem; font-weight: 800; padding: 0.2rem 0.65rem; border-radius: 999px; background: ${isBon ? '#fee2e2' : '#dcfce7'}; color: ${isBon ? '#dc2626' : '#15803d'};">
                 ${isBon ? 'Hutang / Bon' : 'LUNAS'}
               </span>
-            </div>
-
-            <div style="display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.65rem;">
-              ${items.length > 0 ? items.map(it => `
-                <div style="display: flex; justify-content: space-between; font-size: 0.84rem;">
-                  <span>${escapeHtml(it.nama)} <b style="color: var(--primary);">x${it.qty}</b></span>
-                  <span style="font-family: monospace; font-weight: 700;">Rp ${formatRupiah((it.harga || 0) * (it.qty || 1))}</span>
-                </div>
-              `).join('') : `
-                <div style="font-size: 0.82rem; color: var(--text-muted); font-style: italic;">
-                  ${escapeHtml(tx.catatan_bon || tx.keterangan_manual || 'Transaksi Belanja')}
-                </div>
-              `}
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 0.5rem;">
-              <span style="color: var(--text-muted); font-size: 0.84rem;">Total Belanja:</span>
-              <strong style="font-size: 1.15rem; color: var(--text-main); font-family: monospace;">Rp ${formatRupiah(tx.total || 0)}</strong>
-            </div>
-          </div>
+            </td>
+            <td style="text-align: right; font-size: 1.05rem; font-weight: 900; color: var(--text-main); font-family: monospace;">
+              Rp ${formatRupiah(tx.total || 0)}
+            </td>
+          </tr>
         `;
       }).join('');
     }
@@ -956,7 +1504,7 @@
 
       saveCustomersLocalAndCloud(c);
 
-      alert(`✅ Permohonan hutang sebesar Rp ${formatRupiah(amount)} berhasil dikirim!\nStatus: Menunggu Persetujuan Admin.\nKasir atau admin toko akan meninjau pengajuan Anda.`);
+      alert(`✅ Permohonan pinjaman/hutang sebesar Rp ${formatRupiah(amount)} berhasil dikirim!\nStatus: Menunggu Persetujuan Admin.\nKasir atau admin toko akan mendapatkan notifikasi audio & badge untuk meninjau pengajuan Anda.`);
 
       document.getElementById('apply-amount').value = '';
       document.getElementById('apply-reason').value = '';
@@ -1001,6 +1549,276 @@
       }).join('');
     }
 
+    // --- FITUR KLAIM POIN ANGGOTA ---
+    function getRpPerPoint() {
+      return Math.max(1, parseInt(loyaltySettingsData.rpPerPoint, 10) || 100);
+    }
+
+    function calculatePointClaimRp() {
+      const qtyInput = document.getElementById('claim-points-qty');
+      const previewEl = document.getElementById('claim-preview-rupiah');
+      if (!qtyInput || !previewEl) return;
+
+      const qty = Math.max(0, parseInt(qtyInput.value, 10) || 0);
+      const rpPerPoint = getRpPerPoint();
+      const totalRp = qty * rpPerPoint;
+
+      previewEl.innerHTML = `💵 Akan menerima: <b>Rp ${formatRupiah(totalRp)}</b> (@ Rp ${formatRupiah(rpPerPoint)}/poin)`;
+    }
+
+    function togglePointClaimMethodFields() {
+      const method = document.getElementById('claim-payout-method')?.value;
+      const bankGroup = document.getElementById('group-claim-bank-details');
+      if (bankGroup) {
+        bankGroup.style.display = (method === 'transfer_bank') ? 'block' : 'none';
+      }
+    }
+
+    function claimAllPointsMax() {
+      const c = customersData.find(x => x.id === portalCustomerId);
+      if (!c) return;
+      const pts = Math.max(0, parseInt(c.poin, 10) || 0);
+      const qtyInput = document.getElementById('claim-points-qty');
+      if (qtyInput) {
+        qtyInput.value = pts > 0 ? pts : '';
+        calculatePointClaimRp();
+      }
+    }
+
+    function renderPointsTab(c) {
+      if (!c) return;
+      const pts = Math.max(0, parseInt(c.poin, 10) || 0);
+      const rpPerPoint = getRpPerPoint();
+      const totalRp = pts * rpPerPoint;
+
+      const dispEl = document.getElementById('card-points-display');
+      const rpEl = document.getElementById('card-points-rupiah');
+      const rateEl = document.getElementById('card-points-rate-info');
+      const inputEl = document.getElementById('claim-points-qty');
+
+      if (dispEl) dispEl.textContent = `${formatRupiah(pts)} Poin`;
+      if (rpEl) rpEl.textContent = `Senilai: Rp ${formatRupiah(totalRp)}`;
+      if (rateEl) rateEl.textContent = `*Nilai tukar resmi: 1 Poin = Rp ${formatRupiah(rpPerPoint)}`;
+      if (inputEl) inputEl.max = pts;
+
+      calculatePointClaimRp();
+      renderPointClaimsList(c);
+    }
+
+    function submitPointClaimApplication(e) {
+      if (e) e.preventDefault();
+      const c = customersData.find(x => x.id === portalCustomerId);
+      if (!c) {
+        alert("Sesi login berakhir. Silakan login kembali!");
+        logoutPortal();
+        return;
+      }
+
+      const availablePoints = Math.max(0, parseInt(c.poin, 10) || 0);
+      const qtyInput = document.getElementById('claim-points-qty');
+      const pointsToClaim = parseInt(qtyInput?.value, 10) || 0;
+
+      if (pointsToClaim <= 0) {
+        alert("Jumlah poin yang diajukan untuk diclaim harus lebih dari 0!");
+        return;
+      }
+      if (pointsToClaim > availablePoints) {
+        alert(`Jumlah poin yang Anda ajukan (${pointsToClaim} poin) melebihi saldo poin Anda saat ini (${availablePoints} poin)!`);
+        return;
+      }
+
+      const rpPerPoint = getRpPerPoint();
+      const nominalRp = pointsToClaim * rpPerPoint;
+      const notes = (document.getElementById('claim-points-notes')?.value || '').trim();
+
+      const claimApplication = {
+        id: 'CLM-' + Date.now(),
+        tanggal: new Date().toISOString(),
+        poin: pointsToClaim,
+        nilai_rupiah: nominalRp,
+        catatan: notes,
+        status: 'Menunggu Persetujuan Admin',
+        anggota_id: c.id,
+        nama_anggota: c.nama,
+        telepon: c.telepon || ''
+      };
+
+      if (!Array.isArray(c.pengajuan_klaim_poin)) c.pengajuan_klaim_poin = [];
+      c.pengajuan_klaim_poin.unshift(claimApplication);
+
+      saveCustomersLocalAndCloud(c);
+
+      alert(`✅ Permohonan klaim ${pointsToClaim} poin (Senilai Rp ${formatRupiah(nominalRp)}) berhasil dikirim!\n\nStatus: Menunggu Persetujuan Admin / Kasir.\nAdmin akan memeriksa dan menentukan sumber pencairan dana (dari Laci Kasir atau Dana Lain / Kas Toko).`);
+
+      if (qtyInput) qtyInput.value = '';
+      const notesInput = document.getElementById('claim-points-notes');
+      if (notesInput) notesInput.value = '';
+      calculatePointClaimRp();
+
+      renderPointClaimsList(c);
+    }
+
+    function renderPointClaimsList(c) {
+      const container = document.getElementById('list-point-claims');
+      if (!container) return;
+      const list = Array.isArray(c.pengajuan_klaim_poin) ? c.pengajuan_klaim_poin : [];
+
+      if (list.length === 0) {
+        container.innerHTML = `<div style="color: var(--text-muted); font-size: 0.75rem; font-style: italic;">Belum ada riwayat pengajuan klaim poin.</div>`;
+        return;
+      }
+
+      container.innerHTML = list.slice(0, 10).map(clm => {
+        let badgeColor = '#d97706';
+        let badgeBg = '#fef3c7';
+        if (clm.status === 'Disetujui' || clm.status === 'Selesai') {
+          badgeColor = '#059669';
+          badgeBg = '#dcfce7';
+        } else if (clm.status === 'Ditolak') {
+          badgeColor = '#dc2626';
+          badgeBg = '#fee2e2';
+        }
+
+        const tgl = new Date(clm.tanggal).toLocaleDateString('id-ID');
+        const sumberInfo = clm.sumber_dana ? (clm.sumber_dana === 'laci_kasir' ? '💵 Dari Laci Kasir' : '🏦 Dari Kas Toko/Dana Lain') : '⏳ Menunggu ACC Admin';
+        return `
+          <div style="background: var(--bg-body); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.78rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.4rem;">
+                <span style="font-weight: 800; color: #b45309;">${formatRupiah(clm.poin)} Poin</span>
+                <span style="font-weight: 700; color: #16a34a;">(Rp ${formatRupiah(clm.nilai_rupiah)})</span>
+              </div>
+              <div style="color: var(--text-muted); font-size: 0.72rem; margin-top: 2px;">
+                ${tgl} • ${sumberInfo} ${clm.catatan ? '• Catatan: ' + escapeHtml(clm.catatan) : ''}
+              </div>
+            </div>
+            <span style="font-size: 0.7rem; font-weight: 800; background: ${badgeBg}; color: ${badgeColor}; padding: 0.2rem 0.55rem; border-radius: 6px; white-space: nowrap;">
+              ${escapeHtml(clm.status)}
+            </span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Modal ID Card Mandiri
+    function openIdCardModal() {
+      const c = customersData.find(x => x.id === portalCustomerId);
+      if (!c) return;
+
+      const storeName = receiptSettingsData.name || 'TOKO KASIR / KOPERASI';
+      const storeLogo = receiptSettingsData.logo || '';
+      const barcodeValue = c.kode_anggota || c.id || 'ANGGOTA';
+
+      document.getElementById('vcard-store-name').textContent = storeName;
+      document.getElementById('vcard-cust-name').textContent = c.nama || 'Anggota';
+      document.getElementById('vcard-cust-id').textContent = c.kode_anggota || c.id || '-';
+      document.getElementById('vcard-cust-instansi').textContent = c.instansi || '-';
+      document.getElementById('vcard-cust-phone').textContent = c.telepon || '-';
+      document.getElementById('vcard-cust-alamat').textContent = c.domisili || '-';
+
+      const logoContainer = document.getElementById('vcard-store-logo-container');
+      if (logoContainer) {
+        if (storeLogo) {
+          logoContainer.innerHTML = `<img src="${storeLogo}" alt="Logo" style="max-height: 24px; max-width: 45px; object-fit: contain; border-radius: 4px;">`;
+        } else {
+          logoContainer.innerHTML = `<span style="font-size: 1.15rem;">🏪</span>`;
+        }
+      }
+
+      if (typeof JsBarcode !== 'undefined') {
+        try {
+          JsBarcode("#idcard-barcode", barcodeValue, {
+            format: "CODE128",
+            width: 1.8,
+            height: 38,
+            displayValue: true,
+            fontSize: 11,
+            fontOptions: "bold",
+            font: "monospace",
+            lineColor: "#000",
+            background: "#fff",
+            margin: 0
+          });
+        } catch (e) {
+          console.warn('Barcode generation error:', e);
+        }
+      }
+
+      const modal = document.getElementById('modal-id-card');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeIdCardModal() {
+      const modal = document.getElementById('modal-id-card');
+      if (modal) modal.style.display = 'none';
+    }
+
+    // Modal Reset PIN Mandiri
+    function openResetPinModal() {
+      const oldPinInput = document.getElementById('reset-old-pin');
+      const newPinInput = document.getElementById('reset-new-pin');
+      const confPinInput = document.getElementById('reset-confirm-pin');
+      if (oldPinInput) oldPinInput.value = '';
+      if (newPinInput) newPinInput.value = '';
+      if (confPinInput) confPinInput.value = '';
+
+      const modal = document.getElementById('modal-reset-pin');
+      if (modal) modal.style.display = 'flex';
+      setTimeout(() => { if (oldPinInput) oldPinInput.focus(); }, 100);
+    }
+
+    function closeResetPinModal() {
+      const modal = document.getElementById('modal-reset-pin');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function handleResetPinSubmit(e) {
+      if (e) e.preventDefault();
+      const c = customersData.find(x => x.id === portalCustomerId);
+      if (!c) {
+        alert("Sesi login berakhir. Silakan login kembali!");
+        logoutPortal();
+        return;
+      }
+
+      const oldPin = (document.getElementById('reset-old-pin')?.value || '').trim();
+      const newPin = (document.getElementById('reset-new-pin')?.value || '').trim();
+      const confPin = (document.getElementById('reset-confirm-pin')?.value || '').trim();
+
+      if (!oldPin || !newPin || !confPin) {
+        alert("Harap isi semua kolom PIN!");
+        return;
+      }
+
+      if (oldPin !== c.pin_tabungan) {
+        alert("⛔ PIN Lama Anda salah! Silakan periksa kembali atau hubungi kasir jika Anda lupa PIN.");
+        document.getElementById('reset-old-pin')?.focus();
+        return;
+      }
+
+      if (!/^\d{6}$/.test(newPin)) {
+        alert("⛔ PIN Baru wajib tepat 6 digit angka numerik!");
+        document.getElementById('reset-new-pin')?.focus();
+        return;
+      }
+
+      if (newPin !== confPin) {
+        alert("⛔ Konfirmasi PIN Baru tidak cocok! Pastikan kedua kolom PIN baru bernilai sama.");
+        document.getElementById('reset-confirm-pin')?.focus();
+        return;
+      }
+
+      // Simpan PIN Baru
+      c.pin_tabungan = newPin;
+      c.pin_tabungan_updated_at = new Date().toISOString();
+
+      saveCustomersLocalAndCloud(c);
+
+      alert(`✅ Berhasil! PIN Anggota "${c.nama}" telah berhasil diperbarui.\nGunakan PIN 6 digit baru ini untuk masuk ke portal dan bertransaksi di kasir.`);
+      closeResetPinModal();
+    }
+
+    // Cetak ID Card Fisik: Desain Persis Sama dengan Halaman Anggota (app.js)
     function printMyIdCard() {
       const c = customersData.find(x => x.id === portalCustomerId);
       if (!c) return;
@@ -1008,67 +1826,179 @@
       const printWindow = window.open('', '_blank');
       const storeName = receiptSettingsData.name || 'TOKO KASIR / KOPERASI';
       const storeLogo = receiptSettingsData.logo || '';
-      const barcodeValue = c.kode_anggota || c.id || 'MEMBER';
+      const barcodeValue = c.kode_anggota || c.id || 'ANGGOTA';
 
       const logoHtml = storeLogo 
-        ? `<div style="text-align: center; margin-bottom: 6px;"><img src="${storeLogo}" alt="Logo" style="max-height: 40px; max-width: 90px; object-fit: contain; border-radius: 4px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));"></div>` 
-        : '';
+        ? `<img src="${storeLogo}" alt="Logo" style="max-height: 18px; max-width: 32px; object-fit: contain; margin-right: 5px; border-radius: 2px;">` 
+        : '<span style="margin-right: 5px;">🏪</span>';
 
       printWindow.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
-          <title>ID Card - ${escapeHtml(c.nama)}</title>
+          <meta charset="UTF-8">
+          <title>ID Card Anggota - ${escapeHtml(c.nama)}</title>
           <script src="lib/JsBarcode.all.min.js"><\/script>
           <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f1f5f9; }
-            .card { width: 340px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border: 2px solid #ea580c; position: relative; }
-            .header { text-align: center; border-bottom: 1.5px solid rgba(234,88,12,0.4); padding-bottom: 10px; margin-bottom: 15px; }
-            .header h3 { margin: 0; font-size: 16px; font-weight: 900; letter-spacing: 1px; color: #ea580c; text-transform: uppercase; }
-            .header p { margin: 2px 0 0; font-size: 10px; color: #94a3b8; }
-            .body { display: flex; gap: 15px; align-items: center; margin-bottom: 15px; }
-            .avatar { width: 60px; height: 60px; border-radius: 50%; background: #ea580c; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 900; flex-shrink: 0; }
-            .info h4 { margin: 0 0 4px; font-size: 16px; font-weight: 800; color: #fff; }
-            .info p { margin: 0 0 3px; font-size: 11px; color: #cbd5e1; }
-            .barcode-box { background: #fff; padding: 8px; border-radius: 8px; text-align: center; }
+            body {
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              background: #f8fafc;
+              margin: 0;
+              padding: 20px;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 90vh;
+            }
+            .id-card {
+              width: 85.6mm;
+              height: 54mm;
+              border-radius: 12px;
+              background: linear-gradient(135deg, #b45309 0%, #d97706 40%, #ea580c 100%);
+              color: #ffffff;
+              padding: 3.5mm 4mm;
+              box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+              box-sizing: border-box;
+              position: relative;
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+            }
+            .card-glow-1 {
+              position: absolute;
+              right: -10mm;
+              top: -10mm;
+              width: 32mm;
+              height: 32mm;
+              background: rgba(255,255,255,0.14);
+              border-radius: 50%;
+              pointer-events: none;
+            }
+            .card-glow-2 {
+              position: absolute;
+              left: -8mm;
+              bottom: -8mm;
+              width: 24mm;
+              height: 24mm;
+              background: rgba(255,255,255,0.08);
+              border-radius: 50%;
+              pointer-events: none;
+            }
+            .header-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              position: relative;
+              z-index: 2;
+            }
+            .store-title {
+              font-size: 8.5pt;
+              font-weight: 800;
+              letter-spacing: 0.5px;
+              text-transform: uppercase;
+              display: flex;
+              align-items: center;
+              max-width: 65%;
+              overflow: hidden;
+              white-space: nowrap;
+              text-overflow: ellipsis;
+            }
+            .badge-type {
+              background: rgba(255,255,255,0.25);
+              padding: 1.5px 6px;
+              border-radius: 999px;
+              font-size: 6.5pt;
+              font-weight: 800;
+              border: 0.5px solid rgba(255,255,255,0.4);
+              letter-spacing: 0.5px;
+            }
+            .member-name {
+              font-size: 11.5pt;
+              font-weight: 900;
+              line-height: 1.1;
+              margin: 1.5mm 0 1mm 0;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+            .details-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 1mm 2mm;
+              font-size: 6.8pt;
+              line-height: 1.2;
+            }
+            .detail-item strong {
+              color: #fef08a;
+            }
+            .barcode-box {
+              background: #ffffff;
+              border-radius: 6px;
+              padding: 1.5mm;
+              text-align: center;
+              margin-top: 1.5mm;
+              position: relative;
+              z-index: 2;
+            }
+            .barcode-box svg {
+              width: 100%;
+              height: 11mm;
+              display: block;
+              margin: 0 auto;
+            }
             @media print {
-              body { background: #fff; min-height: auto; }
-              .card { box-shadow: none; border: 1.5px solid #000; color: #000; background: #fff; }
-              .header h3 { color: #000; }
-              .info h4 { color: #000; }
-              .info p { color: #333; }
-              .avatar { background: #eee; color: #000; border: 1px solid #ccc; }
+              body { background: none; padding: 0; }
+              .no-print { display: none !important; }
+              .id-card { box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
           </style>
         </head>
         <body>
-          <div class="card">
-            <div class="header">
-              ${logoHtml}
-              <h3>${escapeHtml(storeName)}</h3>
-              <p>KARTU IDENTITAS ANGGOTA RESMI</p>
+          <div class="no-print" style="margin-bottom: 15px; text-align: center; width: 85.6mm; position: fixed; top: 10px;">
+            <button onclick="window.print()" style="padding: 7px 16px; background: #ea580c; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px;">🖨️ Cetak ID Card</button>
+            <button onclick="window.close()" style="padding: 7px 14px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; margin-left: 8px;">Tutup</button>
+          </div>
+
+          <div class="id-card">
+            <div class="card-glow-1"></div>
+            <div class="card-glow-2"></div>
+
+            <div class="header-row">
+              <div class="store-title">${logoHtml}<span>${escapeHtml(storeName)}</span></div>
+              <div class="badge-type">KARTU ANGGOTA</div>
             </div>
-            <div class="body">
-              <div class="avatar">${c.nama.charAt(0).toUpperCase()}</div>
-              <div class="info">
-                <h4>${escapeHtml(c.nama)}</h4>
-                <p>ID: <b>${escapeHtml(c.kode_anggota || c.id)}</b></p>
-                <p>Instansi: ${escapeHtml(c.instansi || 'Anggota')}</p>
-                <p>No. HP: ${escapeHtml(c.telepon || '-')}</p>
+            
+            <div style="position: relative; z-index: 2;">
+              <div style="font-size: 6pt; text-transform: uppercase; opacity: 0.85; font-weight: 700;">NAMA ANGGOTA:</div>
+              <div class="member-name">${escapeHtml(c.nama)}</div>
+              
+              <div class="details-grid">
+                <div class="detail-item">ID: <strong>${escapeHtml(barcodeValue)}</strong></div>
+                <div class="detail-item">Instansi: <strong>${escapeHtml(c.instansi || '-')}</strong></div>
+                <div class="detail-item">Telp: <strong>${escapeHtml(c.telepon || '-')}</strong></div>
+                <div class="detail-item">Alamat: <strong>${escapeHtml(c.domisili || '-')}</strong></div>
               </div>
             </div>
+
             <div class="barcode-box">
-              <svg id="card-barcode"></svg>
+              <svg id="card-print-barcode"></svg>
             </div>
           </div>
+
           <script>
             try {
-              JsBarcode("#card-barcode", "${barcodeValue}", {
+              JsBarcode("#card-print-barcode", "${barcodeValue}", {
                 format: "CODE128",
                 width: 1.6,
-                height: 40,
+                height: 38,
                 displayValue: true,
-                fontSize: 12
+                fontSize: 10,
+                fontOptions: "bold",
+                font: "monospace",
+                lineColor: "#000",
+                background: "#fff",
+                margin: 0
               });
             } catch(e) {}
             setTimeout(() => { window.print(); }, 500);

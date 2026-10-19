@@ -4570,122 +4570,231 @@ body.print-format-html #receipt-text-content {
 }
 
 
-/* PROMO CAROUSEL */
+/* PROMO CAROUSEL (DESAIN MENARIK DENGAN BADGE SALE %, GAMBAR BESAR, DAN KONTROL CAROUSEL) */
 .promo-carousel-container {
   margin-top: 1rem;
   background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-sm);
+  border: 1.5px solid var(--border-color);
+  border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  position: relative;
 }
 
 .promo-carousel-header {
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
   color: white;
-  padding: 0.5rem 0.75rem;
-  font-weight: 700;
+  padding: 0.6rem 0.85rem;
+  font-weight: 800;
   font-size: 0.85rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
 }
 
-.promo-carousel-header svg {
-  stroke: white;
+.promo-nav-btn {
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.4);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 1rem;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.promo-nav-btn:hover {
+  background: #ffffff;
+  color: #dc2626;
 }
 
 .promo-marquee {
   width: 100%;
   overflow: hidden;
   background: var(--bg-surface);
-  padding: 0.75rem 0;
+  padding: 0.75rem;
   box-sizing: border-box;
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-height: 120px;
 }
 
 .promo-marquee-content {
   width: 100%;
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-height: 105px;
 }
 
 .promo-marquee-item {
   position: absolute;
-  opacity: 0;
-  transition: opacity 0.5s ease, transform 0.5s ease;
-  transform: translateY(10px);
-  text-align: left;
+  top: 0;
+  left: 0;
   width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0 0.25rem;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(15px);
+  transition: opacity 0.35s ease, transform 0.35s ease, visibility 0.35s ease;
   pointer-events: none;
   box-sizing: border-box;
 }
 
-.promo-banner-thumb {
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
-  object-fit: cover;
-  flex-shrink: 0;
-  border: 1px solid rgba(0,0,0,0.08);
-  background: #ffffff;
+.promo-marquee-item.active {
+  position: relative;
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
-.promo-banner-text {
+/* Card slide promo yang menarik */
+.promo-slide-card {
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+  align-items: center;
+  gap: 0.85rem;
+  background: var(--bg-card);
+  border: 1.5px solid rgba(234,88,12,0.25);
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.promo-slide-card:hover {
+  border-color: #ea580c;
+  box-shadow: 0 4px 14px rgba(234,88,12,0.15);
+  transform: translateY(-1px);
+}
+
+/* Badge SALE % di pojok */
+.promo-corner-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 900;
+  padding: 0.2rem 0.65rem;
+  border-bottom-left-radius: 10px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 5px rgba(220,38,38,0.3);
+  text-transform: uppercase;
+}
+
+.promo-corner-badge.bundle {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+}
+
+.promo-corner-badge.price-drop {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+.promo-corner-badge.buy-get {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+}
+
+/* Gambar besar promo */
+.promo-slide-thumb-wrap {
+  width: 80px;
+  height: 80px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f8fafc;
+  border: 1px solid rgba(0,0,0,0.08);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.promo-slide-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.promo-slide-thumb-placeholder {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.promo-slide-info {
   flex: 1;
   min-width: 0;
+  padding-right: 2rem;
 }
 
-.promo-banner-name {
-  font-size: 0.88rem;
-  font-weight: 700;
+.promo-slide-title {
+  font-size: 0.92rem;
+  font-weight: 800;
   color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-bottom: 0.2rem;
 }
 
-.promo-banner-tag {
-  font-size: 0.82rem;
-  font-weight: 700;
-  padding: 0.15rem 0.45rem;
-  border-radius: 5px;
-  display: inline-block;
-  width: fit-content;
+.promo-slide-prices {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
-.promo-banner-tag.gift {
-  background: #dcfce7;
+.promo-price-strikethrough {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  text-decoration: line-through;
+  font-weight: 600;
+}
+
+.promo-price-deal {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #dc2626;
+  font-family: monospace;
+}
+
+.promo-slide-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.promo-saving-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
   color: #15803d;
+  background: #dcfce7;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
 }
 
-.promo-banner-tag.sale {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.promo-banner-tag.bulk {
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.promo-marquee-item.active {
-  opacity: 1;
-  transform: translateY(0);
-  position: relative;
-  pointer-events: auto;
+.promo-add-btn {
+  font-size: 0.72rem;
+  font-weight: 800;
+  background: #ea580c;
+  color: #fff;
+  border: none;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
 }
 
 /* Qty input wrap + label gratis */

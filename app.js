@@ -84,6 +84,15 @@ function getCustomerMonthlyVoucherStats(customer, monthKey = getCurrentMonthKey(
 
 function saveCustomVouchersLocally() {
   localStorage.setItem('kasir_custom_vouchers', JSON.stringify(customVouchers));
+  if (firebaseDb && typeof getStorePath === 'function') {
+    try {
+      firebaseDb.ref(getStorePath('customVouchers')).set(customVouchers).catch(err => {
+        console.warn('⚠️ Gagal sync customVouchers ke cloud:', err.message);
+      });
+    } catch (e) {
+      console.warn('⚠️ Error sinkronisasi customVouchers ke cloud:', e);
+    }
+  }
 }
 
 // Cek apakah voucher custom aktif pada tanggal/waktu tertentu
@@ -599,18 +608,58 @@ async function hashSecretStr(str) {
 }
 const DEV_MASTER_HASH = "c7e9988d0ac79f466bf33b7bc5a8e31ebad2fe1f6e17c78919f5717acce44230"; // SHA256 dari 998877
 
-async function promptDeveloperSecretKey() {
-  const input = prompt('🔐 Masukkan Master Key Developer untuk membuka konfigurasi database:');
-  if (input === null) return;
-  const inputHash = await hashSecretStr(input.trim());
+function promptDeveloperSecretKey() {
+  const modal = document.getElementById('dev-secret-modal');
+  const input = document.getElementById('dev-secret-input');
+  const errorEl = document.getElementById('dev-secret-modal-error');
+  if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+  if (input) input.value = '';
+  if (modal) {
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+    setTimeout(() => { if (input) input.focus(); }, 100);
+  } else {
+    // Fallback jika modal tidak ada di DOM
+    const raw = prompt('🔐 Masukkan Master Key Developer:');
+    if (raw) handleDeveloperSecretVerify(raw);
+  }
+}
+
+function closeDeveloperSecretModal() {
+  const modal = document.getElementById('dev-secret-modal');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+  }
+}
+
+async function submitDeveloperSecretModal(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const input = document.getElementById('dev-secret-input');
+  const val = (input ? input.value : '').trim();
+  if (!val) return;
+  await handleDeveloperSecretVerify(val);
+}
+
+async function handleDeveloperSecretVerify(secretKey) {
+  const errorEl = document.getElementById('dev-secret-modal-error');
+  const inputHash = await hashSecretStr(secretKey);
   if (inputHash === DEV_MASTER_HASH) {
+    closeDeveloperSecretModal();
     const lockedView = document.getElementById('dev-locked-view');
     const credPanel = document.getElementById('dev-credentials-panel');
     if (lockedView) lockedView.style.display = 'none';
     if (credPanel) credPanel.style.display = 'block';
     alert('🔓 Akses Diterima. Konfigurasi database developer berhasil dibuka.');
   } else {
-    alert('⛔ Kode salah! Anda tidak memiliki izin untuk melihat atau mengubah konfigurasi database.');
+    if (errorEl) {
+      errorEl.textContent = '⛔ Kode salah! Anda tidak memiliki izin untuk konfigurasi database.';
+      errorEl.style.display = 'block';
+      const input = document.getElementById('dev-secret-input');
+      if (input) { input.focus(); input.select(); }
+    } else {
+      alert('⛔ Kode salah! Anda tidak memiliki izin untuk melihat atau mengubah konfigurasi database.');
+    }
   }
 }
 
@@ -768,6 +817,7 @@ function setupDatabaseListeners() {
       customers = Object.values(data);
       saveCustomersLocally();
       if (typeof renderCustomersTable === 'function') renderCustomersTable();
+      if (typeof checkAndNotifyPendingDebtApplications === 'function') checkAndNotifyPendingDebtApplications(true);
     }
   };
   custRef.on('value', custCallback, err => console.error('❌ RTDB Customers Error:', err.message));
@@ -789,8 +839,9 @@ function setupDatabaseListeners() {
   const catRef = firebaseDb.ref(getStorePath('categories'));
   const catCallback = snapshot => {
     const data = snapshot.val();
-    if (data && Array.isArray(data)) {
-      customCategories = Array.from(new Set([...customCategories, ...data]));
+    if (data) {
+      const arr = Array.isArray(data) ? data : Object.values(data);
+      customCategories = Array.from(new Set([...customCategories, ...arr]));
       localStorage.setItem('kasir_custom_categories', JSON.stringify(customCategories));
       updateCategoriesList();
     }
@@ -821,8 +872,8 @@ function setupDatabaseListeners() {
   const salesRef = firebaseDb.ref(getStorePath('salesList'));
   const salesCallback = snapshot => {
     const data = snapshot.val();
-    if (data && Array.isArray(data)) {
-      salesList = data;
+    if (data) {
+      salesList = Array.isArray(data) ? data : Object.values(data);
       localStorage.setItem('kasir_sales_list', JSON.stringify(salesList));
       if (typeof renderSalesTable === 'function') renderSalesTable();
     }
@@ -834,8 +885,8 @@ function setupDatabaseListeners() {
   const salesDelivRef = firebaseDb.ref(getStorePath('salesDeliveries'));
   const salesDelivCallback = snapshot => {
     const data = snapshot.val();
-    if (data && Array.isArray(data)) {
-      salesDeliveries = data;
+    if (data) {
+      salesDeliveries = Array.isArray(data) ? data : Object.values(data);
       localStorage.setItem('kasir_sales_deliveries', JSON.stringify(salesDeliveries));
       if (typeof renderSalesDeliveriesTable === 'function') renderSalesDeliveriesTable();
       if (typeof renderSalesRekapView === 'function') renderSalesRekapView();
@@ -848,8 +899,8 @@ function setupDatabaseListeners() {
   const salesReturnRef = firebaseDb.ref(getStorePath('salesReturns'));
   const salesReturnCallback = snapshot => {
     const data = snapshot.val();
-    if (data && Array.isArray(data)) {
-      salesReturns = data;
+    if (data) {
+      salesReturns = Array.isArray(data) ? data : Object.values(data);
       localStorage.setItem('kasir_sales_returns', JSON.stringify(salesReturns));
       if (typeof renderSalesReturnsTable === 'function') renderSalesReturnsTable();
     }
@@ -908,10 +959,11 @@ function setupDatabaseListeners() {
   const expensesRef = firebaseDb.ref(getStorePath('expenses'));
   const expensesCallback = snapshot => {
     const data = snapshot.val();
-    if (data && Array.isArray(data)) {
-      expenses = data;
+    if (data) {
+      expenses = Array.isArray(data) ? data : Object.values(data);
       localStorage.setItem('kasir_expenses', JSON.stringify(expenses));
       if (typeof renderExpensesTable === 'function') renderExpensesTable();
+      if (typeof updateAnalytics === 'function') updateAnalytics();
     }
   };
   expensesRef.on('value', expensesCallback, err => console.error('❌ RTDB Expenses Error:', err.message));
@@ -921,8 +973,8 @@ function setupDatabaseListeners() {
   const opnameRef = firebaseDb.ref(getStorePath('stockOpnames'));
   const opnameCallback = snapshot => {
     const data = snapshot.val();
-    if (data && Array.isArray(data)) {
-      stockOpnames = data;
+    if (data) {
+      stockOpnames = Array.isArray(data) ? data : Object.values(data);
       localStorage.setItem('kasir_stock_opnames', JSON.stringify(stockOpnames));
       if (typeof renderStockOpnameHistoryTable === 'function') renderStockOpnameHistoryTable();
     }
@@ -934,8 +986,8 @@ function setupDatabaseListeners() {
   const bundlesRef = firebaseDb.ref(getStorePath('bundles'));
   const bundlesCallback = snapshot => {
     const data = snapshot.val();
-    if (data && Array.isArray(data)) {
-      bundles = data;
+    if (data) {
+      bundles = Array.isArray(data) ? data : Object.values(data);
       localStorage.setItem('kasir_bundles', JSON.stringify(bundles));
       if (typeof renderBundlesTable === 'function') renderBundlesTable();
     }
@@ -972,8 +1024,8 @@ function setupDatabaseListeners() {
   const staffRef = firebaseDb.ref(getStorePath('staffAccounts'));
   const staffCallback = snapshot => {
     const data = snapshot.val();
-    if (data && Array.isArray(data)) {
-      staffAccounts = data;
+    if (data) {
+      staffAccounts = Array.isArray(data) ? data : Object.values(data);
       localStorage.setItem('kasir_staff_accounts', JSON.stringify(staffAccounts));
       if (typeof renderCashierSettingsList === 'function') renderCashierSettingsList();
       if (typeof updateCashierAuthUI === 'function') updateCashierAuthUI();
@@ -1004,7 +1056,19 @@ function setupDatabaseListeners() {
     }
   };
   labelsRef.on('value', labelsCallback, err => console.error('❌ RTDB Label Settings Error:', err.message));
-  fbUnsubscribes.push(() => labelsRef.off('value', labelsCallback));
+  // ─── LISTENER ALOKASI VOUCHER CUSTOM ANGGOTA ──────────────────────────────
+  const vouchersRef = firebaseDb.ref(getStorePath('customVouchers'));
+  const vouchersCallback = snapshot => {
+    const data = snapshot.val();
+    if (data !== null && data !== undefined) {
+      customVouchers = Array.isArray(data) ? data : Object.values(data);
+      localStorage.setItem('kasir_custom_vouchers', JSON.stringify(customVouchers));
+      if (typeof renderCustomersTable === 'function') renderCustomersTable();
+      if (typeof renderEditMemberVouchersList === 'function') renderEditMemberVouchersList();
+    }
+  };
+  vouchersRef.on('value', vouchersCallback, err => console.error('❌ RTDB Custom Vouchers Error:', err.message));
+  fbUnsubscribes.push(() => vouchersRef.off('value', vouchersCallback));
 
   console.log(`✅ Semua listener Realtime Database aktif untuk toko: ${currentLicenseKey}`);
 }
@@ -1108,6 +1172,19 @@ async function executeSyncWithOptions() {
         if (typeof renderTransactionsTable === 'function') renderTransactionsTable();
         summaryMsgs.push(`🧾 0 Transaksi (Cloud Kosong)`);
       }
+
+      // Tarik Biaya & Mutasi Kas (Expenses) dari Cloud
+      try {
+        const expSnap = await firebaseDb.ref(getStorePath('expenses')).once('value');
+        const expVal = expSnap.val();
+        if (expVal) {
+          expenses = Array.isArray(expVal) ? expVal : Object.values(expVal);
+          localStorage.setItem('kasir_expenses', JSON.stringify(expenses));
+          if (typeof renderExpensesTable === 'function') renderExpensesTable();
+        }
+      } catch (e) {
+        console.warn('Gagal sinkron expenses dari cloud:', e);
+      }
     } else {
       // Jika pengguna MENOLAK sinkronisasi transaksi, kosongkan transaksi agar toko baru bersih
       console.log('User memilih untuk TIDAK menyinkronkan transaksi lama.');
@@ -1204,7 +1281,17 @@ async function executeSyncWithOptions() {
           }
         }
       }
-      summaryMsgs.push(`⚙️ Pengaturan, Keamanan Login & Pelanggan CRM`);
+
+      // Custom Vouchers Anggota
+      const voucherSnap = await firebaseDb.ref(getStorePath('customVouchers')).once('value');
+      const vData = voucherSnap.val();
+      if (vData) {
+        customVouchers = Array.isArray(vData) ? vData : Object.values(vData);
+        saveCustomVouchersLocally();
+        if (typeof renderCustomersTable === 'function') renderCustomersTable();
+        if (typeof renderEditMemberVouchersList === 'function') renderEditMemberVouchersList();
+      }
+      summaryMsgs.push(`⚙️ Pengaturan, Keamanan Login, Voucher & Pelanggan CRM`);
     }
 
     // Aktifkan listener realtime
@@ -1235,11 +1322,13 @@ function clearTransactionFilters() {
   const startDate = document.getElementById('tx-filter-start-date');
   const endDate = document.getElementById('tx-filter-end-date');
   const statusSelect = document.getElementById('tx-filter-status');
+  const paymentSelect = document.getElementById('tx-filter-payment');
 
   if (searchInput) searchInput.value = '';
   if (startDate) startDate.value = '';
   if (endDate) endDate.value = '';
   if (statusSelect) statusSelect.value = 'Semua';
+  if (paymentSelect) paymentSelect.value = 'Semua';
 
   if (typeof renderTransactionsTable === 'function') {
     renderTransactionsTable();
@@ -1309,7 +1398,15 @@ async function syncSingleTransactionToCloud(tx) {
 }
 
 async function syncTransactionToCloud(tx) {
-  return syncSingleTransactionToCloud(tx);
+  if (firebaseDb) {
+    try {
+      await syncSingleTransactionToCloud(tx);
+    } catch (e) {
+      if (typeof queueOfflineTransaction === 'function') queueOfflineTransaction(tx);
+    }
+  } else {
+    if (typeof queueOfflineTransaction === 'function') queueOfflineTransaction(tx);
+  }
 }
 
 async function saveCustomerCloud(customer) {
@@ -1415,20 +1512,12 @@ async function migrateLocalDataToFirebase() {
       const sId = clean.id_shift || ('SH-' + Date.now());
       updates[getStorePath('shifts/' + sId)] = clean;
     });
-
-    // Pastikan data lisensi juga ikut terunggah
-    const now = new Date();
-    const defaultExpiry = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
-    updates['licenses/' + currentLicenseKey] = {
-      status: 'active',
-      nama_toko: receiptSettings.name || 'Toko Sahil',
-      created_at: now.toISOString(),
-      expired_at: defaultExpiry.toISOString(),
-      harga_per_bulan: 50000
-    };
+    if (Array.isArray(customVouchers) && customVouchers.length > 0) {
+      updates[getStorePath('customVouchers')] = JSON.parse(JSON.stringify(customVouchers));
+    }
 
     await firebaseDb.ref('/').update(updates);
-    const total = products.length + transactions.length + customers.length + shifts.length;
+    const total = products.length + transactions.length + customers.length + shifts.length + customVouchers.length;
     updateSyncStatus('online', 'Database Terhubung');
     alert(`⚡ Selesai! Berhasil mengunggah ${total} data ke Firebase Realtime Database.`);
   } catch (err) {
@@ -2072,6 +2161,8 @@ let appConfig = safeJsonParse('kasir_app_config', {
   showPromoBanner: true,
   posGridMode: false,
   autoCashNonCash: false,
+  enableDeliveryNote: false,
+  enableWaReceipt: false,
   enableCloudSync: false,
   enableDailyAutoBackup: true
 });
@@ -2081,6 +2172,8 @@ if (appConfig.showDiscountPos === undefined) appConfig.showDiscountPos = false;
 if (appConfig.showPromoBanner === undefined) appConfig.showPromoBanner = true;
 if (appConfig.posGridMode === undefined) appConfig.posGridMode = false;
 if (appConfig.autoCashNonCash === undefined) appConfig.autoCashNonCash = false;
+if (appConfig.enableDeliveryNote === undefined) appConfig.enableDeliveryNote = false;
+if (appConfig.enableWaReceipt === undefined) appConfig.enableWaReceipt = false;
 if (appConfig.enableDailyAutoBackup === undefined) appConfig.enableDailyAutoBackup = true;
 
 // Pengaturan Nota / Struk Toko (Default)
@@ -2437,6 +2530,9 @@ function loadData() {
   
   if (typeof renderCustomersTable === 'function') {
     renderCustomersTable();
+  }
+  if (typeof checkAndNotifyPendingDebtApplications === 'function') {
+    checkAndNotifyPendingDebtApplications(false);
   }
   
   if (typeof checkPromoBanner === 'function') {
@@ -2865,7 +2961,8 @@ function saveAppConfig() {
   appConfig.allowZeroStock = document.getElementById('chk-allow-zero-stock').checked;
   appConfig.customerMode = document.getElementById('chk-customer-mode').checked;
   appConfig.enablePromo = document.getElementById('chk-enable-promo').checked;
-  appConfig.showDiscountPos = document.getElementById('chk-show-discount').checked;
+  const chkDiscPos = document.getElementById('chk-show-discount-pos') || document.getElementById('chk-show-discount');
+  appConfig.showDiscountPos = chkDiscPos ? chkDiscPos.checked : false;
   
   const chkPromoBanner = document.getElementById('chk-show-promo-banner');
   if (chkPromoBanner) {
@@ -2882,16 +2979,25 @@ function saveAppConfig() {
     appConfig.autoCashNonCash = chkAutoCash.checked;
   }
 
+  const chkDeliveryNote = document.getElementById('chk-enable-delivery-note');
+  if (chkDeliveryNote) {
+    appConfig.enableDeliveryNote = chkDeliveryNote.checked;
+  }
+
+  const chkWaReceipt = document.getElementById('chk-enable-wa-receipt');
+  if (chkWaReceipt) {
+    appConfig.enableWaReceipt = chkWaReceipt.checked;
+  }
+
   const chkPointsMode = document.getElementById('chk-loyalty-points-mode');
   if (chkPointsMode) {
+    appConfig.enableLoyaltyPointsMode = chkPointsMode.checked;
     const newRewardMode = chkPointsMode.checked ? 'points' : 'voucher';
-    if (loyaltySettings.rewardMode !== newRewardMode) {
-      loyaltySettings.rewardMode = newRewardMode;
-      localStorage.setItem('kasir_loyalty_settings', JSON.stringify(loyaltySettings));
-      saveLoyaltySettingsCloud();
-      syncLoyaltySettingsUI();
-      if (typeof renderCustomersTable === 'function') renderCustomersTable();
-    }
+    loyaltySettings.rewardMode = newRewardMode;
+    localStorage.setItem('kasir_loyalty_settings', JSON.stringify(loyaltySettings));
+    saveLoyaltySettingsCloud();
+    syncLoyaltySettingsUI();
+    if (typeof renderCustomersTable === 'function') renderCustomersTable();
   }
   
   localStorage.setItem('kasir_app_config', JSON.stringify(appConfig));
@@ -2944,7 +3050,7 @@ function loadAppConfig() {
     chkPointsMode.checked = (loyaltySettings.rewardMode === 'points');
   }
   
-  const chkDiscount = document.getElementById('chk-show-discount');
+  const chkDiscount = document.getElementById('chk-show-discount-pos') || document.getElementById('chk-show-discount');
   if (chkDiscount) chkDiscount.checked = appConfig.showDiscountPos;
 
   const chkPromoBanner = document.getElementById('chk-show-promo-banner');
@@ -2956,6 +3062,12 @@ function loadAppConfig() {
 
   const chkAutoCash = document.getElementById('chk-auto-cash-noncash');
   if (chkAutoCash) chkAutoCash.checked = appConfig.autoCashNonCash === true;
+
+  const chkDeliveryNote = document.getElementById('chk-enable-delivery-note');
+  if (chkDeliveryNote) chkDeliveryNote.checked = appConfig.enableDeliveryNote === true;
+
+  const chkWaReceipt = document.getElementById('chk-enable-wa-receipt');
+  if (chkWaReceipt) chkWaReceipt.checked = appConfig.enableWaReceipt === true;
   
   const discountRowWrapper = document.getElementById('discount-row-wrapper');
   if (discountRowWrapper) {
@@ -3629,9 +3741,9 @@ function parseTransactionItemsString(itemsStr) {
 
 // --- TAB 1: MODUL ANALISIS PENJUALAN ---
 
-function getLocalISODate(dateStrOrObj) {
-  const date = new Date(dateStrOrObj);
-  if (isNaN(date)) return '';
+function getLocalISODate(dateStrOrObj = new Date()) {
+  const date = (dateStrOrObj instanceof Date) ? dateStrOrObj : new Date(dateStrOrObj);
+  if (isNaN(date.getTime())) return '';
   const offset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() - offset).toISOString();
 }
@@ -3657,6 +3769,32 @@ function parseTxDateStr(waktu) {
   const d = new Date(waktu);
   if (!isNaN(d)) return getLocalISODate(d).slice(0, 10);
   return String(waktu).slice(0, 10);
+}
+// Helper format tanggal resmi DD/MM/YYYY
+function formatDateIndo(dateInput) {
+  if (!dateInput) return '-';
+  if (typeof dateInput === 'string') {
+    const match = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+    const slashMatch = dateInput.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slashMatch) return `${slashMatch[1].padStart(2, '0')}/${slashMatch[2].padStart(2, '0')}/${slashMatch[3]}`;
+  }
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return String(dateInput);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+// Helper format tanggal & waktu resmi DD/MM/YYYY HH:mm:ss
+function formatDateTimeIndo(dateInput, includeSeconds = true) {
+  if (!dateInput) return '-';
+  const d = (typeof parseTxDate === 'function') ? parseTxDate(dateInput) : new Date(dateInput);
+  if (isNaN(d.getTime())) return String(dateInput);
+  const dateStr = formatDateIndo(d);
+  const timeStr = d.toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit', ...(includeSeconds ? { second: '2-digit' } : {}) }).replace(/\./g, ':');
+  return `${dateStr} ${timeStr}`;
 }
 
 function getAllAvailableTransactions() {
@@ -3964,8 +4102,8 @@ function getCurrentCashierAvailableCash() {
         if (dpAwal > 0) {
           cashIn += dpAwal;
         }
-      } else if (tx.status_pembayaran === 'Bon' || tx.metode_pembayaran === 'Bon') {
-        // Belanja Bon/Hutang: Hanya DP Tunai awal yang masuk ke laci kasir
+      } else if (tx.status_pembayaran === 'Bon' || tx.metode_pembayaran === 'Bon' || tx.is_bon === true || (Number(tx.sisa_piutang) > 0) || (Array.isArray(tx.riwayat_pelunasan) && tx.riwayat_pelunasan.length > 0)) {
+        // Belanja Bon/Hutang: Hanya DP Tunai awal yang masuk ke laci kasir (pelunasan dihitung tersendiri di riwayat_pelunasan)
         const dpAwal = Math.max(0, (Number(tx.bayar) || 0) - (Number(tx.kembalian) || 0));
         if (dpAwal > 0) {
           cashIn += dpAwal;
@@ -4048,10 +4186,11 @@ function updateAnalytics() {
   if (labelEl) {
     if (filterType === 'hari') {
       const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
-      labelEl.textContent = `(${d})`;
+      labelEl.textContent = `(${formatDateIndo(d)})`;
     } else if (filterType === 'bulan') {
       const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
-      labelEl.textContent = `(${m})`;
+      const [yr, mo] = m.split('-');
+      labelEl.textContent = `(${mo}/${yr})`;
     } else if (filterType === 'tahun') {
       const y = document.getElementById('analytics-filter-year')?.value || String(new Date().getFullYear());
       labelEl.textContent = `(${y})`;
@@ -4062,6 +4201,7 @@ function updateAnalytics() {
   
   let revenue = 0;
   let netProfit = 0;
+  let grossHpp = 0;
   
   // Rincian Metode Pembayaran Hari Ini
   const methodsBreakdown = {
@@ -4069,8 +4209,7 @@ function updateAnalytics() {
     'QRIS': 0,
     'Debit': 0,
     'Transfer': 0,
-    'Tabungan': 0,
-    'Bon': 0
+    'Tabungan': 0
   };
   
   // Metode non-tunai: uang tidak langsung masuk laci (hanya laba bersih dihitung ke stat revenue jika tidak diganti cash)
@@ -4090,11 +4229,12 @@ function updateAnalytics() {
 
     const metode = tx.metode_pembayaran || 'Tunai';
     const isNonCash = nonCashMethods.includes(metode);
-    const isBon = (tx.status_pembayaran === 'Bon' || metode === 'Bon');
+    const wasBon = (tx.status_pembayaran === 'Bon' || metode === 'Bon' || tx.is_bon === true || (Number(tx.sisa_piutang) > 0) || (Array.isArray(tx.riwayat_pelunasan) && tx.riwayat_pelunasan.length > 0));
     const isTabungan = (metode === 'Tabungan');
     
     // Hitung Laba Bersih sebelum diskon transaksi
     let txSubtotal = 0;
+    let txBuyTotal = 0;
     let txNetProfitBeforeDiscount = 0;
     const itemsList = Array.isArray(tx.items) ? tx.items : [];
     itemsList.forEach(item => {
@@ -4107,25 +4247,27 @@ function updateAnalytics() {
         });
       }
       const sellPrice = item.harga || 0;
-      txNetProfitBeforeDiscount += (sellPrice - buyPrice) * item.qty;
-      txSubtotal += sellPrice * item.qty;
+      const q = Number(item.qty) || 0;
+      txBuyTotal += (buyPrice * q);
+      txNetProfitBeforeDiscount += (sellPrice - buyPrice) * q;
+      txSubtotal += sellPrice * q;
     });
     
     // Kurangi laba bersih dengan diskon transaksi
     const txDiscount = Math.max(0, txSubtotal - tx.total);
     const txNetProfit = txNetProfitBeforeDiscount - txDiscount;
     netProfit += txNetProfit;
+    grossHpp += txBuyTotal;
     
     // Perhitungan Penghasilan Tunai / Penjualan Kas Masuk:
     // 1. Transaksi Hutang / Bon:
-    //    Hanya DP Tunai awal yang menambah kas toko hari ini (sisa_piutang belum diterima)
-    if (isBon) {
+    //    Hanya DP Tunai awal yang menambah kas toko hari ini (sisa_piutang/pelunasan dihitung via totalDebtRepaid)
+    if (wasBon) {
       const dpAwal = Math.max(0, (Number(tx.bayar) || 0) - (Number(tx.kembalian) || 0));
       if (dpAwal > 0) {
         revenue += dpAwal;
         methodsBreakdown['Tunai'] = (methodsBreakdown['Tunai'] || 0) + dpAwal;
       }
-      methodsBreakdown['Bon'] = (methodsBreakdown['Bon'] || 0) + tx.total;
     } else if (isTabungan) {
       // 2. Transaksi Tabungan Anggota:
       //    Jika kotak 'Ganti uang cash ke laci' dicentang (tx.diganti_cash === true),
@@ -4195,11 +4337,11 @@ function updateAnalytics() {
           const isOverdue = earliestDue < todayDateStr;
           const isToday = earliestDue === todayDateStr;
           if (isOverdue) {
-            dueBadge = `<span style="font-size: 0.72rem; color: #dc2626; background: #fef2f2; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 999px; border: 1px solid #fecaca;">Jatuh Tempo: ${earliestDue} (Lewat)</span>`;
+            dueBadge = `<span style="font-size: 0.72rem; color: #dc2626; background: #fef2f2; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 999px; border: 1px solid #fecaca;">Jatuh Tempo: ${formatDateIndo(earliestDue)} (Lewat)</span>`;
           } else if (isToday) {
             dueBadge = `<span style="font-size: 0.72rem; color: #d97706; background: #fffbeb; font-weight: 700; padding: 0.15rem 0.45rem; border-radius: 999px; border: 1px solid #fde68a;">Jatuh Tempo: Hari Ini</span>`;
           } else {
-            dueBadge = `<span style="font-size: 0.72rem; color: #475569; background: #f1f5f9; font-weight: 600; padding: 0.15rem 0.45rem; border-radius: 999px;">Jatuh Tempo: ${earliestDue}</span>`;
+            dueBadge = `<span style="font-size: 0.72rem; color: #475569; background: #f1f5f9; font-weight: 600; padding: 0.15rem 0.45rem; border-radius: 999px;">Jatuh Tempo: ${formatDateIndo(earliestDue)}</span>`;
           }
         } else {
           dueBadge = `<span style="font-size: 0.72rem; color: #94a3b8;">Tanpa Tempo</span>`;
@@ -4406,12 +4548,14 @@ function updateAnalytics() {
   // Revenue Bersih Kas = Penjualan Kas + Bayar Hutang + Kas Masuk Laci - Biaya Keluar Laci - Pembayaran Sales Laci - Hutang Manual Keluar dari Kasir
   const effectiveCashRevenue = Math.max(0, revenue + totalDebtRepaid + totalKasMasukLaci - totalKasKeluarLaci - totalSalesPaidFromCash - totalManualDebtFromCash);
 
-  // Total Modal HPP = Total Omset - Laba Bersih (selalu >= 0)
-  const totalPenjualan = Math.max(0, revenue - netProfit);
+  console.log(`💵 [Cash Revenue Breakdown (${filterType})] Total Kas: Rp ${formatRupiah(effectiveCashRevenue)} | Penjualan Kas: Rp ${formatRupiah(revenue)} (dari ${todayTxs.length} tx) | Pelunasan Hutang: Rp ${formatRupiah(totalDebtRepaid)} | Kas Masuk Laci: Rp ${formatRupiah(totalKasMasukLaci)} | Kas Keluar Laci: Rp ${formatRupiah(totalKasKeluarLaci)} | Bayar Sales: Rp ${formatRupiah(totalSalesPaidFromCash)} | Hutang Manual: Rp ${formatRupiah(totalManualDebtFromCash)}`);
+
+  // Total Modal HPP = Total Modal Pokok Pembelian Barang Terjual
+  const totalPenjualanHpp = grossHpp > 0 ? grossHpp : Math.max(0, revenue - netProfit);
   
   // Update Metrik Hari Ini di UI
   document.getElementById('stat-revenue').textContent = `Rp ${formatRupiah(effectiveCashRevenue)}`;
-  document.getElementById('stat-gross-profit').textContent = `Rp ${formatRupiah(totalPenjualan)}`;
+  document.getElementById('stat-gross-profit').textContent = `Rp ${formatRupiah(totalPenjualanHpp)}`;
   document.getElementById('stat-net-profit').textContent = `Rp ${formatRupiah(netProfit)}`;
   
   const statDebtEl = document.getElementById('stat-debt');
@@ -4673,54 +4817,83 @@ function updateAnalytics() {
     }
   });
   
-  const bestSellersBody = document.getElementById('best-sellers-body');
-  bestSellersBody.innerHTML = '';
-  
   const sortedSellers = Object.keys(sellCounts).sort((a, b) => sellCounts[b] - sellCounts[a]);
-  
-  if (sortedSellers.length === 0) {
-    bestSellersBody.innerHTML = '<tr><td colspan="4" class="best-seller-empty">Belum ada penjualan pada periode ini.</td></tr>';
-  } else {
-    sortedSellers.forEach((nama, idx) => {
-      // Cari data produk asli berdasarkan nama
-      const p = products.find(prod => prod.nama === nama);
-      const category = p && p.kategori ? p.kategori : 'UMUM';
-      
-      const boxSvg = `<div class="best-seller-box-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>`;
-      
-      // Jika produk ada gambar, tampilkan HANYA elemen <img> (tidak ada div dus). Jika tidak ada gambar, tampilkan div dus.
-      const imgThumbnail = (p && p.gambar && p.gambar.trim() !== '')
-        ? `<img src="${p.gambar}" alt="${nama}" class="best-seller-img" onclick="event.stopPropagation(); openProductImageLightbox('${p.gambar}', '${escapeJsQuotes(nama)}')" onerror="this.outerHTML=\`<div class='best-seller-box-icon'><svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='2'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><polyline points='3.27 6.96 12 12.01 20.73 6.96'/><line x1='12' y1='22.08' x2='12' y2='12'/></svg></div>\`;">`
-        : boxSvg;
-        
-      // Badge Ranking (#1 Gold, #2 Silver, #3 Bronze, dst)
-      let rankClass = 'rank-default';
-      if (idx === 0) rankClass = 'rank-gold';
-      else if (idx === 1) rankClass = 'rank-silver';
-      else if (idx === 2) rankClass = 'rank-bronze';
+  currentBestSellersData = sortedSellers.map((nama, idx) => {
+    const p = products.find(prod => prod.nama === nama);
+    return {
+      rank: idx + 1,
+      nama: nama,
+      category: p && p.kategori ? p.kategori : 'UMUM',
+      gambar: p && p.gambar ? p.gambar : '',
+      qty: sellCounts[nama],
+      revenue: sellRevenue[nama]
+    };
+  });
 
-      const tr = document.createElement('tr');
-      tr.className = 'best-seller-row';
-      tr.innerHTML = `
-        <td class="td-rank"><span class="rank-badge ${rankClass}">#${idx + 1}</span></td>
-        <td class="td-product">
-          <div class="best-seller-prod-info">
-            ${imgThumbnail}
-            <div>
-              <div class="best-seller-prod-name">${nama}</div>
-              <div class="best-seller-prod-cat">${category}</div>
-            </div>
-          </div>
-        </td>
-        <td class="td-qty"><span class="qty-pill">${sellCounts[nama]} terjual</span></td>
-        <td class="td-revenue"><strong>Rp ${formatRupiah(sellRevenue[nama])}</strong></td>
-      `;
-      bestSellersBody.appendChild(tr);
-    });
-  }
+  renderBestSellersTable();
   
   // 4. Gambar Grafik Omzet 7 Hari Terakhir
   render7DayChart();
+}
+
+let currentBestSellersData = [];
+
+function filterBestSellersTable() {
+  renderBestSellersTable();
+}
+
+function renderBestSellersTable() {
+  const bestSellersBody = document.getElementById('best-sellers-body');
+  if (!bestSellersBody) return;
+  bestSellersBody.innerHTML = '';
+
+  const searchInput = document.getElementById('best-seller-search-input');
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  let list = currentBestSellersData;
+  if (query) {
+    list = list.filter(item => 
+      item.nama.toLowerCase().includes(query) || 
+      item.category.toLowerCase().includes(query)
+    );
+  }
+
+  if (list.length === 0) {
+    const emptyMsg = query ? `Tidak ada produk terlaris yang cocok dengan kata kunci "${escapeHtml(query)}".` : 'Belum ada penjualan pada periode ini.';
+    bestSellersBody.innerHTML = `<tr><td colspan="4" class="best-seller-empty">${emptyMsg}</td></tr>`;
+    return;
+  }
+
+  list.forEach(item => {
+    const boxSvg = `<div class="best-seller-box-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>`;
+    
+    const imgThumbnail = (item.gambar && item.gambar.trim() !== '')
+      ? `<img src="${item.gambar}" alt="${escapeHtml(item.nama)}" class="best-seller-img" onclick="event.stopPropagation(); openProductImageLightbox('${item.gambar}', '${escapeJsQuotes(item.nama)}')" onerror="this.outerHTML=\`<div class='best-seller-box-icon'><svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' stroke-width='2'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><polyline points='3.27 6.96 12 12.01 20.73 6.96'/><line x1='12' y1='22.08' x2='12' y2='12'/></svg></div>\`;">`
+      : boxSvg;
+      
+    let rankClass = 'rank-default';
+    if (item.rank === 1) rankClass = 'rank-gold';
+    else if (item.rank === 2) rankClass = 'rank-silver';
+    else if (item.rank === 3) rankClass = 'rank-bronze';
+
+    const tr = document.createElement('tr');
+    tr.className = 'best-seller-row';
+    tr.innerHTML = `
+      <td class="td-rank"><span class="rank-badge ${rankClass}">#${item.rank}</span></td>
+      <td class="td-product">
+        <div class="best-seller-prod-info">
+          ${imgThumbnail}
+          <div>
+            <div class="best-seller-prod-name">${escapeHtml(item.nama)}</div>
+            <div class="best-seller-prod-cat">${escapeHtml(item.category)}</div>
+          </div>
+        </div>
+      </td>
+      <td class="td-qty"><span class="qty-pill">${item.qty} terjual</span></td>
+      <td class="td-revenue"><strong>Rp ${formatRupiah(item.revenue)}</strong></td>
+    `;
+    bestSellersBody.appendChild(tr);
+  });
 }
 
 function render7DayChart() {
@@ -6826,6 +6999,34 @@ function setCartQtyDirect(cartId, value) {
   focusSearchInput();
 }
 
+let currentPromoSlideIndex = 0;
+let totalPromoSlides = 0;
+
+function nextPromoSlide() {
+  const items = document.querySelectorAll('#promo-marquee-content .promo-marquee-item');
+  if (items.length <= 1) return;
+  items[currentPromoSlideIndex]?.classList.remove('active');
+  currentPromoSlideIndex = (currentPromoSlideIndex + 1) % items.length;
+  items[currentPromoSlideIndex]?.classList.add('active');
+  updatePromoCounter();
+}
+
+function prevPromoSlide() {
+  const items = document.querySelectorAll('#promo-marquee-content .promo-marquee-item');
+  if (items.length <= 1) return;
+  items[currentPromoSlideIndex]?.classList.remove('active');
+  currentPromoSlideIndex = (currentPromoSlideIndex - 1 + items.length) % items.length;
+  items[currentPromoSlideIndex]?.classList.add('active');
+  updatePromoCounter();
+}
+
+function updatePromoCounter() {
+  const counterEl = document.getElementById('promo-carousel-counter');
+  if (counterEl) {
+    counterEl.textContent = `${totalPromoSlides > 0 ? (currentPromoSlideIndex + 1) : 0}/${totalPromoSlides}`;
+  }
+}
+
 function checkPromoBanner() {
   const container = document.getElementById('promo-carousel-container');
   const marqueeContent = document.getElementById('promo-marquee-content');
@@ -6837,75 +7038,197 @@ function checkPromoBanner() {
     return;
   }
   
-  // Beli X Gratis Y selalu tampil meskipun enablePromo off
-  const promos = products.filter(p => {
-    const hasBuyGet = (parseInt(p.promo_beli_x) || 0) > 0 && (parseInt(p.promo_gratis_y) || 0) > 0;
-    const hasDiskon = appConfig.enablePromo && parseFloat(p.harga_diskon) > 0;
-    const hasGrosir = appConfig.enablePromo && (parseInt(p.grosir_qty) || 0) > 0 && (parseFloat(p.grosir_harga) || 0) > 0;
-    return hasBuyGet || hasDiskon || hasGrosir;
-  });
-  
-  if (promos.length === 0) {
+  const promoDeals = [];
+  const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+
+  // 1. Kumpulkan Paket Bundling (Hemat / Diskon Paket)
+  if (Array.isArray(bundles) && bundles.length > 0) {
+    bundles.forEach(b => {
+      const normal = parseFloat(b.totalNormal) || 0;
+      const deal = parseFloat(b.harga) || 0;
+      if (deal > 0) {
+        const hematRp = Math.max(0, normal - deal);
+        const percent = normal > 0 ? Math.round((hematRp / normal) * 100) : 0;
+        promoDeals.push({
+          type: 'bundle',
+          id: b.id,
+          nama: b.nama,
+          gambar: b.gambar || '',
+          hargaNormal: normal,
+          hargaDeal: deal,
+          hematRp: hematRp,
+          diskonPersen: percent,
+          badgeText: percent > 0 ? `HEMAT ${percent}%` : 'PAKET HEMAT',
+          badgeClass: 'bundle',
+          subtext: `${(b.items || []).length} Produk Paket`,
+          onClickAction: `addBundleToCartById('${escapeJsQuotes(b.id)}')`
+        });
+      }
+    });
+  }
+
+  // 2. Kumpulkan Produk yang Sedang Promo Diskon, Turun Harga 7 Hari Terakhir, Grosir, & Beli X Gratis Y
+  if (Array.isArray(products)) {
+    products.forEach(p => {
+      const normalPrice = parseFloat(p.harga_jual) || 0;
+      const promoPrice = parseFloat(p.harga_diskon) || 0;
+      const prevPrice = parseFloat(p.harga_sebelumnya) || 0;
+      const turunAt = p.harga_turun_at ? new Date(p.harga_turun_at).getTime() : 0;
+      const isPriceDroppedRecently = (prevPrice > normalPrice) && (turunAt >= sevenDaysAgo);
+      const hasBuyGet = (parseInt(p.promo_beli_x) || 0) > 0 && (parseInt(p.promo_gratis_y) || 0) > 0;
+      const hasDiskon = appConfig.enablePromo && promoPrice > 0 && promoPrice < normalPrice;
+      const hasGrosir = appConfig.enablePromo && (parseInt(p.grosir_qty) || 0) > 0 && (parseFloat(p.grosir_harga) || 0) > 0;
+
+      // Prioritas 1: Produk Harga Diskon Aktif
+      if (hasDiskon) {
+        const hematRp = normalPrice - promoPrice;
+        const percent = Math.round((hematRp / normalPrice) * 100);
+        promoDeals.push({
+          type: 'diskon',
+          id: p.id,
+          nama: p.nama,
+          gambar: p.gambar || '',
+          hargaNormal: normalPrice,
+          hargaDeal: promoPrice,
+          hematRp: hematRp,
+          diskonPersen: percent,
+          badgeText: `SALE -${percent}%`,
+          badgeClass: '',
+          subtext: p.kuota_diskon ? `Sisa Kuota: ${p.kuota_diskon} pcs` : 'Harga Promo Terbatas',
+          onClickAction: `addToCartById('${escapeJsQuotes(p.id)}')`
+        });
+      }
+      // Prioritas 2: Produk yang Harganya Turun dalam 7 Hari Terakhir
+      else if (isPriceDroppedRecently) {
+        const hematRp = prevPrice - normalPrice;
+        const percent = Math.round((hematRp / prevPrice) * 100);
+        promoDeals.push({
+          type: 'turun_harga',
+          id: p.id,
+          nama: p.nama,
+          gambar: p.gambar || '',
+          hargaNormal: prevPrice,
+          hargaDeal: normalPrice,
+          hematRp: hematRp,
+          diskonPersen: percent,
+          badgeText: `TURUN ${percent}%`,
+          badgeClass: 'price-drop',
+          subtext: 'Turun Harga 7 Hari Terakhir',
+          onClickAction: `addToCartById('${escapeJsQuotes(p.id)}')`
+        });
+      }
+      // Prioritas 3: Beli X Gratis Y
+      else if (hasBuyGet) {
+        promoDeals.push({
+          type: 'buy_get',
+          id: p.id,
+          nama: p.nama,
+          gambar: p.gambar || '',
+          hargaNormal: 0,
+          hargaDeal: normalPrice,
+          hematRp: 0,
+          diskonPersen: 0,
+          badgeText: `BELI ${p.promo_beli_x} +${p.promo_gratis_y}`,
+          badgeClass: 'buy-get',
+          subtext: `Gratis ${p.promo_gratis_y} setiap beli ${p.promo_beli_x}`,
+          onClickAction: `addToCartById('${escapeJsQuotes(p.id)}')`
+        });
+      }
+      // Prioritas 4: Promo Grosir
+      else if (hasGrosir) {
+        const qtyGrosir = parseInt(p.grosir_qty) || 1;
+        const totalEcer = qtyGrosir * normalPrice;
+        const totalGrosir = parseFloat(p.grosir_harga) || 0;
+        const hematRp = Math.max(0, totalEcer - totalGrosir);
+        const percent = totalEcer > 0 ? Math.round((hematRp / totalEcer) * 100) : 0;
+        promoDeals.push({
+          type: 'grosir',
+          id: p.id,
+          nama: p.nama,
+          gambar: p.gambar || '',
+          hargaNormal: totalEcer,
+          hargaDeal: totalGrosir,
+          hematRp: hematRp,
+          diskonPersen: percent,
+          badgeText: percent > 0 ? `GROSIR -${percent}%` : 'GROSIR HEMAT',
+          badgeClass: 'bundle',
+          subtext: `Ambil ${qtyGrosir} pcs @ Rp ${formatRupiah(Math.round(totalGrosir / qtyGrosir))}`,
+          onClickAction: `addToCartById('${escapeJsQuotes(p.id)}')`
+        });
+      }
+    });
+  }
+
+  if (promoDeals.length === 0) {
     container.style.display = 'none';
     marqueeContent.innerHTML = '';
     return;
   }
-  
+
   container.style.display = 'block';
+  totalPromoSlides = promoDeals.length;
+  currentPromoSlideIndex = 0;
+  updatePromoCounter();
+
   let html = '';
-  
-  promos.forEach((p, i) => {
-    const imgUrl = p.gambar || '';
+  promoDeals.forEach((deal, i) => {
+    const imgUrl = deal.gambar || '';
     const imgTag = imgUrl
-      ? `<img src="${imgUrl}" class="promo-banner-thumb" alt="${p.nama}" onclick="event.stopPropagation(); openProductImageLightbox('${imgUrl}', '${escapeJsQuotes(p.nama)}')" onerror="this.style.display='none'">`
-      : '';
-    
-    let labelHtml = '';
-    if ((parseInt(p.promo_beli_x) || 0) > 0 && (parseInt(p.promo_gratis_y) || 0) > 0) {
-      labelHtml = `
-        <div class="promo-banner-text">
-          <span class="promo-banner-name">${p.nama}</span>
-          <span class="promo-banner-tag gift">🎁 Beli ${p.promo_beli_x} Gratis ${p.promo_gratis_y}</span>
-        </div>
-      `;
-    } else if (parseFloat(p.harga_diskon) > 0) {
-      labelHtml = `
-        <div class="promo-banner-text">
-          <span class="promo-banner-name">${p.nama}</span>
-          <span class="promo-banner-tag sale">🏷️ Harga Promo Rp ${formatRupiah(p.harga_diskon)}</span>
-        </div>
-      `;
-    } else if ((parseInt(p.grosir_qty) || 0) > 0 && (parseFloat(p.grosir_harga) || 0) > 0) {
-      labelHtml = `
-        <div class="promo-banner-text">
-          <span class="promo-banner-name">${p.nama}</span>
-          <span class="promo-banner-tag bulk">📦 ${p.grosir_qty} pcs = Rp ${formatRupiah(p.grosir_harga)}</span>
-        </div>
-      `;
-    }
-    
+      ? `<img src="${imgUrl}" class="promo-slide-thumb" alt="${escapeHtml(deal.nama)}" onerror="this.onerror=null; this.parentElement.innerHTML='<span class=\\'promo-slide-thumb-placeholder\\'>🛍️</span>';">`
+      : `<span class="promo-slide-thumb-placeholder">${deal.type === 'bundle' ? '🎁' : '🏷️'}</span>`;
+
     html += `
       <div class="promo-marquee-item ${i === 0 ? 'active' : ''}">
-        ${imgTag}
-        ${labelHtml}
+        <div class="promo-slide-card" onclick="${deal.onClickAction}" title="Klik untuk langsung masukkan ke keranjang belanja">
+          <!-- Badge Pojok SALE % / DISKON -->
+          <span class="promo-corner-badge ${deal.badgeClass}">${deal.badgeText}</span>
+
+          <!-- Thumbnail Gambar Besar -->
+          <div class="promo-slide-thumb-wrap">
+            ${imgTag}
+          </div>
+
+          <!-- Rincian Produk, Harga Coret, dan Diskon -->
+          <div class="promo-slide-info">
+            <div class="promo-slide-title" title="${escapeHtml(deal.nama)}">${escapeHtml(deal.nama)}</div>
+
+            <div class="promo-slide-prices">
+              ${deal.hargaNormal > 0 && deal.hargaNormal > deal.hargaDeal ? `<span class="promo-price-strikethrough">Rp ${formatRupiah(deal.hargaNormal)}</span>` : ''}
+              <span class="promo-price-deal">Rp ${formatRupiah(deal.hargaDeal)}</span>
+            </div>
+
+            <div class="promo-slide-footer">
+              ${deal.hematRp > 0 ? `<span class="promo-saving-badge">Hemat Rp ${formatRupiah(deal.hematRp)}</span>` : ''}
+              <span style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(deal.subtext)}</span>
+              <button type="button" class="promo-add-btn" onclick="event.stopPropagation(); ${deal.onClickAction}">+ Beli</button>
+            </div>
+          </div>
+        </div>
       </div>
     `;
   });
-  
+
   marqueeContent.innerHTML = html;
-  
+
   if (window.promoCarouselInterval) {
     clearInterval(window.promoCarouselInterval);
   }
-  
-  if (promos.length > 1) {
-    let currentIndex = 0;
-    const items = marqueeContent.querySelectorAll('.promo-marquee-item');
+
+  if (promoDeals.length > 1) {
     window.promoCarouselInterval = setInterval(() => {
-      items[currentIndex].classList.remove('active');
-      currentIndex = (currentIndex + 1) % items.length;
-      items[currentIndex].classList.add('active');
-    }, 3000);
+      nextPromoSlide();
+    }, 4000);
+  }
+}
+
+// Helper untuk menambahkan bundle ke cart dari ID
+function addBundleToCartById(bundleId) {
+  if (Array.isArray(bundles)) {
+    const b = bundles.find(x => x.id === bundleId);
+    if (b && typeof addBundleToCart === 'function') {
+      addBundleToCart(b);
+      return;
+    }
   }
 }
 
@@ -7273,7 +7596,27 @@ function openPaymentModal() {
   if (replaceCont) replaceCont.style.display = 'none';
   if (replaceChk) replaceChk.checked = appConfig.autoCashNonCash === true;
 
+  // Pastikan form Bon/Hutang disembunyikan saat modal pembayaran dibuka
+  const debtContainer = document.getElementById('debt-details-container');
+  if (debtContainer) debtContainer.style.display = 'none';
+
+  // Pastikan panel voucher disembunyikan dan di-reset
+  const vchInfo = document.getElementById('customer-voucher-info');
+  if (vchInfo) vchInfo.style.display = 'none';
+  const chkVoucher = document.getElementById('chk-enable-voucher-payment');
+  if (chkVoucher) chkVoucher.checked = false;
+  const voucherExpand = document.getElementById('voucher-options-expand-container');
+  if (voucherExpand) voucherExpand.style.display = 'none';
+  const voucherHdrDisp = document.getElementById('voucher-discount-header-display');
+  if (voucherHdrDisp) voucherHdrDisp.style.display = 'none';
+  selectedCustomVoucherKeys.clear();
+  updateSelectedVouchersCountLabel();
+
   calculateChange();
+  
+  // Pastikan header total tagihan selalu menampilkan nominal subtotal belanja di keranjang
+  const payTotalAmountEl = document.getElementById('pay-total-amount');
+  if (payTotalAmountEl) payTotalAmountEl.textContent = `Rp ${formatRupiah(globalTotal)}`;
   
   document.getElementById('payment-modal').classList.add('active');
   setTimeout(() => {
@@ -7307,7 +7650,29 @@ function onPaymentMethodChange(val) {
     onPaymentStatusChange('Lunas');
     statusSelect.disabled = true; // non-tunai tidak bisa Bon
     
-    cashInput.value = formatRupiah(globalTotal);
+    // Hitung sisa tagihan jika voucher atau tabungan sudah dipilih
+    let vDeduct = 0;
+    if (loyaltySettings.rewardMode === 'voucher') {
+      const selectedVoucherCheckboxes = document.querySelectorAll('.checkout-voucher-checkbox:checked');
+      selectedVoucherCheckboxes.forEach(cb => {
+        vDeduct += (parseInt(cb.getAttribute('data-nominal')) || 0);
+      });
+      vDeduct = Math.min(vDeduct, globalTotal);
+    } else {
+      const redeemInput = document.getElementById('redeem-points-input');
+      const pts = Math.max(0, parseInt(redeemInput ? redeemInput.value : 0) || 0);
+      vDeduct = Math.min(pts * (loyaltySettings.rpPerPoint || 100), globalTotal);
+    }
+    let remAfterDeduct = Math.max(0, globalTotal - vDeduct);
+    const chkUseSavings = document.getElementById('chk-use-savings-payment');
+    if (chkUseSavings && chkUseSavings.checked) {
+      const custName = (document.getElementById('customer-name-input')?.value || '').trim();
+      const cust = customers.find(c => c.nama && c.nama.toLowerCase() === custName.toLowerCase());
+      const custSavingsBal = Number(cust?.saldo_tabungan) || 0;
+      remAfterDeduct = Math.max(0, remAfterDeduct - Math.min(custSavingsBal, remAfterDeduct));
+    }
+
+    cashInput.value = formatRupiah(remAfterDeduct);
     cashGroup.style.display = 'none';
     quickCashGrid.style.display = 'none';
 
@@ -7338,20 +7703,6 @@ function onPaymentStatusChange(val) {
   const pointsInfoContainer = document.getElementById('customer-points-info');
   
   if (val === 'Bon') {
-    // Jika Bon/Hutang dipilih, voucher atau poin tidak boleh digunakan (harus salah satu)
-    if (selectedCustomVoucherKeys && selectedCustomVoucherKeys.size > 0) {
-      selectedCustomVoucherKeys.clear();
-      const checkboxes = document.querySelectorAll('.checkout-voucher-checkbox');
-      checkboxes.forEach(cb => { cb.checked = false; });
-      updateSelectedVouchersCountLabel();
-    }
-    const redeemPtsInput = document.getElementById('redeem-points-input');
-    if (redeemPtsInput) redeemPtsInput.value = '';
-
-    // Sembunyikan panel voucher/poin agar tidak membingungkan
-    if (voucherInfoContainer) voucherInfoContainer.style.display = 'none';
-    if (pointsInfoContainer) pointsInfoContainer.style.display = 'none';
-
     cashLabel.textContent = "Uang Muka / DP dibayarkan (Rp)";
     cashInput.placeholder = "Bisa dikosongkan (Rp 0)...";
     cashInput.value = '';
@@ -7447,12 +7798,30 @@ function calculateChange() {
         if (voucherExcessCash > 0) {
           vSummaryEl.innerHTML = `🎉 <b>LUNAS DENGAN VOUCHER!</b> (${redeemVouchers} Voucher: Rp ${formatRupiah(voucherDiscount)}) &bull; <b style="color:#059669;">Kelebihan Voucher Rp ${formatRupiah(voucherExcessCash)} wajib diberikan TUNAI ke konsumen!</b>`;
           vSummaryEl.style.color = '#059669';
+          vSummaryEl.style.background = '#ecfdf5';
+          vSummaryEl.style.borderColor = '#6ee7b7';
         } else if (billRemainingAfterVoucher === 0) {
-          vSummaryEl.innerHTML = `🎉 <b>LUNAS PAS DENGAN VOUCHER!</b> (${redeemVouchers} Voucher). Tidak perlu uang tunai.`;
+          vSummaryEl.innerHTML = `🎉 <b>LUNAS PAS DENGAN VOUCHER!</b> (${redeemVouchers} Voucher). Tidak perlu pembayaran tambahan.`;
           vSummaryEl.style.color = '#059669';
+          vSummaryEl.style.background = '#ecfdf5';
+          vSummaryEl.style.borderColor = '#6ee7b7';
         } else {
-          vSummaryEl.innerHTML = `🎟️ Dipotong ${redeemVouchers} Voucher: <b>-Rp ${formatRupiah(voucherDiscount)}</b> &bull; Sisa yang Harus Dibayar: <b style="color:#dc2626;">Rp ${formatRupiah(billRemainingAfterVoucher)}</b>`;
+          vSummaryEl.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #f59e0b; padding-bottom: 0.25rem;">
+                <span>🎟️ Terpotong ${redeemVouchers} Voucher: <b>-Rp ${formatRupiah(voucherDiscount)}</b></span>
+                <span style="font-size: 0.88rem; font-weight: 900; color: #dc2626;">Sisa Tagihan: Rp ${formatRupiah(billRemainingAfterVoucher)}</span>
+              </div>
+              <div style="font-size: 0.72rem; color: #92400e; font-weight: 600; line-height: 1.35; padding-top: 0.15rem;">
+                📢 <b>Sisa tagihan Rp ${formatRupiah(billRemainingAfterVoucher)}</b> silakan dibayar menggunakan:
+                <br>&bull; <b>Tunai</b> (Ketik nominal uang / klik tombol Uang Pas)
+                <br>&bull; <b>Metode Lain</b>: Ubah dropdown Metode ke <b>QRIS / Transfer / Debit</b> atau Status ke <b>Hutang (Bon)</b>.
+              </div>
+            </div>
+          `;
           vSummaryEl.style.color = '#b45309';
+          vSummaryEl.style.background = '#fffbeb';
+          vSummaryEl.style.borderColor = '#f59e0b';
         }
       } else {
         vSummaryEl.style.display = 'none';
@@ -7527,7 +7896,8 @@ function calculateChange() {
   }
 
   const finalTotalToPay = Math.max(0, remainingAfterDiscount - savingsDeduction);
-  document.getElementById('pay-total-amount').textContent = `Rp ${formatRupiah(finalTotalToPay)}`;
+  // TOTAL TAGIHAN di atas selalu menampilkan sejumlah nominal barang di keranjang
+  document.getElementById('pay-total-amount').textContent = `Rp ${formatRupiah(globalTotal)}`;
   
   // Perhitungan Kembalian: Jika ada kelebihan voucher, langsung tambahkan ke uang kembalian tunai
   const change = (cash - finalTotalToPay) + voucherExcessChange;
@@ -7582,9 +7952,28 @@ function calculateChange() {
 function setQuickCash(amount) {
   const cashInput = document.getElementById('cash-received');
   if (amount === 'pass') {
-    const payTotalText = document.getElementById('pay-total-amount')?.textContent || '';
-    const cleanPayTotal = parseInt(payTotalText.replace(/\D/g, '')) || 0;
-    cashInput.value = new Intl.NumberFormat('id-ID').format(cleanPayTotal);
+    // Gunakan sisa tagihan riil setelah dipotong voucher / tabungan / diskon poin
+    const isVoucherMode = (loyaltySettings.rewardMode === 'voucher');
+    let totalDeduct = 0;
+    if (isVoucherMode) {
+      document.querySelectorAll('.checkout-voucher-checkbox:checked').forEach(cb => {
+        totalDeduct += (parseInt(cb.getAttribute('data-nominal')) || 0);
+      });
+      totalDeduct = Math.min(totalDeduct, globalTotal);
+    } else {
+      const redeemInput = document.getElementById('redeem-points-input');
+      const redeemPts = Math.max(0, parseInt(redeemInput ? redeemInput.value : 0) || 0);
+      totalDeduct = Math.min(redeemPts * (loyaltySettings.rpPerPoint || 100), globalTotal);
+    }
+    let remAfterDisc = Math.max(0, globalTotal - totalDeduct);
+    const chkUseSavings = document.getElementById('chk-use-savings-payment');
+    if (chkUseSavings && chkUseSavings.checked) {
+      const selectedCustomerName = document.getElementById('customer-name-input')?.value?.trim();
+      const customer = customers.find(c => c.nama && c.nama.toLowerCase() === selectedCustomerName.toLowerCase());
+      const custSavingsBal = Number(customer?.saldo_tabungan) || 0;
+      remAfterDisc = Math.max(0, remAfterDisc - Math.min(custSavingsBal, remAfterDisc));
+    }
+    cashInput.value = new Intl.NumberFormat('id-ID').format(remAfterDisc);
   } else {
     cashInput.value = new Intl.NumberFormat('id-ID').format(amount);
   }
@@ -7640,26 +8029,6 @@ async function processCheckout() {
     }
   }
   
-  if (status === 'Bon') {
-    // Pastikan tidak ada voucher yang dicentang saat checkout hutang/bon
-    const selectedVoucherCheckboxes = document.querySelectorAll('.checkout-voucher-checkbox:checked');
-    const redeemPtsInput = document.getElementById('redeem-points-input');
-    const redeemPts = parseInt(redeemPtsInput ? redeemPtsInput.value : 0) || 0;
-
-    if (selectedVoucherCheckboxes.length > 0 || (selectedCustomVoucherKeys && selectedCustomVoucherKeys.size > 0)) {
-      alert("⚠️ Pembayaran Bon (Hutang) TIDAK DAPAT digabungkan dengan Voucher!\nHarap batalkan voucher atau ubah status pembayaran menjadi 'Lunas'.");
-      if (btnSubmit) btnSubmit.disabled = false;
-      isCheckingOut = false;
-      return;
-    }
-    if (redeemPts > 0) {
-      alert("⚠️ Pembayaran Bon (Hutang) TIDAK DAPAT digabungkan dengan Tukar Poin!\nHarap kosongkan tukar poin atau ubah status pembayaran menjadi 'Lunas'.");
-      if (btnSubmit) btnSubmit.disabled = false;
-      isCheckingOut = false;
-      return;
-    }
-  }
-
   // Ambil data pelanggan (jika ada)
   const customer = customers.find(c => c.nama.toLowerCase() === customerName.toLowerCase());
   const isVoucherMode = (loyaltySettings.rewardMode === 'voucher');
@@ -7671,7 +8040,7 @@ async function processCheckout() {
   const currentMonth = getCurrentMonthKey();
 
   if (isVoucherMode) {
-    const selectedVoucherCheckboxes = status === 'Bon' ? [] : document.querySelectorAll('.checkout-voucher-checkbox:checked');
+    const selectedVoucherCheckboxes = document.querySelectorAll('.checkout-voucher-checkbox:checked');
     let totalSelectedVoucherNominal = 0;
     selectedVoucherCheckboxes.forEach(cb => {
       const nom = parseInt(cb.getAttribute('data-nominal')) || 0;
@@ -8209,8 +8578,8 @@ function generatePlainTextReceipt(tx, items) {
   text += formatLine("No.", tx.id, width) + "\n";
   
   const dateObj = new Date(tx.waktu);
-  const dateStr = dateObj.toLocaleDateString('id-ID');
-  const timeStr = dateObj.toLocaleTimeString('id-ID', { hour12: false });
+  const dateStr = formatDateIndo(dateObj);
+  const timeStr = dateObj.toLocaleTimeString('id-ID', { hour12: false }).replace(/\./g, ':');
   text += formatLine("Waktu", dateStr + " " + timeStr, width) + "\n";
   
   if (receiptSettings.showCashier) {
@@ -8269,9 +8638,7 @@ function generatePlainTextReceipt(tx, items) {
     const rawVDisc = Number(tx.diskon_voucher) || 0;
     const excessV = Number(tx.kelebihan_voucher_tunai) || 0;
     if (excessV > 0) {
-      text += formatLine("Voucher Digunakan", "Rp " + formatRupiah(rawVDisc), width) + "\n";
-      text += formatLine("Kembalian Voucher", "Rp " + formatRupiah(excessV), width) + "\n";
-      text += formatLine("Diskon Voucher Riil", "-Rp " + formatRupiah(rawVDisc - excessV), width) + "\n";
+      text += formatLine("Voucher diklaim", "Rp " + formatRupiah(rawVDisc), width) + "\n";
     } else {
       text += formatLine("Tukar Voucher", "-Rp " + formatRupiah(rawVDisc), width) + "\n";
     }
@@ -8286,14 +8653,14 @@ function generatePlainTextReceipt(tx, items) {
   
   if (receiptSettings.showMethod) {
     let methodStr = tx.metode_pembayaran || 'Tunai';
-    if (tx.status_pembayaran === 'Bon') {
-      methodStr += ' (Bon)';
+    if (tx.status_pembayaran === 'Bon' || (tx.sisa_piutang && tx.sisa_piutang > 0)) {
+      methodStr = 'Hutang';
     }
     text += formatLine("Metode", methodStr, width) + "\n";
   }
   
   if (tx.sisa_piutang > 0) {
-    text += formatLine("Sisa Bon (Hutang)", "Rp " + formatRupiah(tx.sisa_piutang), width) + "\n";
+    text += formatLine("Jumlah Hutang", "Rp " + formatRupiah(tx.sisa_piutang), width) + "\n";
   }
   
   // CRM Loyalitas (Poin atau Voucher) & Anggota
@@ -8330,7 +8697,7 @@ function generatePlainTextReceipt(tx, items) {
       text += formatLine("Voucher Belum Klaim", "" + unclaimedVouchers.length, width) + "\n";
       unclaimedVouchers.forEach(uv => {
         const vNominal = uv.nominal > 0 ? " (Rp " + formatRupiah(uv.nominal) + ")" : "";
-        text += formatLine(" 🎟️ " + (uv.namaVoucher || 'Voucher'), vNominal, width) + "\n";
+        text += formatLine("🎟️ " + (uv.namaVoucher || 'Voucher'), vNominal, width) + "\n";
       });
     } else if (tx.reward_mode === 'voucher' || tx.diskon_voucher > 0) {
       text += formatLine("Voucher Belum Klaim", "0", width) + "\n";
@@ -8365,8 +8732,7 @@ function showReceipt(tx, items) {
 
   document.getElementById('rec-id').textContent = tx.id;
   
-  const dateObj = new Date(tx.waktu);
-  const timeStr = dateObj.toLocaleDateString('id-ID') + ' ' + dateObj.toLocaleTimeString('id-ID', { hour12: false });
+  const timeStr = formatDateTimeIndo(tx.waktu);
   document.getElementById('rec-time').textContent = timeStr;
   
   const cashierEl = document.getElementById('rec-cashier');
@@ -8531,9 +8897,10 @@ function showReceipt(tx, items) {
   }
   const methodEl = document.getElementById('rec-method');
   if (methodEl) {
-    methodEl.textContent = tx.metode_pembayaran || 'Tunai';
-    if (tx.status_pembayaran === 'Bon') {
-      methodEl.textContent += ' (Bon)';
+    if (tx.status_pembayaran === 'Bon' || (tx.sisa_piutang && tx.sisa_piutang > 0)) {
+      methodEl.textContent = 'Hutang';
+    } else {
+      methodEl.textContent = tx.metode_pembayaran || 'Tunai';
     }
   }
   
@@ -8577,41 +8944,54 @@ function showReceipt(tx, items) {
     textBody.innerHTML = generatePlainTextReceipt(tx, items);
   }
   
+  // Pengaturan tampil tombol Surat Jalan & Kirim Nota ke WA dari appConfig
+  const btnDelivery = document.getElementById('btn-print-delivery-note');
+  const btnWa = document.getElementById('btn-share-wa-receipt');
+  if (btnDelivery) {
+    btnDelivery.style.display = (appConfig.enableDeliveryNote === true) ? 'inline-flex' : 'none';
+  }
+  if (btnWa) {
+    btnWa.style.display = (appConfig.enableWaReceipt === true) ? 'inline-flex' : 'none';
+  }
+
   document.getElementById('receipt-modal').classList.add('active');
   
   const cardPrint = document.getElementById('receipt-card-print');
   if (cardPrint) cardPrint.scrollTop = 0;
   
-  // Set default pemilihan tombol struk ke "Cetak Nota" (index 0)
+  // Set default pemilihan tombol struk ke tombol pertama yang aktif
   selectedReceiptButtonIndex = 0;
   updateReceiptButtonsHighlight();
 }
 
-function updateReceiptButtonsHighlight() {
+function getActiveReceiptButtons() {
   const btnPrint = document.getElementById('btn-print-receipt');
+  const btnDelivery = document.getElementById('btn-print-delivery-note');
   const btnWa = document.getElementById('btn-share-wa-receipt');
   const btnSkip = document.getElementById('btn-skip-receipt');
-  if (!btnPrint || !btnSkip) return;
-  
-  // Reset style highlight
-  btnPrint.style.outline = 'none';
-  if (btnWa) btnWa.style.outline = 'none';
-  btnSkip.style.outline = 'none';
 
-  if (selectedReceiptButtonIndex === 0) {
-    btnPrint.className = 'btn btn-primary';
-    btnPrint.style.outline = '2px solid #2563eb';
-    btnPrint.focus({ preventScroll: true });
-  } else if (selectedReceiptButtonIndex === 1) {
-    if (btnWa) {
-      btnWa.style.outline = '2px solid #ffffff';
-      btnWa.focus({ preventScroll: true });
+  const btns = [];
+  if (btnPrint && btnPrint.style.display !== 'none') btns.push({ el: btnPrint, action: 'print' });
+  if (btnDelivery && btnDelivery.style.display !== 'none' && appConfig.enableDeliveryNote === true) btns.push({ el: btnDelivery, action: 'delivery' });
+  if (btnWa && btnWa.style.display !== 'none' && appConfig.enableWaReceipt === true) btns.push({ el: btnWa, action: 'wa' });
+  if (btnSkip && btnSkip.style.display !== 'none') btns.push({ el: btnSkip, action: 'skip' });
+  return btns;
+}
+
+function updateReceiptButtonsHighlight() {
+  const activeBtns = getActiveReceiptButtons();
+  if (activeBtns.length === 0) return;
+
+  if (selectedReceiptButtonIndex < 0) selectedReceiptButtonIndex = 0;
+  if (selectedReceiptButtonIndex >= activeBtns.length) selectedReceiptButtonIndex = activeBtns.length - 1;
+
+  activeBtns.forEach((item, idx) => {
+    item.el.style.outline = 'none';
+    if (idx === selectedReceiptButtonIndex) {
+      item.el.style.outline = item.action === 'skip' ? '2px solid #64748b' : (item.action === 'wa' ? '2px solid #ffffff' : '2px solid #2563eb');
+      item.el.focus({ preventScroll: true });
     }
-  } else {
-    btnSkip.className = 'btn btn-secondary';
-    btnSkip.style.outline = '2px solid #64748b';
-    btnSkip.focus({ preventScroll: true });
-  }
+  });
 }
 
 function closeReceiptModal() {
@@ -8642,7 +9022,7 @@ function shareReceiptToWhatsApp(tx, items) {
   msg += `Waktu    : ${dateStr}\n`;
   msg += `Kasir    : ${tx.kasir || 'Kasir Utama'}\n`;
   if (tx.nama_pelanggan) {
-    msg += `Pelanggan: *${tx.nama_pelanggan}*\n`;
+    msg += `Anggota  : *${tx.nama_pelanggan}*\n`;
   }
   msg += `--------------------------------\n`;
   msg += `*DAFTAR PESANAN:*\n`;
@@ -8675,9 +9055,7 @@ function shareReceiptToWhatsApp(tx, items) {
     const rawVDisc = Number(tx.diskon_voucher) || 0;
     const excessV = Number(tx.kelebihan_voucher_tunai) || 0;
     if (excessV > 0) {
-      msg += `Voucher Dipakai: Rp ${formatRupiah(rawVDisc)}\n`;
-      msg += `Kembalian Voucher (Cash): Rp ${formatRupiah(excessV)}\n`;
-      msg += `Diskon Riil Voucher: -Rp ${formatRupiah(rawVDisc - excessV)}\n`;
+      msg += `Voucher diklaim: Rp ${formatRupiah(rawVDisc)}\n`;
     } else {
       msg += `Tukar Voucher: -Rp ${formatRupiah(rawVDisc)}\n`;
     }
@@ -8961,30 +9339,43 @@ function shareRevenueToWhatsApp() {
 
   let revenue = 0;
   let netProfit = 0;
+  let grossHpp = 0;
   const methodsBreakdown = { 'Tunai': 0, 'QRIS': 0, 'Debit': 0, 'Transfer': 0 };
   const nonCashMethods = ['QRIS', 'Transfer', 'Debit'];
 
   filteredTxs.forEach(tx => {
+    if (tx.is_manual_debt) return;
+
     const metode = tx.metode_pembayaran || 'Tunai';
     const isNonCash = nonCashMethods.includes(metode);
 
     let txSubtotal = 0;
+    let txBuyTotal = 0;
     let txNetProfitBeforeDiscount = 0;
     (tx.items || []).forEach(item => {
-      const buyPrice = item.harga_beli || 0;
-      const sellPrice = item.harga || 0;
-      txNetProfitBeforeDiscount += (sellPrice - buyPrice) * item.qty;
-      txSubtotal += sellPrice * item.qty;
+      let buyPrice = Number(item.harga_beli) || 0;
+      if (item.isBundle && buyPrice === 0 && Array.isArray(item.bundleItems)) {
+        item.bundleItems.forEach(b => {
+          const cp = products.find(p => String(p.id) === String(b.productId));
+          if (cp) buyPrice += (Number(cp.harga_beli) || 0) * (Number(b.qty) || 1);
+        });
+      }
+      const sellPrice = Number(item.harga) || 0;
+      const q = Number(item.qty) || 1;
+      txBuyTotal += (buyPrice * q);
+      txNetProfitBeforeDiscount += (sellPrice - buyPrice) * q;
+      txSubtotal += sellPrice * q;
     });
 
-    const txDiscount = Math.max(0, txSubtotal - tx.total);
+    const txDiscount = Math.max(0, txSubtotal - Number(tx.total) || 0);
     const txNetProfit = txNetProfitBeforeDiscount - txDiscount;
     netProfit += txNetProfit;
+    grossHpp += txBuyTotal;
 
     if (!isNonCash || tx.diganti_cash === true) {
-      revenue += tx.total;
+      revenue += (Number(tx.total) || 0);
     }
-    methodsBreakdown[metode] = (methodsBreakdown[metode] || 0) + tx.total;
+    methodsBreakdown[metode] = (methodsBreakdown[metode] || 0) + (Number(tx.total) || 0);
   });
 
   let totalDebt = 0;
@@ -8992,7 +9383,7 @@ function shareRevenueToWhatsApp() {
     totalDebt += (tx.sisa_piutang || 0);
   });
 
-  const totalPenjualan = revenue - netProfit;
+  const totalPenjualan = grossHpp > 0 ? grossHpp : Math.max(0, revenue - netProfit);
   const totalOmsetSemuaMetode = Object.values(methodsBreakdown).reduce((a, b) => a + b, 0);
   const storeName = (receiptSettings.name || 'TOKO KASIR').trim();
 
@@ -9022,18 +9413,6 @@ function shareRevenueToWhatsApp() {
 
   const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
   window.open(waUrl, '_blank');
-}
-
-async function syncTransactionToCloud(tx) {
-  if (firebaseDb) {
-    try {
-      await syncSingleTransactionToCloud(tx);
-    } catch (e) {
-      queueOfflineTransaction(tx);
-    }
-  } else {
-    queueOfflineTransaction(tx);
-  }
 }
 
 function queueOfflineTransaction(tx) {
@@ -9321,7 +9700,7 @@ function saveKulak(e) {
   const p = products.find(prod => prod.id === id);
   if (p) {
     const oldPrice = p.harga_jual;
-    const isPriceIncreased = newSellPrice > oldPrice;
+    const isPriceChanged = (newSellPrice !== oldPrice && oldPrice > 0 && newSellPrice > 0);
     
     if (mode === 'add') {
       p.stok = p.stok + inputQty;
@@ -9342,7 +9721,7 @@ function saveKulak(e) {
       saveProductCloud(p);
     }
 
-    if (isPriceIncreased) {
+    if (isPriceChanged) {
       showPriceChangeNotification(p, oldPrice, newSellPrice);
     }
   }
@@ -9992,12 +10371,12 @@ function saveProduct(event) {
     }
   }
   
-  let isPriceIncreased = false;
+  let isPriceChanged = false;
   let oldPrice = 0;
   if (targetIndex > -1 && products[targetIndex]) {
     const oldProduct = products[targetIndex];
-    if (oldProduct && priceSellInput > oldProduct.harga_jual) {
-      isPriceIncreased = true;
+    if (oldProduct && priceSellInput !== oldProduct.harga_jual && oldProduct.harga_jual > 0) {
+      isPriceChanged = true;
       oldPrice = oldProduct.harga_jual;
     }
   }
@@ -10084,7 +10463,9 @@ function saveProduct(event) {
     isi_box: qtyBox,
     harga_box: priceBox,
     units: productUnits,
-    createdAt: (targetIndex > -1 && products[targetIndex]?.createdAt) ? products[targetIndex].createdAt : new Date().toISOString()
+    createdAt: (targetIndex > -1 && products[targetIndex]?.createdAt) ? products[targetIndex].createdAt : new Date().toISOString(),
+    harga_sebelumnya: (isPriceChanged && priceSellInput < oldPrice) ? oldPrice : ((targetIndex > -1 && products[targetIndex]?.harga_sebelumnya) ? products[targetIndex].harga_sebelumnya : null),
+    harga_turun_at: (isPriceChanged && priceSellInput < oldPrice) ? new Date().toISOString() : ((targetIndex > -1 && products[targetIndex]?.harga_turun_at) ? products[targetIndex].harga_turun_at : null)
   };
   
   if (targetIndex > -1) {
@@ -10112,7 +10493,7 @@ function saveProduct(event) {
     saveProductCloud(productData);
   }
   
-  if (isPriceIncreased) {
+  if (isPriceChanged) {
     showPriceChangeNotification(productData, oldPrice, priceSellInput);
   }
 }
@@ -11722,28 +12103,39 @@ function handleGlobalKeydowns(e) {
     }
     
     if (isReceiptOpen) {
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        selectedReceiptButtonIndex = (selectedReceiptButtonIndex - 1 + 3) % 3;
-        updateReceiptButtonsHighlight();
-        return;
-      }
-      if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        selectedReceiptButtonIndex = (selectedReceiptButtonIndex + 1) % 3;
-        updateReceiptButtonsHighlight();
-        return;
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (selectedReceiptButtonIndex === 0) {
-          window.print();
-        } else if (selectedReceiptButtonIndex === 1) {
-          shareCurrentReceiptToWhatsApp();
-        } else {
-          closeReceiptModal();
+      const activeBtns = getActiveReceiptButtons();
+      const numBtns = activeBtns.length;
+      if (numBtns > 0) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          selectedReceiptButtonIndex = (selectedReceiptButtonIndex - 1 + numBtns) % numBtns;
+          updateReceiptButtonsHighlight();
+          return;
         }
-        return;
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          selectedReceiptButtonIndex = (selectedReceiptButtonIndex + 1) % numBtns;
+          updateReceiptButtonsHighlight();
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const target = activeBtns[selectedReceiptButtonIndex];
+          if (target) {
+            if (target.action === 'print') {
+              window.print();
+            } else if (target.action === 'delivery') {
+              printDeliveryNoteFromCurrentReceipt();
+            } else if (target.action === 'wa') {
+              shareCurrentReceiptToWhatsApp();
+            } else {
+              closeReceiptModal();
+            }
+          } else {
+            closeReceiptModal();
+          }
+          return;
+        }
       }
     } else if (isPaymentOpen) {
       if (e.key === 'Shift' && !e.ctrlKey && !e.altKey && !e.metaKey) {
@@ -11842,7 +12234,8 @@ function renderTransactionsTable() {
   tbody.innerHTML = '';
   
   const searchVal = document.getElementById('transaction-list-search').value.toLowerCase().trim();
-  const statusFilter = document.getElementById('tx-filter-status').value;
+  const statusFilter = document.getElementById('tx-filter-status')?.value || 'Semua';
+  const paymentFilter = document.getElementById('tx-filter-payment')?.value || 'Semua';
   
   // Urutkan transaksi dari yang terbaru ke terlama
   const sortedTxs = [...transactions].sort((a, b) => {
@@ -11879,10 +12272,28 @@ function renderTransactionsTable() {
     if (statusFilter === 'Lunas' && tx.status_pembayaran === 'Bon') return false;
     if (statusFilter === 'Bon' && tx.status_pembayaran !== 'Bon') return false;
     
-    // Filter rentang tanggal (hanya jika diisi oleh pengguna)
-    if (searchVal === '') {
+    // Filter metode pembayaran
+    if (paymentFilter !== 'Semua') {
+      const txMethod = tx.metode_pembayaran || 'Tunai';
+      const isBon = (tx.status_pembayaran === 'Bon' || txMethod === 'Bon' || tx.is_bon === true || (Number(tx.sisa_piutang) > 0));
+      if (paymentFilter === 'Bon') {
+        if (!isBon) return false;
+      } else {
+        if (txMethod.toLowerCase() !== paymentFilter.toLowerCase()) return false;
+      }
+    }
+    
+    // Filter rentang tanggal:
+    // Jika pengguna mengisi tanggal Dari / s.d, gunakan rentang tersebut.
+    // Jika filter tanggal tidak diisi dan tidak sedang mencari keyword ID/nama, default tampilkan transaksi HARI INI saja.
+    if (startLimit || endLimit) {
       if (startLimit && txDate < startLimit) return false;
       if (endLimit && txDate > endLimit) return false;
+    } else if (searchVal === '') {
+      // Default: Hanya tampilkan transaksi hari ini
+      const todayStr = getLocalISODate(new Date()).slice(0, 10);
+      const txDayStr = parseTxDateStr(tx.waktu);
+      if (txDayStr !== todayStr) return false;
     }
     
     return true;
@@ -11937,7 +12348,7 @@ function renderTransactionsTable() {
       itemsDisplay = tx.daftar_item || tx.items || "";
     }
     
-    const timeStr = parseTxDate(tx.waktu).toLocaleString('id-ID', { hour12: false });
+    const timeStr = formatDateTimeIndo(tx.waktu);
     
     // Status Pembayaran badge & kembalian display
     let statusBadge = '';
@@ -11959,7 +12370,7 @@ function renderTransactionsTable() {
       changeOrDebtDisplay = `<span style="color: var(--color-success); font-weight: 700;">Rp ${formatRupiah(tx.kembalian)}</span>`;
     }
     
-    const customerDisplay = tx.nama_pelanggan ? `<br><small style="color: var(--text-muted); font-size: 0.75rem;">Pelanggan: <strong>${tx.nama_pelanggan}</strong></small>` : '';
+    const customerDisplay = tx.nama_pelanggan ? `<br><small style="color: var(--text-muted); font-size: 0.75rem;">Anggota: <strong>${tx.nama_pelanggan}</strong></small>` : '';
     
     tr.innerHTML = `
       <td style="text-align: center;">
@@ -12039,7 +12450,7 @@ function renderTransactionsTableFromData(data) {
     }
 
     const customerDisplay = tx.nama_pelanggan
-      ? `<br><small style="color: var(--text-muted); font-size: 0.75rem;">Pelanggan: <strong>${tx.nama_pelanggan}</strong></small>`
+      ? `<br><small style="color: var(--text-muted); font-size: 0.75rem;">Anggota: <strong>${tx.nama_pelanggan}</strong></small>`
       : '';
 
     tr.innerHTML = `
@@ -12272,6 +12683,27 @@ async function deleteTransaction(txId) {
         const txMonth = (tx.waktu || '').slice(0, 7) || (new Date().toISOString().slice(0, 7));
         if (cust.voucherUsage && cust.voucherUsage[txMonth]) {
           cust.voucherUsage[txMonth].used = Math.max(0, (cust.voucherUsage[txMonth].used || 0) - Number(tx.voucher_ditukar));
+        }
+
+        // Kembalikan alokasi custom vouchers ke status belum_diambil
+        if (Array.isArray(customVouchers)) {
+          let vouchersRolledBack = false;
+          customVouchers.forEach(cv => {
+            if (!Array.isArray(cv.allocations)) return;
+            cv.allocations.forEach(alloc => {
+              const matchTx = (alloc.txId === txId);
+              const matchCustAndTime = (!alloc.txId && (alloc.anggotaId === cust.id || alloc.anggotaId === cust.kode_anggota) && alloc.status === 'sudah_diambil' && alloc.tanggalAmbil && Math.abs(new Date(alloc.tanggalAmbil) - new Date(tx.waktu)) < 60000);
+              if (matchTx || matchCustAndTime) {
+                alloc.status = 'belum_diambil';
+                alloc.tanggalAmbil = null;
+                alloc.txId = null;
+                vouchersRolledBack = true;
+              }
+            });
+          });
+          if (vouchersRolledBack) {
+            saveCustomVouchersLocally();
+          }
         }
       }
       // Rollback Saldo Tabungan jika transaksi sebelumnya dibayar pakai tabungan
@@ -12571,13 +13003,30 @@ function openEditTransactionModal(txId) {
   }
 
   // Set nilai customer & rincian hutang
-  const custInput = document.getElementById('edit-tx-customer-name');
+  const custInput = document.getElementById('edit-tx-customer-name-input') || document.getElementById('edit-tx-customer-name');
   if (custInput) custInput.value = tx.nama_pelanggan || '';
+  const clearCustBtn = document.getElementById('btn-edit-tx-clear-customer');
+  if (clearCustBtn) clearCustBtn.style.display = tx.nama_pelanggan ? 'block' : 'none';
+
   const dueDateInput = document.getElementById('edit-tx-debt-due-date');
   if (dueDateInput) dueDateInput.value = tx.jatuh_tempo || '';
   const debtNoteInput = document.getElementById('edit-tx-debt-note');
   if (debtNoteInput) debtNoteInput.value = tx.catatan_bon || tx.keterangan_manual || '';
   
+  // Reset input PIN tabungan pada edit tx
+  const pinInput = document.getElementById('edit-tx-savings-pin');
+  if (pinInput) pinInput.value = '';
+
+  // Inisialisasi customer terpilih & voucher
+  selectedEditTxVoucherKeys.clear();
+  const matchedCust = customers.find(c => 
+    c.id === tx.id_pelanggan || 
+    c.kode_anggota === tx.id_pelanggan || 
+    (c.nama && tx.nama_pelanggan && c.nama.trim().toLowerCase() === tx.nama_pelanggan.trim().toLowerCase())
+  );
+  activeEditTxCustomerId = matchedCust ? matchedCust.id : null;
+  applyEditTxSelectedCustomer(matchedCust);
+
   // Set nilai uang bayar terformat
   const cashInput = document.getElementById('edit-tx-cash-received');
   cashInput.value = formatRupiah(tx.bayar);
@@ -12595,6 +13044,240 @@ function closeEditTransactionModal() {
   currentEditingTxId = null;
   editTxItems = [];
   editTxOriginalItems = [];
+  activeEditTxCustomerId = null;
+  selectedEditTxVoucherKeys.clear();
+  closeEditTxCustomerDropdown();
+}
+
+// State untuk pemilihan anggota dan voucher pada dialog koreksi transaksi
+let activeEditTxCustomerId = null;
+let activeEditTxCustomerDropdownIndex = -1;
+let currentEditTxCustomerDropdownList = [];
+let selectedEditTxVoucherKeys = new Set();
+
+function openEditTxCustomerDropdown() {
+  const input = document.getElementById('edit-tx-customer-name-input');
+  if (input) renderEditTxCustomerDropdown(input.value);
+}
+
+function closeEditTxCustomerDropdown() {
+  const dropdown = document.getElementById('edit-tx-customer-dropdown-list');
+  if (dropdown) dropdown.style.display = 'none';
+  activeEditTxCustomerDropdownIndex = -1;
+  currentEditTxCustomerDropdownList = [];
+}
+
+function onEditTxCustomerSearchInput(val) {
+  const clearBtn = document.getElementById('btn-edit-tx-clear-customer');
+  if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+  renderEditTxCustomerDropdown(val);
+}
+
+function handleEditTxCustomerInputKeydowns(e) {
+  const dropdown = document.getElementById('edit-tx-customer-dropdown-list');
+  const isDropdownVisible = dropdown && dropdown.style.display !== 'none' && currentEditTxCustomerDropdownList.length > 0;
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (!isDropdownVisible) {
+      openEditTxCustomerDropdown();
+      return;
+    }
+    activeEditTxCustomerDropdownIndex = (activeEditTxCustomerDropdownIndex + 1) % currentEditTxCustomerDropdownList.length;
+    updateEditTxCustomerDropdownActiveState();
+    return;
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!isDropdownVisible) {
+      openEditTxCustomerDropdown();
+      return;
+    }
+    activeEditTxCustomerDropdownIndex = (activeEditTxCustomerDropdownIndex - 1 + currentEditTxCustomerDropdownList.length) % currentEditTxCustomerDropdownList.length;
+    updateEditTxCustomerDropdownActiveState();
+    return;
+  }
+  if (e.key === 'Enter') {
+    if (isDropdownVisible && activeEditTxCustomerDropdownIndex >= 0 && activeEditTxCustomerDropdownIndex < currentEditTxCustomerDropdownList.length) {
+      e.preventDefault();
+      e.stopPropagation();
+      const selected = currentEditTxCustomerDropdownList[activeEditTxCustomerDropdownIndex];
+      selectEditTxCustomerFromDropdown(selected.id);
+      return;
+    }
+    closeEditTxCustomerDropdown();
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeEditTxCustomerDropdown();
+  }
+}
+
+function updateEditTxCustomerDropdownActiveState() {
+  const dropdown = document.getElementById('edit-tx-customer-dropdown-list');
+  if (!dropdown) return;
+  const items = dropdown.querySelectorAll('.edit-tx-customer-dropdown-item');
+  items.forEach((item, idx) => {
+    if (idx === activeEditTxCustomerDropdownIndex) {
+      item.style.backgroundColor = '#ea580c';
+      item.style.color = '#ffffff';
+    } else {
+      item.style.backgroundColor = 'transparent';
+      item.style.color = 'var(--text-main)';
+    }
+  });
+}
+
+function renderEditTxCustomerDropdown(searchTerm = '') {
+  const dropdown = document.getElementById('edit-tx-customer-dropdown-list');
+  if (!dropdown) return;
+
+  const term = searchTerm.toLowerCase().trim();
+  let list = customers;
+  if (term) {
+    list = customers.filter(c => {
+      const matchName = c.nama && c.nama.toLowerCase().includes(term);
+      const matchCode = (c.kode_anggota && c.kode_anggota.toLowerCase().includes(term)) || (c.id && c.id.toLowerCase().includes(term));
+      const matchPhone = c.telepon && c.telepon.includes(term);
+      const matchInstansi = c.instansi && c.instansi.toLowerCase().includes(term);
+      return matchName || matchCode || matchPhone || matchInstansi;
+    });
+  }
+
+  currentEditTxCustomerDropdownList = list.slice(0, 30);
+  activeEditTxCustomerDropdownIndex = currentEditTxCustomerDropdownList.length > 0 ? 0 : -1;
+
+  if (currentEditTxCustomerDropdownList.length === 0) {
+    dropdown.innerHTML = `<div style="padding: 0.75rem; text-align: center; color: var(--text-muted); font-size: 0.8rem;">Anggota tidak ditemukan</div>`;
+    dropdown.style.display = 'block';
+    return;
+  }
+
+  let html = '';
+  currentEditTxCustomerDropdownList.forEach((c, idx) => {
+    const custVouchers = getCustomerCustomVouchers(c);
+    const activeUnused = custVouchers.filter(v => v.status === 'belum_diambil' && !v.isExpired);
+    const vTotalRp = activeUnused.reduce((s, v) => s + (v.nominal || 0), 0);
+    const isFirstActive = idx === 0;
+
+    html += `
+      <div class="edit-tx-customer-dropdown-item" onclick="selectEditTxCustomerFromDropdown('${c.id}')" style="padding: 0.55rem 0.85rem; border-bottom: 1px solid var(--border-color); cursor: pointer; display: flex; justify-content: space-between; align-items: center; background-color: ${isFirstActive ? '#ea580c' : 'transparent'}; color: ${isFirstActive ? '#fff' : 'var(--text-main)'}; font-size: 0.82rem;" onmouseenter="activeEditTxCustomerDropdownIndex=${idx}; updateEditTxCustomerDropdownActiveState();">
+        <div>
+          <div style="font-weight: 700;">${c.nama} <span style="font-size: 0.72rem; font-weight: normal; opacity: 0.85;">(${c.kode_anggota || c.id})</span></div>
+          <div style="font-size: 0.72rem; opacity: 0.85;">${c.instansi ? '🏢 ' + c.instansi + ' ' : ''}🏦 Saldo: Rp ${formatRupiah(c.saldo_tabungan || 0)}</div>
+        </div>
+        <div style="text-align: right;">
+          <span style="background: rgba(245, 158, 11, 0.2); color: #d97706; font-weight: 700; font-size: 0.72rem; padding: 0.15rem 0.45rem; border-radius: 999px;">
+            🎟️ ${activeUnused.length} (Rp ${formatRupiah(vTotalRp)})
+          </span>
+        </div>
+      </div>
+    `;
+  });
+
+  dropdown.innerHTML = html;
+  dropdown.style.display = 'block';
+}
+
+function selectEditTxCustomerFromDropdown(customerId) {
+  const c = customers.find(x => x.id === customerId);
+  if (!c) return;
+
+  activeEditTxCustomerId = c.id;
+  const input = document.getElementById('edit-tx-customer-name-input');
+  if (input) input.value = c.nama;
+
+  const clearBtn = document.getElementById('btn-edit-tx-clear-customer');
+  if (clearBtn) clearBtn.style.display = 'block';
+
+  closeEditTxCustomerDropdown();
+  applyEditTxSelectedCustomer(c);
+  calculateChangeEditTx();
+}
+
+function clearEditTxSelectedCustomer() {
+  activeEditTxCustomerId = null;
+  selectedEditTxVoucherKeys.clear();
+  const input = document.getElementById('edit-tx-customer-name-input');
+  if (input) input.value = '';
+  const clearBtn = document.getElementById('btn-edit-tx-clear-customer');
+  if (clearBtn) clearBtn.style.display = 'none';
+
+  applyEditTxSelectedCustomer(null);
+  closeEditTxCustomerDropdown();
+  calculateChangeEditTx();
+}
+
+function applyEditTxSelectedCustomer(customer) {
+  const vchSec = document.getElementById('edit-tx-voucher-section');
+  const savSec = document.getElementById('edit-tx-savings-pin-section');
+  const savBalLbl = document.getElementById('edit-tx-savings-balance-label');
+
+  if (!customer) {
+    if (vchSec) vchSec.style.display = 'none';
+    if (savBalLbl) savBalLbl.textContent = 'Saldo: Rp 0';
+    return;
+  }
+
+  // Update saldo tabungan
+  if (savBalLbl) {
+    savBalLbl.textContent = `Saldo: Rp ${formatRupiah(customer.saldo_tabungan || 0)}`;
+  }
+
+  // Cek ketersediaan voucher
+  const custVouchers = getCustomerCustomVouchers(customer);
+  const availableVouchers = custVouchers.filter(v => v.status === 'belum_diambil' && !v.isExpired);
+
+  if (vchSec) {
+    if (availableVouchers.length > 0) {
+      vchSec.style.display = 'block';
+      renderEditTxCustomerVouchersList(availableVouchers);
+    } else {
+      vchSec.style.display = 'none';
+    }
+  }
+}
+
+function renderEditTxCustomerVouchersList(vouchers) {
+  const container = document.getElementById('edit-tx-vouchers-detail-list');
+  if (!container) return;
+
+  container.innerHTML = vouchers.map((v, idx) => {
+    const key = `${v.voucherId}_${v.nominal}_${idx}`;
+    const isChecked = selectedEditTxVoucherKeys.has(key);
+    return `
+      <label style="display: flex; align-items: center; justify-content: space-between; padding: 0.35rem 0.6rem; border: 1px solid rgba(217,119,6,0.3); border-radius: 6px; background: rgba(255,255,255,0.8); cursor: pointer; margin: 0; font-size: 0.78rem;">
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+          <input type="checkbox" class="edit-tx-voucher-checkbox" data-key="${key}" data-nominal="${v.nominal}" data-vid="${v.voucherId}" ${isChecked ? 'checked' : ''} onchange="toggleEditTxVoucherKey('${key}', ${v.nominal}, this.checked)" style="accent-color: #ea580c;">
+          <span style="font-weight: 700; color: #78350f;">🎟️ ${v.namaVoucher}</span>
+        </div>
+        <span style="font-weight: 800; color: #ea580c;">Rp ${formatRupiah(v.nominal)}</span>
+      </label>
+    `;
+  }).join('');
+}
+
+function toggleEditTxEnableVoucher(checked) {
+  const listContainer = document.getElementById('edit-tx-voucher-list-container');
+  const discountDisp = document.getElementById('edit-tx-voucher-discount-display');
+  if (listContainer) listContainer.style.display = checked ? 'block' : 'none';
+  if (discountDisp) discountDisp.style.display = checked ? 'flex' : 'none';
+
+  if (!checked) {
+    selectedEditTxVoucherKeys.clear();
+    const checkboxes = document.querySelectorAll('.edit-tx-voucher-checkbox');
+    checkboxes.forEach(cb => { cb.checked = false; });
+  }
+  calculateChangeEditTx();
+}
+
+function toggleEditTxVoucherKey(key, nominal, checked) {
+  if (checked) {
+    selectedEditTxVoucherKeys.add(key);
+  } else {
+    selectedEditTxVoucherKeys.delete(key);
+  }
+  calculateChangeEditTx();
 }
 
 function renderEditTxItems() {
@@ -12638,7 +13321,7 @@ function renderEditTxItems() {
       <div class="edit-tx-item-main">
         <div class="edit-tx-item-name" title="${item.nama}">${item.nama}</div>
         <div class="edit-tx-item-meta">
-          <span class="edit-tx-unit-price">Rp ${formatRupiah(item.harga)}</span>
+          <span class="edit-tx-unit-price">Rp ${formatRupiah(Math.round(item.harga))}</span>
           ${item.isBox ? `<span style="color: var(--color-primary); font-weight:600;">(Dus/Box)</span>` : ''}
         </div>
         ${badgesHtml ? `<div style="display:flex; flex-wrap:wrap; gap:0.25rem; margin-top:0.25rem;">${badgesHtml}</div>` : ''}
@@ -12688,7 +13371,7 @@ function applyPricingToEditTxItem(item) {
   if (!localProd) return;
   const pricing = calculateCartItemPricing(localProd, item.qty);
   item.subtotal = pricing.subtotal;
-  item.harga = item.qty > 0 ? (pricing.subtotal / item.qty) : localProd.harga_jual;
+  item.harga = item.qty > 0 ? Math.round(pricing.subtotal / item.qty) : localProd.harga_jual;
   item.badges = pricing.badges;
   item.promoInfo = pricing.promoInfo;
 }
@@ -12969,6 +13652,32 @@ function selectEditTxPaymentMethod(method, triggerChange = true) {
   if (triggerChange) {
     calculateChangeEditTx();
   }
+
+  // Notifikasi jika metode diubah ke Tabungan namun anggota tidak memiliki tabungan / tabungan belum aktif
+  if (triggerChange && method === 'Tabungan') {
+    let cust = null;
+    if (activeEditTxCustomerId) {
+      cust = customers.find(c => c.id === activeEditTxCustomerId);
+    }
+    if (!cust) {
+      const custInputVal = (document.getElementById('edit-tx-customer-name-input')?.value || '').trim();
+      if (custInputVal) {
+        cust = customers.find(c => 
+          c.id === custInputVal || 
+          c.kode_anggota === custInputVal || 
+          (c.nama && c.nama.trim().toLowerCase() === custInputVal.toLowerCase())
+        );
+      }
+    }
+
+    if (!cust) {
+      alert("⚠️ Anggota Belum Dipilih!\n\nUntuk menggunakan metode pembayaran Tabungan, silakan pilih Anggota terdaftar terlebih dahulu.");
+    } else if (!cust.tabungan_aktif) {
+      alert(`⚠️ Anggota Belum Memiliki Tabungan!\n\nAnggota "${cust.nama}" [${cust.kode_anggota || cust.id}] belum mengaktifkan fitur tabungan atau tidak memiliki tabungan.`);
+    } else if ((Number(cust.saldo_tabungan) || 0) <= 0) {
+      alert(`⚠️ Saldo Tabungan Kosong!\n\nAnggota "${cust.nama}" memiliki saldo tabungan Rp 0.`);
+    }
+  }
 }
 
 function onEditTxPaymentMethodChange(value) {
@@ -12984,11 +13693,35 @@ function calculateChangeEditTx() {
   editTxItems.forEach(item => {
     total += item.harga * item.qty;
   });
+
+  // Hitung potongan voucher jika diaktifkan
+  let voucherDiscount = 0;
+  const isVoucherEnabled = document.getElementById('edit-tx-enable-voucher')?.checked;
+  if (isVoucherEnabled) {
+    const checkedVouchers = document.querySelectorAll('.edit-tx-voucher-checkbox:checked');
+    checkedVouchers.forEach(cb => {
+      voucherDiscount += parseInt(cb.getAttribute('data-nominal')) || 0;
+    });
+  }
+  const voucherDiscountVal = document.getElementById('edit-tx-voucher-discount-val');
+  if (voucherDiscountVal) voucherDiscountVal.textContent = `Rp ${formatRupiah(voucherDiscount)}`;
+
+  const finalTotalToPay = Math.max(0, total - voucherDiscount);
+  const voucherExcessChange = Math.max(0, voucherDiscount - total);
   
   const metode = document.getElementById('edit-tx-payment-method')?.value || 'Tunai';
+  const isTabungan = (metode === 'Tabungan');
+  const savPinSec = document.getElementById('edit-tx-savings-pin-section');
+  if (savPinSec) {
+    savPinSec.style.display = isTabungan ? 'block' : 'none';
+  }
+
   const nonCashMethods = ['QRIS', 'Transfer', 'Debit', 'Tabungan'];
   if (nonCashMethods.includes(metode)) {
-    // Non-cash / Tabungan: langsung enable tombol simpan
+    if (changeVal) {
+      changeVal.textContent = voucherExcessChange > 0 ? `Kembalian Voucher Rp ${formatRupiah(voucherExcessChange)}` : 'Rp 0';
+      changeVal.style.color = voucherExcessChange > 0 ? 'var(--color-success)' : 'var(--text-muted)';
+    }
     btnSave.disabled = false;
     return;
   }
@@ -12996,17 +13729,17 @@ function calculateChangeEditTx() {
   const isBon = metode === 'Bon';
   const cashText = cashInput.value.replace(/\./g, "");
   const cash = parseFloat(cashText) || 0;
-  const change = cash - total;
+  const change = (cash - finalTotalToPay) + voucherExcessChange;
   
   if (isBon) {
     if (cashInput.value === '' || cash <= 0) {
-      changeVal.textContent = `Sisa Bon Rp ${formatRupiah(total)}`;
+      changeVal.textContent = `Sisa Bon Rp ${formatRupiah(finalTotalToPay)}`;
       changeVal.style.color = '#dc2626';
     } else if (change >= 0) {
       changeVal.textContent = `LUNAS (Kembalian Rp ${formatRupiah(change)})`;
       changeVal.style.color = 'var(--color-success)';
     } else {
-      changeVal.textContent = `Sisa Bon Rp ${formatRupiah(Math.abs(change))}`;
+      changeVal.textContent = `Sisa Bon Rp ${formatRupiah(Math.abs(cash - finalTotalToPay))}`;
       changeVal.style.color = '#dc2626';
     }
     btnSave.disabled = false;
@@ -13015,15 +13748,15 @@ function calculateChangeEditTx() {
 
   // Metode Tunai Reguler
   if (cashInput.value === '') {
-    changeVal.textContent = 'Rp 0';
-    changeVal.style.color = 'var(--text-muted)';
+    changeVal.textContent = voucherExcessChange > 0 ? `Kembalian Voucher Rp ${formatRupiah(voucherExcessChange)}` : 'Rp 0';
+    changeVal.style.color = voucherExcessChange > 0 ? 'var(--color-success)' : 'var(--text-muted)';
     btnSave.disabled = false;
   } else if (change >= 0) {
     changeVal.textContent = `Rp ${formatRupiah(change)}`;
     changeVal.style.color = 'var(--color-success)';
     btnSave.disabled = false;
   } else {
-    changeVal.textContent = `Kurang Rp ${formatRupiah(Math.abs(change))}`;
+    changeVal.textContent = `Kurang Rp ${formatRupiah(Math.abs(cash - finalTotalToPay))}`;
     changeVal.style.color = 'var(--color-danger)';
     btnSave.disabled = false;
   }
@@ -13056,13 +13789,16 @@ function saveEditedTransaction() {
     return;
   }
   
-  let customerName = (document.getElementById('edit-tx-customer-name')?.value || tx.nama_pelanggan || '').trim();
+  let customerName = (document.getElementById('edit-tx-customer-name-input')?.value || document.getElementById('edit-tx-customer-name')?.value || tx.nama_pelanggan || '').trim();
   const dueDate = document.getElementById('edit-tx-debt-due-date')?.value || tx.jatuh_tempo || null;
   const debtNote = (document.getElementById('edit-tx-debt-note')?.value || tx.catatan_bon || tx.keterangan_manual || '').trim();
 
   // Cari objek customer jika ada
   let matchedCustomer = null;
-  if (customerName || tx.id_pelanggan || tx.nama_pelanggan) {
+  if (activeEditTxCustomerId) {
+    matchedCustomer = customers.find(c => c.id === activeEditTxCustomerId);
+  }
+  if (!matchedCustomer && (customerName || tx.id_pelanggan || tx.nama_pelanggan)) {
     const lookupName = customerName || tx.nama_pelanggan || '';
     matchedCustomer = customers.find(c => 
       c.id === tx.id_pelanggan || 
@@ -13073,41 +13809,91 @@ function saveEditedTransaction() {
     );
   }
 
+  // Hitung potongan voucher jika diaktifkan
+  let voucherDiscount = 0;
+  let redeemVouchers = 0;
+  const isVoucherEnabled = document.getElementById('edit-tx-enable-voucher')?.checked;
+  const selectedVoucherCheckboxes = isVoucherEnabled ? document.querySelectorAll('.edit-tx-voucher-checkbox:checked') : [];
+
+  if (isVoucherEnabled) {
+    selectedVoucherCheckboxes.forEach(cb => {
+      voucherDiscount += parseInt(cb.getAttribute('data-nominal')) || 0;
+    });
+    redeemVouchers = selectedVoucherCheckboxes.length;
+  }
+
+  const finalTotalToPay = Math.max(0, total - voucherDiscount);
+  const voucherExcessChange = Math.max(0, voucherDiscount - total);
+
   if (isBon) {
-    // Validasi: Hutang/Bon WAJIB ada nama pelanggan
+    // Validasi: Hutang/Bon WAJIB ada nama anggota
     if (!customerName || customerName.toLowerCase() === 'pelanggan umum') {
-      alert("⚠️ Transaksi yang diubah menjadi Hutang / Bon WAJIB memiliki Nama Pelanggan / Anggota!\n\nSilakan isi Nama Pelanggan di form Rincian Piutang.");
-      document.getElementById('edit-tx-customer-name')?.focus();
+      alert("⚠️ Transaksi yang diubah menjadi Hutang / Bon WAJIB memiliki Nama Anggota terdaftar!\n\nSilakan pilih Anggota terlebih dahulu.");
+      document.getElementById('edit-tx-customer-name-input')?.focus();
+      return;
+    }
+
+    if (redeemVouchers > 0) {
+      alert("⚠️ Pembayaran Bon (Hutang) TIDAK DAPAT digabungkan dengan Voucher!\nHarap batalkan voucher atau ubah status metode pembayaran.");
       return;
     }
 
     const cashInput = document.getElementById('edit-tx-cash-received');
     const cashText = cashInput.value.replace(/\./g, "");
     cash = parseFloat(cashText) || 0;
-    kembalian = cash >= total ? cash - total : 0;
+    kembalian = cash >= finalTotalToPay ? (cash - finalTotalToPay) + voucherExcessChange : voucherExcessChange;
   } else if (isTabungan) {
     // Validasi: Pembayaran Tabungan WAJIB ada Anggota terdaftar
     if (!matchedCustomer) {
-      alert("⚠️ Pembayaran menggunakan Saldo Tabungan membutuhkan Data Anggota yang terdaftar!\nHarap pastikan Nama Anggota valid.");
+      alert("⚠️ Pembayaran menggunakan Saldo Tabungan membutuhkan Data Anggota yang terdaftar!\nHarap pilih Anggota valid.");
       return;
     }
+
+    if (!matchedCustomer.tabungan_aktif) {
+      alert(`⚠️ Anggota Belum Memiliki Tabungan!\n\nAnggota "${matchedCustomer.nama}" [${matchedCustomer.kode_anggota || matchedCustomer.id}] tidak memiliki tabungan atau fitur tabungan belum diaktifkan.\nSilakan aktifkan terlebih dahulu di menu Tabungan Anggota.`);
+      return;
+    }
+
+    if (!matchedCustomer.pin_tabungan) {
+      alert(`⚠️ PIN Tabungan Belum Dibuat!\n\nAnggota "${matchedCustomer.nama}" belum memiliki PIN Tabungan.\nSilakan buat PIN terlebih dahulu di menu Tabungan Anggota.`);
+      return;
+    }
+
+    // Validasi PIN Anggota
+    const enteredPin = (document.getElementById('edit-tx-savings-pin')?.value || '').trim();
+    if (!enteredPin) {
+      alert("⚠️ Masukkan 6 digit PIN Anggota untuk konfirmasi pembayaran menggunakan Saldo Tabungan!");
+      document.getElementById('edit-tx-savings-pin')?.focus();
+      return;
+    }
+    if (enteredPin !== matchedCustomer.pin_tabungan) {
+      alert("⛔ PIN Tabungan Anggota Salah! Koreksi transaksi tabungan tidak dapat disimpan.");
+      document.getElementById('edit-tx-savings-pin')?.focus();
+      return;
+    }
+
     // Hitung saldo tabungan efektif saat ini (kembalikan potongan lama transaksi ini dulu jika ada)
     const prevSavingsDeduction = Number(tx.bayar_tabungan) || 0;
     const availableSavings = (Number(matchedCustomer.saldo_tabungan) || 0) + prevSavingsDeduction;
-    if (availableSavings < total) {
-      alert(`⚠️ Saldo tabungan anggota tidak mencukupi!\nSaldo tersedia: Rp ${formatRupiah(availableSavings)}\nTotal tagihan: Rp ${formatRupiah(total)}`);
+    if (availableSavings < finalTotalToPay) {
+      alert(`⚠️ Saldo tabungan anggota tidak mencukupi!\nSaldo tersedia: Rp ${formatRupiah(availableSavings)}\nTotal yang harus dibayar: Rp ${formatRupiah(finalTotalToPay)}`);
       return;
     }
+    cash = finalTotalToPay;
+    kembalian = voucherExcessChange;
   } else if (!isNonCash) {
     const cashInput = document.getElementById('edit-tx-cash-received');
     const cashText = cashInput.value.replace(/\./g, "");
     cash = parseFloat(cashText) || 0;
     
-    if (cash < total) {
-      alert("Pembayaran kurang! Silakan ubah Uang Diterima agar tidak kurang dari total tagihan.");
+    if (cash < finalTotalToPay && finalTotalToPay > 0) {
+      alert(`Pembayaran kurang! Uang diterima Rp ${formatRupiah(cash)} kurang dari total tagihan bersih Rp ${formatRupiah(finalTotalToPay)}.`);
       return;
     }
-    kembalian = cash >= total ? cash - total : 0;
+    kembalian = (cash >= finalTotalToPay ? cash - finalTotalToPay : 0) + voucherExcessChange;
+  } else {
+    cash = finalTotalToPay;
+    kembalian = voucherExcessChange;
   }
   
   // Update stok produk (termasuk komponen paket bundling)
@@ -13210,6 +13996,37 @@ function saveEditedTransaction() {
   tx.bayar = cash;
   tx.kembalian = kembalian;
   tx.metode_pembayaran = metode;
+  tx.diskon_voucher = voucherDiscount;
+  tx.voucher_ditukar = redeemVouchers;
+  tx.kelebihan_voucher_tunai = voucherExcessChange;
+
+  // Jika voucher diclaim pada koreksi transaksi, tandai alokasi voucher menjadi sudah_diambil
+  if (redeemVouchers > 0 && selectedVoucherCheckboxes.length > 0) {
+    const selectedVidSet = new Set();
+    selectedVoucherCheckboxes.forEach(cb => {
+      const vid = cb.getAttribute('data-vid');
+      if (vid) selectedVidSet.add(vid);
+    });
+
+    customVouchers.forEach(cv => {
+      if (!selectedVidSet.has(cv.id)) return;
+      if (!Array.isArray(cv.allocations)) return;
+      cv.allocations.forEach(alloc => {
+        const aId = String(alloc.anggotaId || '');
+        const aName = String(alloc.anggotaNama || '').toLowerCase().trim();
+        const mId = matchedCustomer ? String(matchedCustomer.id || '') : '';
+        const mCode = matchedCustomer ? String(matchedCustomer.kode_anggota || matchedCustomer.id || '') : '';
+        const mName = matchedCustomer ? String(matchedCustomer.nama || '').toLowerCase().trim() : '';
+
+        if ((aId === mId || aId === mCode || (mName && aName === mName)) && alloc.status === 'belum_diambil') {
+          alloc.status = 'sudah_diambil';
+          alloc.tanggalAmbil = new Date().toISOString();
+          alloc.txId = tx.id;
+        }
+      });
+    });
+    saveCustomVouchersLocally();
+  }
   
   // Cari ID anggota jika ada pelanggan yang cocok
   if (customerName) {
@@ -13409,14 +14226,15 @@ function printDailyReport() {
   
   if (filterType === 'hari') {
     const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
-    periodLabel = `Tanggal: ${d}`;
+    periodLabel = `Tanggal: ${formatDateIndo(d)}`;
     targetDateForStock = d;
   } else if (filterType === 'bulan') {
     const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
-    periodLabel = `Bulan: ${m}`;
+    const [yr, mo] = m.split('-');
+    periodLabel = `Bulan: ${mo}/${yr}`;
     // Akhir bulan tersebut
-    const [yr, mo] = m.split('-').map(Number);
-    const lastDay = new Date(yr, mo, 0).getDate();
+    const [yNum, mNum] = m.split('-').map(Number);
+    const lastDay = new Date(yNum, mNum, 0).getDate();
     targetDateForStock = `${m}-${String(lastDay).padStart(2, '0')}`;
   } else if (filterType === 'tahun') {
     const y = document.getElementById('analytics-filter-year')?.value || String(new Date().getFullYear());
@@ -13431,7 +14249,7 @@ function printDailyReport() {
   if (printDateEl) printDateEl.textContent = periodLabel;
   
   const printTimestampEl = document.getElementById('print-rep-timestamp');
-  if (printTimestampEl) printTimestampEl.textContent = "Waktu Cetak: " + new Date().toLocaleString('id-ID');
+  if (printTimestampEl) printTimestampEl.textContent = "Waktu Cetak: " + formatDateTimeIndo(new Date());
   
   // Ambil transaksi periode ini
   const periodTxs = getAnalyticsFilteredTxs();
@@ -13489,6 +14307,137 @@ function printDailyReport() {
     paymentMethodsStats[metode].total += (Number(tx.total) || 0);
   });
   
+  // Hitung Penerimaan Pembayaran Hutang pada periode ini
+  let totalDebtRepaid = 0;
+  const allTxsSource = (analyticsTransactions !== null && analyticsTransactions !== undefined) ? analyticsTransactions : transactions;
+  allTxsSource.forEach(tx => {
+    if (Array.isArray(tx.riwayat_pelunasan)) {
+      tx.riwayat_pelunasan.forEach(p => {
+        if (!p.waktu) return;
+        const pDateStr = parseTxDateStr(p.waktu);
+        let match = false;
+        if (filterType === 'hari') {
+          const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
+          match = (pDateStr === d);
+        } else if (filterType === 'bulan') {
+          const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
+          match = (pDateStr.slice(0, 7) === m);
+        } else if (filterType === 'tahun') {
+          const y = document.getElementById('analytics-filter-year')?.value || String(new Date().getFullYear());
+          match = (pDateStr.slice(0, 4) === y);
+        } else {
+          match = true;
+        }
+        if (match) {
+          totalDebtRepaid += (Number(p.bayar) || 0);
+        }
+      });
+    }
+  });
+
+  // Hitung Kas Masuk & Kas Keluar Laci Kasir pada periode ini
+  let totalKasMasukLaci = 0;
+  let totalKasKeluarLaci = 0;
+  const cashOutNotes = [];
+  const cashInNotes = [];
+
+  if (Array.isArray(expenses)) {
+    expenses.forEach(e => {
+      if (!e.tanggal) return;
+      const eDateStr = parseTxDateStr(e.tanggal);
+      let match = false;
+      if (filterType === 'hari') {
+        const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
+        match = (eDateStr === d);
+      } else if (filterType === 'bulan') {
+        const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
+        match = (eDateStr.slice(0, 7) === m);
+      } else if (filterType === 'tahun') {
+        const y = document.getElementById('analytics-filter-year')?.value || String(new Date().getFullYear());
+        match = (eDateStr.slice(0, 4) === y);
+      } else {
+        match = true;
+      }
+      if (match && e.sumberDana === 'laci_kasir') {
+        const nom = Number(e.nominal) || 0;
+        if (e.tipe === 'masuk') {
+          const isDebtPayment = e.is_debt_payment === true || 
+            (e.kategori && e.kategori.toLowerCase().includes('pelunasan piutang')) ||
+            (e.id && String(e.id).startsWith('EXP_') && e.kategori === 'Pelunasan Piutang');
+          if (!isDebtPayment) {
+            totalKasMasukLaci += nom;
+            cashInNotes.push(`${e.kategori || 'Kas Masuk'} (Rp ${formatRupiah(nom)})`);
+          }
+        } else {
+          totalKasKeluarLaci += nom;
+          cashOutNotes.push(`${e.kategori || 'Biaya'} - ${e.keterangan || 'Operasional'} (Rp ${formatRupiah(nom)})`);
+        }
+      }
+    });
+  }
+
+  // Hitung Pembayaran Nota ke Sales yang dipotong dari Saldo Kasir (saldo_penjualan)
+  let totalSalesPaidFromCash = 0;
+  const salesPaidNotes = [];
+  if (Array.isArray(salesDeliveries)) {
+    salesDeliveries.forEach(d => {
+      if (Array.isArray(d.riwayatBayar)) {
+        d.riwayatBayar.forEach(b => {
+          if (!b.tanggal) return;
+          const bDateStr = parseTxDateStr(b.tanggal);
+          let match = false;
+          if (filterType === 'hari') {
+            const dateVal = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
+            match = (bDateStr === dateVal);
+          } else if (filterType === 'bulan') {
+            const monthVal = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
+            match = (bDateStr.slice(0, 7) === monthVal);
+          } else if (filterType === 'tahun') {
+            const yearVal = document.getElementById('analytics-filter-year')?.value || String(new Date().getFullYear());
+            match = (bDateStr.slice(0, 4) === yearVal);
+          } else {
+            match = true;
+          }
+          if (match && b.sumberDana === 'saldo_penjualan') {
+            const nom = Number(b.nominal) || 0;
+            totalSalesPaidFromCash += nom;
+            salesPaidNotes.push(`Nota ${d.noNota || ''} (${d.salesName || 'Sales'}): Rp ${formatRupiah(nom)}`);
+          }
+        });
+      }
+    });
+  }
+
+  // Hitung Pencairan Hutang Manual Anggota yang diambil dari Saldo Kasir (saldo_penjualan)
+  let totalManualDebtFromCash = 0;
+  const manualDebtNotes = [];
+  allTxsSource.forEach(tx => {
+    if (tx.is_manual_debt && tx.sumber_dana === 'saldo_penjualan' && tx.waktu) {
+      const txDateStr = parseTxDateStr(tx.waktu);
+      let match = false;
+      if (filterType === 'hari') {
+        const dateVal = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
+        match = (txDateStr === dateVal);
+      } else if (filterType === 'bulan') {
+        const monthVal = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
+        match = (txDateStr.slice(0, 7) === monthVal);
+      } else if (filterType === 'tahun') {
+        const yearVal = document.getElementById('analytics-filter-year')?.value || String(new Date().getFullYear());
+        match = (txDateStr.slice(0, 4) === yearVal);
+      } else {
+        match = true;
+      }
+      if (match) {
+        const netDisbursed = Math.max(0, (Number(tx.total) || 0) - (Number(tx.bayar) || 0));
+        totalManualDebtFromCash += netDisbursed;
+        manualDebtNotes.push(`${tx.pelanggan || 'Anggota'} (${tx.keterangan_manual || 'Bon'}): Rp ${formatRupiah(netDisbursed)}`);
+      }
+    }
+  });
+
+  // Saldo Kas Riil Tersedia (Cash Revenue Nyata)
+  const effectiveCashRevenue = Math.max(0, revenue + totalDebtRepaid + totalKasMasukLaci - totalKasKeluarLaci - totalSalesPaidFromCash - totalManualDebtFromCash);
+
   // 1. Render Metrik Keuangan
   const elRev = document.getElementById('print-rep-revenue');
   const elHpp = document.getElementById('print-rep-gross-profit');
@@ -13501,6 +14450,45 @@ function printDailyReport() {
   if (elNet) elNet.textContent = `Rp ${formatRupiah(netProfit)}`;
   if (elTxCount) elTxCount.textContent = `${periodTxs.length} Transaksi`;
   if (elItemsSold) elItemsSold.textContent = `${totalItemsSold} Pcs`;
+
+  // 2. Render Rincian Saldo Kas Riil (Cash Revenue)
+  const elCashSales = document.getElementById('print-rep-cash-sales');
+  const elCashDebtRepaid = document.getElementById('print-rep-cash-debt-repaid');
+  const elCashIn = document.getElementById('print-rep-cash-in');
+  const elCashOut = document.getElementById('print-rep-cash-out');
+  const elCashSalesPaid = document.getElementById('print-rep-cash-sales-paid');
+  const elCashManualDebt = document.getElementById('print-rep-cash-manual-debt');
+  const elCashFinal = document.getElementById('print-rep-cash-final');
+  const elCashNotes = document.getElementById('print-rep-cash-notes');
+
+  if (elCashSales) elCashSales.textContent = `Rp ${formatRupiah(revenue)}`;
+  if (elCashDebtRepaid) elCashDebtRepaid.textContent = `+ Rp ${formatRupiah(totalDebtRepaid)}`;
+  if (elCashIn) elCashIn.textContent = `+ Rp ${formatRupiah(totalKasMasukLaci)}`;
+  if (elCashOut) elCashOut.textContent = `- Rp ${formatRupiah(totalKasKeluarLaci)}`;
+  if (elCashSalesPaid) elCashSalesPaid.textContent = `- Rp ${formatRupiah(totalSalesPaidFromCash)}`;
+  if (elCashManualDebt) elCashManualDebt.textContent = `- Rp ${formatRupiah(totalManualDebtFromCash)}`;
+  if (elCashFinal) elCashFinal.textContent = `Rp ${formatRupiah(effectiveCashRevenue)}`;
+
+  if (elCashNotes) {
+    const noteItems = [];
+    if (cashInNotes.length > 0) {
+      noteItems.push(`• <b>Kas Masuk Laci</b>: ${cashInNotes.join(', ')}`);
+    }
+    if (cashOutNotes.length > 0) {
+      noteItems.push(`• <b>Biaya Keluar Laci</b>: ${cashOutNotes.join(', ')}`);
+    }
+    if (salesPaidNotes.length > 0) {
+      noteItems.push(`• <b>Bayar Nota Sales (Potong Saldo Kas)</b>: ${salesPaidNotes.join(', ')}`);
+    }
+    if (manualDebtNotes.length > 0) {
+      noteItems.push(`• <b>Pinjaman Bon Anggota (Cair dari Kas)</b>: ${manualDebtNotes.join(', ')}`);
+    }
+    if (noteItems.length > 0) {
+      elCashNotes.innerHTML = `<div style="border-top: 1px dashed #ccc; padding-top: 0.35rem; line-height: 1.4;">${noteItems.join('<br>')}</div>`;
+    } else {
+      elCashNotes.innerHTML = '';
+    }
+  }
   
   // 2. Render Rincian Metode Pembayaran
   const printPaymentEl = document.getElementById('print-rep-payment-methods');
@@ -14076,24 +15064,118 @@ window.addEventListener('afterprint', () => {
   document.body.classList.remove('printing-labels');
 });
 
-// --- NOTIFIKASI KENAIKAN HARGA (FITUR BARU) ---
-function showPriceChangeNotification(p, oldPrice, newPrice) {
-  document.getElementById('price-change-prod-name').textContent = p.nama;
-  document.getElementById('price-change-old').textContent = `Rp ${formatRupiah(oldPrice)}`;
-  document.getElementById('price-change-new').textContent = `Rp ${formatRupiah(newPrice)}`;
-  
+// --- NOTIFIKASI PERUBAHAN HARGA (KENAIKAN / PENURUNAN HARGA - TAMPILAN SAMA PERSIS SESUAI DESAIN) ---
+function showPriceChangeNotification(pOrList, oldPrice, newPrice) {
+  const modal = document.getElementById('price-change-modal');
+  if (!modal) return;
+
+  const titleText = document.getElementById('price-change-title-text');
+  const titleHeader = document.getElementById('price-change-modal-title');
+  const descText = document.getElementById('price-change-desc-text');
+  const singleBox = document.getElementById('price-change-single-box');
+  const multiBox = document.getElementById('price-change-multi-box');
+  const multiList = document.getElementById('price-change-multi-list');
   const btnPrint = document.getElementById('btn-print-change-label');
+
+  // Cek apakah parameter berupa Array (Multi-Produk dari Nota Sales) atau Single Object
+  if (Array.isArray(pOrList)) {
+    const list = pOrList;
+    if (list.length === 0) return;
+
+    if (list.length === 1) {
+      // 1 Produk dalam array
+      const item = list[0];
+      return showPriceChangeNotification(item.product, item.oldPrice, item.newPrice);
+    }
+
+    // Lebih dari 1 produk
+    const anyIncrease = list.some(x => x.newPrice > x.oldPrice);
+    const anyDecrease = list.some(x => x.newPrice < x.oldPrice);
+    let titleStr = 'Perubahan Harga Terdeteksi!';
+    if (anyIncrease && !anyDecrease) titleStr = 'Kenaikan Harga Terdeteksi!';
+    else if (!anyIncrease && anyDecrease) titleStr = 'Penurunan Harga Terdeteksi!';
+
+    if (titleText) titleText.textContent = titleStr;
+    if (titleHeader) titleHeader.style.color = (anyIncrease && !anyDecrease) ? '#f59e0b' : '#0284c7';
+
+    if (descText) {
+      descText.innerHTML = `Terdeteksi perubahan harga jual pada <strong>${list.length} produk</strong>:`;
+    }
+
+    if (singleBox) singleBox.style.display = 'none';
+    if (multiBox) multiBox.style.display = 'block';
+
+    if (multiList) {
+      multiList.innerHTML = list.map(item => {
+        const isUp = item.newPrice > item.oldPrice;
+        const color = isUp ? '#10b981' : '#0284c7';
+        return `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0; border-bottom: 1px dashed #fed7aa; font-size: 0.88rem;">
+            <span style="font-weight: 700; color: #1e293b; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(item.product.nama)}</span>
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <span style="text-decoration: line-through; color: #64748b; font-size: 0.82rem;">Rp ${formatRupiah(item.oldPrice)}</span>
+              <span style="font-weight: 700; color: #ea580c; font-size: 0.85rem;">&rarr;</span>
+              <span style="font-weight: 800; color: ${color}; font-size: 0.95rem;">Rp ${formatRupiah(item.newPrice)}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    btnPrint.onclick = () => {
+      closePriceChangeModal();
+      selectedProductIds.clear();
+      list.forEach(item => {
+        if (item.product && item.product.id) selectedProductIds.add(item.product.id);
+      });
+      if (typeof openBulkPrintLabelModal === 'function') {
+        openBulkPrintLabelModal();
+      }
+    };
+
+    modal.classList.add('active');
+    return;
+  }
+
+  // Single Product
+  const p = pOrList;
+  const isUp = Number(newPrice) > Number(oldPrice);
+  const isDown = Number(newPrice) < Number(oldPrice);
+
+  if (titleText) {
+    titleText.textContent = isUp ? 'Kenaikan Harga Terdeteksi!' : (isDown ? 'Penurunan Harga Terdeteksi!' : 'Perubahan Harga Terdeteksi!');
+  }
+  if (titleHeader) {
+    titleHeader.style.color = isUp ? '#f59e0b' : '#0284c7';
+  }
+
+  if (descText) {
+    const actionWord = isUp ? 'dinaikkan' : (isDown ? 'diturunkan' : 'diubah');
+    descText.innerHTML = `Harga jual produk <strong id="price-change-prod-name" style="color: #0f172a; font-weight: 800;">${escapeHtml(p.nama)}</strong> telah ${actionWord}:`;
+  }
+
+  const elOld = document.getElementById('price-change-old');
+  const elNew = document.getElementById('price-change-new');
+  if (elOld) elOld.textContent = `Rp ${formatRupiah(oldPrice)}`;
+  if (elNew) {
+    elNew.textContent = `Rp ${formatRupiah(newPrice)}`;
+    elNew.style.color = isUp ? '#10b981' : '#0284c7';
+  }
+
+  if (singleBox) singleBox.style.display = 'flex';
+  if (multiBox) multiBox.style.display = 'none';
+
   btnPrint.onclick = () => {
     closePriceChangeModal();
     openPrintLabelModal(p.id, 'shelf');
   };
-  
-  document.getElementById('price-change-modal').classList.add('active');
+
+  modal.classList.add('active');
 }
 
 function closePriceChangeModal() {
-  document.getElementById('price-change-modal').classList.remove('active');
-  if (activeTab === 'products') focusProductListSearch();
+  document.getElementById('price-change-modal')?.classList.remove('active');
+  if (activeTab === 'products' && typeof focusProductListSearch === 'function') focusProductListSearch();
 }
 
 // --- FITUR CETAK LABEL MASSAL (BULK PRINTING - FITUR BARU) ---
@@ -14797,20 +15879,10 @@ function switchLoyaltyRewardMode(mode) {
 }
 
 function syncLoyaltySettingsUI() {
-  const pointsModeAllowed = appConfig && appConfig.enableLoyaltyPointsMode === true;
-  const lblPoints = document.getElementById('lbl-mode-points');
-  if (lblPoints) {
-    lblPoints.style.display = pointsModeAllowed ? 'flex' : 'none';
-  }
-
-  // Jika opsi poin tidak diaktifkan di Pengaturan Sistem Toko, paksa rewardMode ke voucher
-  if (!pointsModeAllowed && loyaltySettings.rewardMode === 'points') {
-    loyaltySettings.rewardMode = 'voucher';
-    localStorage.setItem('kasir_loyalty_settings', JSON.stringify(loyaltySettings));
-    saveLoyaltySettingsCloud();
-  }
-
   const isVoucher = (loyaltySettings.rewardMode === 'voucher');
+  if (appConfig) {
+    appConfig.enableLoyaltyPointsMode = !isVoucher;
+  }
   tempPreviewLoyaltyMode = loyaltySettings.rewardMode;
 
   const statusText = document.getElementById('loyalty-modal-status-text');
@@ -15296,6 +16368,9 @@ function renderCustomersTable() {
       <div style="display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; flex-wrap: wrap;">
         <button type="button" class="btn btn-sm" onclick="openCustomerIdCard('${c.id}')" title="Cetak ID Card Anggota" style="border-radius: 7px; padding: 0.32rem 0.6rem; font-weight: 700; font-size: 0.76rem; background: linear-gradient(135deg, #b45309, #ea580c); color: #fff; border: none; display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap; box-shadow: 0 1px 3px rgba(234,88,12,0.25);">
           <span>🪪 ID Card</span>
+        </button>
+        <button type="button" class="btn btn-sm" onclick="openEditMemberVouchersModal('${c.id}')" title="Kelola & Edit Voucher Anggota" style="border-radius: 7px; padding: 0.32rem 0.6rem; font-weight: 700; font-size: 0.76rem; background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; border: none; display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap; box-shadow: 0 1px 3px rgba(217,119,6,0.25);">
+          <span>🎟️ Voucher</span>
         </button>
         <button type="button" class="btn btn-sm" onclick="openSavingsAccountModal('${c.id}')" title="Kelola Saldo Tabungan" style="border-radius: 7px; padding: 0.32rem 0.6rem; font-weight: 700; font-size: 0.76rem; background: #0284c7; color: #fff; border: none; display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap;">
           <span>🏦 Tabungan</span>
@@ -16519,7 +17594,11 @@ function renderCustomVoucherMembersList(keyword = '', filterInstansi = '', filte
     return;
   }
 
-  filtered.forEach(c => {
+  // Optimasi Performa: Jika anggota sangat banyak, batasi render 100 baris pertama untuk kelancaran DOM
+  const MAX_DISPLAY = 100;
+  const displayList = filtered.slice(0, MAX_DISPLAY);
+
+  displayList.forEach(c => {
     const custId = c.id;
     const kode = c.kode_anggota || c.id;
     const tr = document.createElement('tr');
@@ -16541,6 +17620,16 @@ function renderCustomVoucherMembersList(keyword = '', filterInstansi = '', filte
     `;
     tbody.appendChild(tr);
   });
+
+  if (filtered.length > MAX_DISPLAY) {
+    const noteTr = document.createElement('tr');
+    noteTr.innerHTML = `
+      <td colspan="4" style="text-align:center; padding: 0.6rem; background: #fff7ed; color: #c2410c; font-size: 0.78rem; font-weight: 700;">
+        ⚡ Menampilkan ${MAX_DISPLAY} dari total ${filtered.length} anggota untuk menjaga kecepatan aplikasi. Gunakan pencarian atau filter instansi/alamat di atas untuk menjangkau anggota lainnya.
+      </td>
+    `;
+    tbody.appendChild(noteTr);
+  }
 }
 
 function filterCustomVoucherMemberList(val) {
@@ -16641,6 +17730,252 @@ function saveCustomVoucher(event) {
   closeCreateCustomVoucherModal();
 
   alert(`🎉 Sukses membuat Voucher "${namaVoucher}" untuk ${allocations.length} anggota!`);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MODUL: KELOLA & EDIT VOUCHER ANGGOTA TERTENTU
+// ═════════════════════════════════════════════════════════════════════════════
+let activeEditMemberVouchersCustomerId = null;
+
+function openEditMemberVouchersModal(customerId) {
+  const c = customers.find(x => x.id === customerId);
+  if (!c) {
+    alert("Data anggota tidak ditemukan!");
+    return;
+  }
+  activeEditMemberVouchersCustomerId = customerId;
+
+  const infoEl = document.getElementById('emv-member-info');
+  if (infoEl) {
+    infoEl.textContent = `Anggota: ${c.nama} (${c.kode_anggota || c.id}) ${c.instansi ? '• ' + c.instansi : ''}`;
+  }
+
+  const grantContainer = document.getElementById('emv-grant-new-container');
+  if (grantContainer) grantContainer.style.display = 'none';
+
+  renderEditMemberVouchersList();
+
+  const modal = document.getElementById('edit-member-vouchers-modal');
+  if (modal) {
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+  }
+}
+
+function closeEditMemberVouchersModal() {
+  const modal = document.getElementById('edit-member-vouchers-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('active');
+  }
+  activeEditMemberVouchersCustomerId = null;
+  renderCustomersTable();
+}
+
+function renderEditMemberVouchersList() {
+  const container = document.getElementById('emv-vouchers-list');
+  if (!container || !activeEditMemberVouchersCustomerId) return;
+
+  const c = customers.find(x => x.id === activeEditMemberVouchersCustomerId);
+  if (!c) return;
+
+  const custId = String(c.id || '');
+  const custCode = String(c.kode_anggota || c.id || '');
+  const custName = String(c.nama || '').toLowerCase().trim();
+
+  // Kumpulkan semua alokasi voucher milik anggota ini
+  const memberVoucherItems = [];
+  customVouchers.forEach(cv => {
+    if (!Array.isArray(cv.allocations)) return;
+    cv.allocations.forEach((alloc, allocIdx) => {
+      const aId = String(alloc.anggotaId || '');
+      const aName = String(alloc.anggotaNama || '').toLowerCase().trim();
+      if (aId === custId || aId === custCode || (aName && aName === custName)) {
+        memberVoucherItems.push({
+          voucherId: cv.id,
+          namaVoucher: cv.namaVoucher,
+          kategori: cv.kategori || 'Umum',
+          tipeKadaluarsa: cv.tipeKadaluarsa || 'tanpa_kadaluarsa',
+          tanggalKadaluarsa: cv.tanggalKadaluarsa || null,
+          allocIdx,
+          nominal: parseInt(alloc.nominal) || 0,
+          status: alloc.status || 'belum_diambil',
+          tanggalAmbil: alloc.tanggalAmbil || null,
+          txId: alloc.txId || null
+        });
+      }
+    });
+  });
+
+  if (memberVoucherItems.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 2rem 1rem; color: var(--text-muted); background: var(--bg-card); border: 1px dashed var(--border-color); border-radius: 12px;">
+        <span style="font-size: 1.5rem; display: block; margin-bottom: 0.35rem;">🎟️</span>
+        <div style="font-weight: 700; font-size: 0.88rem;">Belum ada voucher yang diberikan kepada anggota ini.</div>
+        <div style="font-size: 0.76rem; margin-top: 0.25rem;">Klik tombol <strong>+ Berikan Voucher Baru</strong> di atas untuk menambahkan voucher langsung.</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = memberVoucherItems.map(item => {
+    const isClaimed = item.status === 'sudah_diambil';
+    const statusBadge = isClaimed
+      ? `<span style="background: rgba(16,185,129,0.12); color: #059669; font-size: 0.72rem; font-weight: 800; padding: 0.2rem 0.55rem; border-radius: 999px;">✓ Sudah Digunakan</span>`
+      : `<span style="background: rgba(234,88,12,0.12); color: #ea580c; font-size: 0.72rem; font-weight: 800; padding: 0.2rem 0.55rem; border-radius: 999px;">⏳ Belum Digunakan</span>`;
+
+    const txInfo = item.txId ? `<span style="color: #64748b; font-size: 0.72rem;">(Nota #${item.txId})</span>` : '';
+
+    return `
+      <div style="background: var(--bg-card); border: 1.5px solid ${isClaimed ? 'var(--border-color)' : 'rgba(234,88,12,0.3)'}; border-radius: 12px; padding: 0.75rem 0.95rem; display: flex; flex-direction: column; gap: 0.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;">
+          <div>
+            <div style="font-weight: 800; font-size: 0.9rem; color: var(--text-main); display: flex; align-items: center; gap: 0.35rem;">
+              <span>🎟️ ${item.namaVoucher}</span>
+              <span style="font-size: 0.7rem; font-weight: 600; color: #64748b; background: var(--bg-body); padding: 0.1rem 0.4rem; border-radius: 4px;">${item.kategori}</span>
+            </div>
+            <div style="font-size: 0.73rem; color: var(--text-muted); margin-top: 2px;">
+              ${item.tanggalKadaluarsa ? `Kadaluarsa: <strong>${item.tanggalKadaluarsa}</strong>` : 'Berlaku Selamanya'} ${txInfo}
+            </div>
+          </div>
+          <div>${statusBadge}</div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding-top: 0.4rem; border-top: 1px dashed var(--border-color); flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <label style="font-size: 0.76rem; font-weight: 700; color: var(--text-muted);">Nominal:</label>
+            <input type="text" value="${formatRupiah(item.nominal)}" oninput="formatQuickVoucherNominal(this)" id="emv-input-${item.voucherId}-${item.allocIdx}" style="width: 105px; font-size: 0.82rem; font-weight: 800; padding: 0.22rem 0.45rem; border-radius: 6px; border: 1px solid var(--border-color); text-align: right;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="saveEditedMemberVoucherNominal('${item.voucherId}', ${item.allocIdx})" style="padding: 0.22rem 0.55rem; font-size: 0.72rem; font-weight: 700; border-radius: 6px;">Simpan</button>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 0.35rem;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleMemberVoucherStatus('${item.voucherId}', ${item.allocIdx})" title="Ubah status sudah/belum diambil" style="font-size: 0.72rem; padding: 0.22rem 0.55rem;">
+              ${isClaimed ? 'Kembalikan Belum Klaim' : 'Tandai Sudah Klaim'}
+            </button>
+            <button type="button" class="btn btn-danger btn-sm" onclick="deleteMemberVoucherAllocation('${item.voucherId}', ${item.allocIdx})" title="Hapus voucher ini dari anggota" style="font-size: 0.72rem; padding: 0.22rem 0.5rem; background: #ef4444; border-color: #ef4444; color: #fff;">
+              Hapus
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function saveEditedMemberVoucherNominal(voucherId, allocIdx) {
+  const input = document.getElementById(`emv-input-${voucherId}-${allocIdx}`);
+  if (!input) return;
+  const newNominal = parseInt(input.value.replace(/\D/g, '')) || 0;
+  if (newNominal <= 0) {
+    alert("Nominal voucher harus lebih dari Rp 0!");
+    return;
+  }
+
+  const cv = customVouchers.find(v => v.id === voucherId);
+  if (!cv || !cv.allocations || !cv.allocations[allocIdx]) {
+    alert("Data voucher tidak ditemukan!");
+    return;
+  }
+
+  cv.allocations[allocIdx].nominal = newNominal;
+  saveCustomVouchersLocally();
+  renderEditMemberVouchersList();
+  renderCustomersTable();
+  alert("✓ Nominal voucher berhasil diperbarui!");
+}
+
+function toggleMemberVoucherStatus(voucherId, allocIdx) {
+  const cv = customVouchers.find(v => v.id === voucherId);
+  if (!cv || !cv.allocations || !cv.allocations[allocIdx]) return;
+
+  const current = cv.allocations[allocIdx].status || 'belum_diambil';
+  if (current === 'sudah_diambil') {
+    cv.allocations[allocIdx].status = 'belum_diambil';
+    cv.allocations[allocIdx].tanggalAmbil = null;
+    cv.allocations[allocIdx].txId = null;
+  } else {
+    cv.allocations[allocIdx].status = 'sudah_diambil';
+    cv.allocations[allocIdx].tanggalAmbil = new Date().toISOString();
+  }
+
+  saveCustomVouchersLocally();
+  renderEditMemberVouchersList();
+  renderCustomersTable();
+}
+
+function deleteMemberVoucherAllocation(voucherId, allocIdx) {
+  if (!confirm("Apakah Anda yakin ingin menghapus voucher ini dari anggota?")) return;
+
+  const cv = customVouchers.find(v => v.id === voucherId);
+  if (!cv || !cv.allocations) return;
+
+  cv.allocations.splice(allocIdx, 1);
+  saveCustomVouchersLocally();
+  renderEditMemberVouchersList();
+  renderCustomersTable();
+}
+
+function openGrantVoucherToMemberForm() {
+  const container = document.getElementById('emv-grant-new-container');
+  const sel = document.getElementById('emv-new-voucher-select');
+  if (!container || !sel) return;
+
+  if (customVouchers.length === 0) {
+    alert("Belum ada program voucher yang dibuat! Silakan buat Voucher Custom terlebih dahulu melalui tombol 'Buat Voucher Custom'.");
+    return;
+  }
+
+  let opts = '';
+  customVouchers.forEach(v => {
+    opts += `<option value="${v.id}">🎟️ ${v.namaVoucher} (${v.kategori || 'Umum'})</option>`;
+  });
+  sel.innerHTML = opts;
+
+  const nomInp = document.getElementById('emv-new-nominal');
+  if (nomInp) nomInp.value = '10.000';
+
+  container.style.display = 'block';
+}
+
+function submitGrantVoucherToMember() {
+  if (!activeEditMemberVouchersCustomerId) return;
+  const c = customers.find(x => x.id === activeEditMemberVouchersCustomerId);
+  if (!c) return;
+
+  const vId = document.getElementById('emv-new-voucher-select')?.value;
+  const nomInp = document.getElementById('emv-new-nominal');
+  const nominal = parseInt(nomInp ? nomInp.value.replace(/\D/g, '') : 0) || 0;
+
+  if (!vId) {
+    alert("Pilih program voucher!");
+    return;
+  }
+  if (nominal <= 0) {
+    alert("Masukkan nominal voucher yang valid!");
+    return;
+  }
+
+  const cv = customVouchers.find(v => v.id === vId);
+  if (!cv) {
+    alert("Voucher program tidak ditemukan!");
+    return;
+  }
+  if (!Array.isArray(cv.allocations)) cv.allocations = [];
+
+  cv.allocations.push({
+    anggotaId: c.id,
+    anggotaNama: c.nama,
+    nominal,
+    status: 'belum_diambil',
+    tanggalAmbil: null,
+    txId: null
+  });
+
+  saveCustomVouchersLocally();
+  document.getElementById('emv-grant-new-container').style.display = 'none';
+  renderEditMemberVouchersList();
+  renderCustomersTable();
+  alert(`✓ Berhasil menambahkan voucher "${cv.namaVoucher}" senilai Rp ${formatRupiah(nominal)} untuk ${c.nama}!`);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -16922,6 +18257,8 @@ function submitSavingsTransaction(event) {
       nominal: amount,
       kategori: isSetor ? 'Setoran Tabungan Anggota' : 'Penarikan Tabungan Anggota',
       is_savings_mutation: true,
+      customerId: c.id,
+      savingsType: type,
       sumberDana: 'laci_kasir',
       keterangan: `${isSetor ? 'Setor' : 'Tarik'} Tabungan Anggota [${c.kode_anggota || c.id}] ${c.nama}${notes ? ' - ' + notes : ''}`,
       staff: activeCashier || 'Kasir'
@@ -17296,7 +18633,7 @@ function renderMemberPortalSavings(c) {
     const bg = isPlus ? '#dcfce7' : (isBayar ? '#fef3c7' : '#fee2e2');
     const sign = isPlus ? '+' : '-';
     const label = isPlus ? '📥 Setor Saldo' : (isBayar ? '🛍️ Bayar Belanja Kasir' : '📤 Tarik Tunai');
-    const dateFormatted = new Date(h.waktu).toLocaleString('id-ID');
+    const dateFormatted = formatDateTimeIndo(h.waktu);
     const nominal = h.nominal !== undefined ? h.nominal : (h.jumlah || 0);
     const sisa = h.sisa_saldo !== undefined ? h.sisa_saldo : (h.saldo_setelah || 0);
 
@@ -17341,7 +18678,7 @@ function renderMemberPortalShoppingHistory(memberTxs) {
   const sorted = [...memberTxs].sort((a,b) => new Date(b.waktu) - new Date(a.waktu));
 
   container.innerHTML = sorted.map(tx => {
-    const dateFormatted = new Date(tx.waktu).toLocaleString('id-ID');
+    const dateFormatted = formatDateTimeIndo(tx.waktu);
     const items = Array.isArray(tx.items) ? tx.items : [];
     const isBon = (tx.status_pembayaran === 'Bon') || ((tx.sisa_piutang || 0) > 0);
 
@@ -17397,7 +18734,7 @@ function renderMemberPortalDebt(unpaidTxs, c) {
 
   container.innerHTML = unpaidTxs.map(tx => {
     const sisa = Number(tx.sisa_piutang) || 0;
-    const dateFormatted = new Date(tx.waktu).toLocaleDateString('id-ID');
+    const dateFormatted = formatDateIndo(tx.waktu);
     const isOverdue = tx.jatuh_tempo && new Date(tx.jatuh_tempo) < new Date(new Date().setHours(0,0,0,0));
 
     return `
@@ -17405,7 +18742,7 @@ function renderMemberPortalDebt(unpaidTxs, c) {
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
           <strong style="font-size: 0.85rem; font-family: monospace; color: #991b1b;">${escapeHtml(tx.id)}</strong>
           <span style="font-size: 0.74rem; font-weight: 700; color: ${isOverdue ? '#dc2626' : '#ea580c'};">
-            ${isOverdue ? '⚠️ Lewat Jatuh Tempo' : (tx.jatuh_tempo ? 'Jatuh Tempo: ' + tx.jatuh_tempo : 'Tanpa Jatuh Tempo')}
+            ${isOverdue ? '⚠️ Lewat Jatuh Tempo' : (tx.jatuh_tempo ? 'Jatuh Tempo: ' + formatDateIndo(tx.jatuh_tempo) : 'Tanpa Jatuh Tempo')}
           </span>
         </div>
         <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem;">
@@ -17508,6 +18845,311 @@ function renderMemberPortalApplications(c) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// NOTIFIKASI SUARA & BADGE PENGAJUAN PINJAMAN DARI PORTAL ANGGOTA
+// ═════════════════════════════════════════════════════════════════════════════
+let lastPendingDebtAppCount = 0;
+let hasInitialDebtAppCheckDone = false;
+
+function playLoanNotificationSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    const now = ctx.currentTime;
+    
+    // Nada 1: 587.33 Hz (D5) - nada lembut awal
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, now);
+    gain1.gain.setValueAtTime(0, now);
+    gain1.gain.linearRampToValueAtTime(0.3, now + 0.04);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.32);
+
+    // Nada 2: 880 Hz (A5) - nada lonceng kedua yang jelas
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880, now + 0.16);
+    gain2.gain.setValueAtTime(0, now + 0.16);
+    gain2.gain.linearRampToValueAtTime(0.35, now + 0.2);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.16);
+    osc2.stop(now + 0.65);
+  } catch (e) {
+    console.warn('Audio notification error:', e);
+  }
+}
+
+function checkAndNotifyPendingDebtApplications(isLiveUpdate = false) {
+  const pendingApps = [];
+  const pendingPointApps = [];
+
+  // Selalu pastikan mengambil data pelanggan terbaru dari localStorage atau memori
+  let custSource = customers;
+  try {
+    const cachedCust = localStorage.getItem('kasir_customers');
+    if (cachedCust) {
+      const parsed = JSON.parse(cachedCust);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        custSource = parsed;
+        customers = parsed; // Sync global
+      }
+    }
+  } catch (e) {}
+
+  if (Array.isArray(custSource)) {
+    custSource.forEach(cust => {
+      if (Array.isArray(cust.pengajuan_hutang)) {
+        cust.pengajuan_hutang.forEach(app => {
+          if (app.status === 'Menunggu Persetujuan Admin' || !app.status) {
+            pendingApps.push({ ...app, custId: cust.id, custNama: cust.nama, custTelp: cust.telepon });
+          }
+        });
+      }
+      if (Array.isArray(cust.pengajuan_klaim_poin)) {
+        cust.pengajuan_klaim_poin.forEach(clm => {
+          if (clm.status === 'Menunggu Persetujuan Admin' || !clm.status) {
+            pendingPointApps.push({ ...clm, custId: cust.id, custNama: cust.nama, custTelp: cust.telepon });
+          }
+        });
+      }
+    });
+  }
+
+  const count = pendingApps.length;
+  const pointCount = pendingPointApps.length;
+  const totalNotif = count + pointCount;
+
+  // 1. Update Badge Top Nav "Anggota" (#badge-nav-debt-apps)
+  const navBadge = document.getElementById('badge-nav-debt-apps');
+  if (navBadge) {
+    if (totalNotif > 0) {
+      navBadge.textContent = totalNotif;
+      navBadge.style.display = 'inline-block';
+      navBadge.title = `${count} Pengajuan Pinjaman, ${pointCount} Klaim Poin Menunggu Review`;
+    } else {
+      navBadge.style.display = 'none';
+    }
+  }
+
+  // 2. Update Badge Sub-tab "Buku Hutang" (#badge-subtab-debt-apps)
+  const subtabBadge = document.getElementById('badge-subtab-debt-apps');
+  if (subtabBadge) {
+    if (totalNotif > 0) {
+      subtabBadge.textContent = `${totalNotif} Pengajuan Baru`;
+      subtabBadge.style.display = 'inline-block';
+    } else {
+      subtabBadge.style.display = 'none';
+    }
+  }
+
+  // 3. Suara notifikasi & Toast popup jika ada pengajuan pinjaman/poin baru masuk
+  if (hasInitialDebtAppCheckDone) {
+    if (count > lastPendingDebtAppCount) {
+      playLoanNotificationSound();
+      const latestApp = pendingApps[0];
+      const custName = latestApp ? latestApp.custNama : 'Anggota';
+      const nom = latestApp ? `Rp ${formatRupiah(latestApp.nominal)}` : '';
+      if (typeof showPosToast === 'function') {
+        showPosToast(`📬 <b>Pengajuan Pinjaman Masuk!</b><br>${escapeHtml(custName)} mengajukan pinjaman ${nom}. Cek menu Anggota &gt; Buku Hutang.`, 'warning');
+      }
+    } else if (pointCount > (window.lastPendingPointAppCount || 0)) {
+      playLoanNotificationSound();
+      const latestClm = pendingPointApps[0];
+      const custName = latestClm ? latestClm.custNama : 'Anggota';
+      const nom = latestClm ? `${formatRupiah(latestClm.poin)} Poin (Rp ${formatRupiah(latestClm.nilai_rupiah)})` : '';
+      if (typeof showPosToast === 'function') {
+        showPosToast(`🪙 <b>Pengajuan Klaim Poin Masuk!</b><br>${escapeHtml(custName)} mencairkan ${nom}. Cek menu Anggota &gt; Buku Hutang.`, 'info');
+      }
+    }
+  } else {
+    hasInitialDebtAppCheckDone = true;
+  }
+
+  lastPendingDebtAppCount = count;
+  window.lastPendingPointAppCount = pointCount;
+}
+
+// Listener storage antar-tab: mendeteksi pengajuan baru yang dikirim dari tab portal.html secara instan
+window.addEventListener('storage', (e) => {
+  if (e.key === 'kasir_customers') {
+    try {
+      const parsed = JSON.parse(e.newValue || '[]');
+      if (Array.isArray(parsed)) {
+        customers = parsed;
+        checkAndNotifyPendingDebtApplications(true);
+        const debtSubView = document.getElementById('cust-subview-debt');
+        if (debtSubView && debtSubView.style.display !== 'none' && typeof renderCustomerDebtBook === 'function') {
+          renderCustomerDebtBook();
+        }
+      }
+    } catch (err) {}
+  }
+});
+
+// Periodic background check setiap 6 detik untuk mendeteksi pengajuan baru di browser/desktop
+setInterval(() => {
+  if (typeof checkAndNotifyPendingDebtApplications === 'function') {
+    checkAndNotifyPendingDebtApplications(true);
+  }
+}, 6000);
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROSES PERSETUJUAN / PENOLAKAN PENGAJUAN KLAIM POIN ANGGOTA
+// ═════════════════════════════════════════════════════════════════════════════
+function approveMemberPointApplication(appId, custId) {
+  const c = customers.find(x => x.id === custId);
+  if (!c || !Array.isArray(c.pengajuan_klaim_poin)) {
+    alert("Data pengajuan klaim poin tidak ditemukan!");
+    return;
+  }
+
+  const app = c.pengajuan_klaim_poin.find(a => a.id === appId);
+  if (!app) {
+    alert("Permohonan klaim poin tidak ditemukan!");
+    return;
+  }
+
+  if (app.status === 'Disetujui' || app.status === 'Selesai') {
+    alert("Permohonan klaim poin ini sudah disetujui sebelumnya.");
+    return;
+  }
+
+  const currentPoints = Math.max(0, parseInt(c.poin, 10) || 0);
+  const claimPoints = Math.max(0, parseInt(app.poin, 10) || 0);
+  const nominalRp = Math.max(0, parseInt(app.nilai_rupiah, 10) || 0);
+
+  if (claimPoints > currentPoints) {
+    alert(`⛔ Poin anggota saat ini (${formatRupiah(currentPoints)} Poin) kurang dari jumlah poin yang diklaim (${formatRupiah(claimPoints)} Poin)!`);
+    return;
+  }
+
+  // Konfirmasi dan Pilih Sumber Dana: Laci Kasir vs Dana Lain / Kas Toko
+  const choicePrompt = prompt(
+    `ACC Klaim Poin Anggota: "${c.nama}"\n` +
+    `Jumlah: ${formatRupiah(claimPoints)} Poin (Senilai Rp ${formatRupiah(nominalRp)})\n\n` +
+    `Pilih SUMBER DANA untuk pencairan ini:\n` +
+    `Ketik "1" = Potong langsung dari LACI KASIR (Kas Shift Aktif)\n` +
+    `Ketik "2" = Dari DANA LAIN / Kas Toko / Rekening Bank\n\n` +
+    `Ketik 1 atau 2 lalu tekan OK:`,
+    '1'
+  );
+
+  if (choicePrompt === null) return; // Dibatalkan
+
+  const choiceTrimmed = choicePrompt.trim();
+  let sumberDana = 'laci_kasir';
+  let sumberDanaLabel = 'Laci Kasir (Kas Tunai Shift)';
+
+  if (choiceTrimmed === '2') {
+    sumberDana = 'dana_lain';
+    sumberDanaLabel = 'Dana Lain / Kas Toko';
+  } else if (choiceTrimmed === '1') {
+    sumberDana = 'laci_kasir';
+    sumberDanaLabel = 'Laci Kasir';
+  } else {
+    alert("Pilihan sumber dana tidak valid! Masukkan 1 atau 2.");
+    return;
+  }
+
+  const now = new Date();
+
+  // 1. Potong Poin Pelanggan
+  c.poin = Math.max(0, currentPoints - claimPoints);
+
+  // Catat riwayat penggunaan poin jika ada property riwayat_poin
+  if (!Array.isArray(c.riwayat_poin)) c.riwayat_poin = [];
+  c.riwayat_poin.unshift({
+    tanggal: now.toISOString(),
+    tipe: 'claim',
+    poin: -claimPoints,
+    nilai_rp: nominalRp,
+    sumber_dana: sumberDana,
+    keterangan: `Klaim Poin Mandiri disetujui (${sumberDanaLabel})`,
+    staff: activeCashier || 'Admin'
+  });
+
+  // 2. Catat ke Pengeluaran / Kas Toko
+  const pointExpense = {
+    id: 'EXP_' + Date.now(),
+    tanggal: now.toISOString(),
+    tipe: 'keluar',
+    nominal: nominalRp,
+    kategori: 'Klaim Poin Anggota',
+    is_point_claim: true,
+    claimId: app.id,
+    customerId: c.id,
+    sumberDana: sumberDana, // 'laci_kasir' atau 'dana_lain'
+    keterangan: `Pencairan Klaim Poin Anggota [${c.kode_anggota || c.id}] ${c.nama} - ${formatRupiah(claimPoints)} Poin via ${sumberDanaLabel}`,
+    staff: activeCashier || 'Admin'
+  };
+
+  if (!Array.isArray(expenses)) expenses = [];
+  expenses.unshift(pointExpense);
+  saveExpensesLocally();
+  if (firebaseDb && typeof getStorePath === 'function') {
+    firebaseDb.ref(getStorePath('expenses/' + pointExpense.id)).set(pointExpense);
+  }
+
+  // 3. Update Status Pengajuan
+  app.status = 'Disetujui';
+  app.disetujui_pada = now.toISOString();
+  app.disetujui_oleh = activeCashier || 'Admin';
+  app.sumber_dana = sumberDana;
+  app.sumber_dana_label = sumberDanaLabel;
+  app.expense_id = pointExpense.id;
+
+  saveCustomersLocally();
+  saveCustomerCloud(c);
+
+  updateAnalytics();
+  alert(`✅ Sukses! Klaim ${formatRupiah(claimPoints)} Poin (Rp ${formatRupiah(nominalRp)}) untuk ${c.nama} telah DISETUJUI.\nSumber Dana: ${sumberDanaLabel}.\nSisa Poin Anggota: ${formatRupiah(c.poin)} Poin.`);
+
+  renderCustomerDebtBook();
+  renderCustomersTable();
+  checkAndNotifyPendingDebtApplications(false);
+}
+
+function rejectMemberPointApplication(appId, custId) {
+  const c = customers.find(x => x.id === custId);
+  if (!c || !Array.isArray(c.pengajuan_klaim_poin)) {
+    alert("Data pengajuan klaim poin tidak ditemukan!");
+    return;
+  }
+
+  const app = c.pengajuan_klaim_poin.find(a => a.id === appId);
+  if (!app) {
+    alert("Permohonan klaim poin tidak ditemukan!");
+    return;
+  }
+
+  const reason = prompt(`Masukkan alasan penolakan klaim poin untuk ${c.nama}:`, 'Poin tidak mencukupi / syarat dan ketentuan belum terpenuhi');
+  if (reason === null) return;
+
+  app.status = 'Ditolak';
+  app.ditolak_pada = new Date().toISOString();
+  app.ditolak_oleh = activeCashier || 'Admin';
+  app.alasan_penolakan = reason.trim() || 'Ditolak oleh admin/kasir';
+
+  saveCustomersLocally();
+  saveCustomerCloud(c);
+
+  alert(`Permohonan klaim poin untuk ${c.nama} telah ditolak.`);
+  renderCustomerDebtBook();
+  checkAndNotifyPendingDebtApplications(false);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // PROSES PERSETUJUAN / PENOLAKAN PENGAJUAN HUTANG ANGGOTA OLEH ADMIN / KASIR
 // ═════════════════════════════════════════════════════════════════════════════
 function approveMemberDebtApplication(appId, custId) {
@@ -17528,7 +19170,33 @@ function approveMemberDebtApplication(appId, custId) {
     return;
   }
 
-  if (!confirm(`Setujui pengajuan hutang sebesar Rp ${formatRupiah(app.nominal)} untuk anggota "${c.nama}"?\n\nTransaksi hutang baru akan otomatis dicatat ke Buku Hutang.`)) {
+  // Konfirmasi dan Pilih Sumber Dana: Laci Kasir vs Dana Lain / Kas Toko
+  const choicePrompt = prompt(
+    `ACC Pengajuan Hutang/Pinjaman Anggota: "${c.nama}"\n` +
+    `Nominal Pinjaman: Rp ${formatRupiah(app.nominal)}\n` +
+    `Alasan: ${app.alasan || '-'}\n` +
+    `${app.jatuh_tempo ? `Rencana Jatuh Tempo: ${app.jatuh_tempo}\n` : ''}\n` +
+    `Pilih SUMBER DANA untuk pencairan pinjaman ini:\n` +
+    `Ketik "1" = Dari LACI KASIR (Kas Tunai Shift Aktif)\n` +
+    `Ketik "2" = Dari DANA LAIN / Kas Toko / Rekening Bank\n\n` +
+    `Ketik 1 atau 2 lalu tekan OK:`,
+    '1'
+  );
+
+  if (choicePrompt === null) return; // Dibatalkan admin
+
+  const choiceTrimmed = choicePrompt.trim();
+  let sumberDana = 'laci_kasir';
+  let sumberDanaLabel = 'Laci Kasir (Kas Tunai Shift)';
+
+  if (choiceTrimmed === '2') {
+    sumberDana = 'dana_lain';
+    sumberDanaLabel = 'Dana Lain / Kas Toko';
+  } else if (choiceTrimmed === '1') {
+    sumberDana = 'laci_kasir';
+    sumberDanaLabel = 'Laci Kasir';
+  } else {
+    alert("Pilihan sumber dana tidak valid! Masukkan angka 1 atau 2.");
     return;
   }
 
@@ -17556,9 +19224,9 @@ function approveMemberDebtApplication(appId, custId) {
     customerId: c.id,
     sisa_piutang: app.nominal,
     jatuh_tempo: app.jatuh_tempo || null,
-    catatan_bon: `[Disetujui dari Portal] ${app.alasan || 'Pengajuan Mandiri Anggota'}`,
+    catatan_bon: `[Disetujui dari Portal - ${sumberDanaLabel}] ${app.alasan || 'Pengajuan Mandiri Anggota'}`,
     keterangan_manual: app.alasan || 'Pengajuan Mandiri Anggota',
-    sumber_dana: 'saldo_penjualan',
+    sumber_dana: sumberDana,
     is_manual_debt: true,
     riwayat_pelunasan: []
   };
@@ -17567,16 +19235,42 @@ function approveMemberDebtApplication(appId, custId) {
   saveTransactionsLocally();
   syncSingleTransactionToCloud(tx);
 
+  // Jika dicairkan dari Laci Kasir atau Dana Lain, catat pula pengeluaran kas
+  const loanExpense = {
+    id: 'EXP_' + Date.now(),
+    tanggal: now.toISOString(),
+    tipe: 'keluar',
+    nominal: app.nominal,
+    kategori: 'Pencairan Pinjaman Anggota',
+    is_loan_disbursement: true,
+    loanAppId: app.id,
+    customerId: c.id,
+    sumberDana: sumberDana, // 'laci_kasir' atau 'dana_lain'
+    keterangan: `Pencairan Pinjaman Mandiri [${c.kode_anggota || c.id}] ${c.nama} - Rp ${formatRupiah(app.nominal)} via ${sumberDanaLabel}`,
+    staff: activeCashier || 'Admin'
+  };
+
+  if (!Array.isArray(expenses)) expenses = [];
+  expenses.unshift(loanExpense);
+  saveExpensesLocally();
+  if (firebaseDb && typeof getStorePath === 'function') {
+    firebaseDb.ref(getStorePath('expenses/' + loanExpense.id)).set(loanExpense);
+  }
+
   app.status = 'Disetujui';
   app.disetujui_pada = now.toISOString();
   app.disetujui_oleh = activeCashier || 'Admin';
+  app.sumber_dana = sumberDana;
+  app.sumber_dana_label = sumberDanaLabel;
   app.tx_id = txId;
+  app.expense_id = loanExpense.id;
 
   saveCustomersLocally();
   saveCustomerCloud(c);
 
-  alert(`✅ Sukses! Permohonan hutang Rp ${formatRupiah(app.nominal)} untuk ${c.nama} telah disetujui dan masuk ke Buku Hutang.`);
+  alert(`✅ Sukses! Permohonan hutang Rp ${formatRupiah(app.nominal)} untuk ${c.nama} telah DISETUJUI.\nSumber Dana: ${sumberDanaLabel}.\nTransaksi hutang telah otomatis tercatat ke Buku Hutang & Pembukuan Kas.`);
   renderCustomerDebtBook();
+  checkAndNotifyPendingDebtApplications(false);
 }
 
 function rejectMemberDebtApplication(appId, custId) {
@@ -17605,6 +19299,7 @@ function rejectMemberDebtApplication(appId, custId) {
 
   alert(`Permohonan hutang untuk ${c.nama} telah ditolak.`);
   renderCustomerDebtBook();
+  checkAndNotifyPendingDebtApplications(false);
 }
 
 
@@ -17724,9 +19419,11 @@ function onCustomerSearchInput(val) {
 
   renderCustomerDropdown(val);
 
-  // Jika input pas dengan nama pelanggan
-  const exactMatch = customers.find(c => c.nama.toLowerCase() === val.trim().toLowerCase());
-  applySelectedCustomer(exactMatch || null);
+  // Jangan auto-pilih saat mengetik agar tidak langsung mengunci nama awalan yang sama (misal 'Budi' vs 'Budi Santoso')
+  // Pemilihan hanya terjadi jika user klik nama di dropdown atau tekan Enter
+  if (!val.trim()) {
+    applySelectedCustomer(null);
+  }
 }
 
 function renderCustomerDropdown(keyword) {
@@ -17761,16 +19458,25 @@ function renderCustomerDropdown(keyword) {
 
   let html = '';
   currentCustomerDropdownList.forEach((c, idx) => {
-    let rightBadgeHtml = '';
-    const custVouchers = getCustomerCustomVouchers(c.id);
-    const activeUnused = custVouchers.filter(v => v.allocation.status === 'belum_diambil' && isCustomVoucherActive(v.voucher));
-    const customVTotalRp = activeUnused.reduce((s, v) => s + (v.allocation.nominal || 0), 0);
-
     if (isVoucher) {
-      const vStats = getCustomerMonthlyVoucherStats(c, curMonth);
-      const vNominal = (loyaltySettings.voucherRpValue || 10000) * vStats.remaining;
-      const totalVouchersCount = vStats.remaining + activeUnused.length;
-      const combinedNominal = vNominal + customVTotalRp;
+      const custVouchers = getCustomerCustomVouchers(c);
+      const activeUnused = custVouchers.filter(v => v.status === 'belum_diambil' && !v.isExpired);
+      const claimedCustomVouchers = custVouchers.filter(v => v.status === 'sudah_diambil');
+      const customVTotalRp = activeUnused.reduce((s, v) => s + (v.nominal || 0), 0);
+
+      let totalVouchersCount = 0;
+      let combinedNominal = 0;
+
+      if (custVouchers.length > 0) {
+        // Jika anggota memiliki custom vouchers, gunakan hitungan custom vouchers saja
+        totalVouchersCount = activeUnused.length;
+        combinedNominal = customVTotalRp;
+      } else {
+        // Fallback untuk monthly voucher legacy
+        const vStats = getCustomerMonthlyVoucherStats(c, curMonth);
+        totalVouchersCount = vStats.remaining;
+        combinedNominal = (loyaltySettings.voucherRpValue || 10000) * vStats.remaining;
+      }
 
       rightBadgeHtml = `
         <div style="text-align: right;">
@@ -17933,10 +19639,6 @@ function renderCustomerCustomVouchersInPaymentModal(customer) {
   // Render voucher yang aktif dan belum diambil (dapat dipilih untuk membayar)
   availableVouchers.forEach((v, idx) => {
     const key = `${v.voucherId}_${v.nominal}_${idx}`;
-    // Default terpilih semua hanya jika BUKAN Bon agar praktis untuk kasir
-    if (!isBon && !selectedCustomVoucherKeys.has(key) && selectedCustomVoucherKeys.size === 0) {
-      selectedCustomVoucherKeys.add(key);
-    }
     const isChecked = !isBon && selectedCustomVoucherKeys.has(key);
     const expText = v.tipeKadaluarsa === 'tanggal' && v.tanggalKadaluarsa ? `Exp: ${v.tanggalKadaluarsa}` : 'Tanpa Kadaluarsa';
 
@@ -18029,8 +19731,21 @@ function applySelectedCustomer(customer) {
     if (ptsInfo) ptsInfo.style.display = 'none';
     if (vchInfo) {
       if (customer) {
-        vchInfo.style.display = 'block';
-        // Render rincian kartu voucher custom anggota yang mewah dan interaktif
+        // Cek apakah pelanggan memiliki voucher
+        const custVouchers = getCustomerCustomVouchers(customer);
+        const hasVouchers = custVouchers.length > 0;
+        vchInfo.style.display = hasVouchers ? 'block' : 'none';
+        
+        // Reset checkbox dan collapse panel detail voucher
+        const chkVoucher = document.getElementById('chk-enable-voucher-payment');
+        if (chkVoucher) chkVoucher.checked = false;
+        const voucherExpand = document.getElementById('voucher-options-expand-container');
+        if (voucherExpand) voucherExpand.style.display = 'none';
+        const voucherHdrDisp = document.getElementById('voucher-discount-header-display');
+        if (voucherHdrDisp) voucherHdrDisp.style.display = 'none';
+        selectedCustomVoucherKeys.clear();
+        updateSelectedVouchersCountLabel();
+
         renderCustomerCustomVouchersInPaymentModal(customer);
       } else {
         vchInfo.style.display = 'none';
@@ -18081,6 +19796,37 @@ function toggleUseSavingsPayment(checked) {
   calculateChange();
 }
 
+function toggleEnableVoucherPayment(checked) {
+  const method = document.getElementById('payment-method-select')?.value || 'Tunai';
+  if (checked && method !== 'Tunai') {
+    alert("⚠️ Voucher hanya dapat digunakan untuk metode pembayaran Tunai!\nSilakan ubah metode pembayaran ke Tunai terlebih dahulu.");
+    const chk = document.getElementById('chk-enable-voucher-payment');
+    if (chk) chk.checked = false;
+    return;
+  }
+
+  const expandCont = document.getElementById('voucher-options-expand-container');
+  const hdrDisp = document.getElementById('voucher-discount-header-display');
+  
+  if (expandCont) expandCont.style.display = checked ? 'block' : 'none';
+  if (hdrDisp) hdrDisp.style.display = checked ? 'inline-flex' : 'none';
+
+  if (!checked) {
+    // Jika tidak dicentang, batalkan semua voucher terpilih
+    selectedCustomVoucherKeys.clear();
+    const checkboxes = document.querySelectorAll('.checkout-voucher-checkbox');
+    checkboxes.forEach(cb => { cb.checked = false; });
+    updateSelectedVouchersCountLabel();
+    const vSummaryEl = document.getElementById('voucher-payment-summary');
+    if (vSummaryEl) vSummaryEl.style.display = 'none';
+  } else {
+    // Jika dicentang, secara default aktifkan semua voucher yang tersedia
+    selectAllEligibleVouchers(true);
+  }
+
+  calculateChange();
+}
+
 function clearSelectedCustomer() {
   const input = document.getElementById('customer-name-input');
   if (input) {
@@ -18099,6 +19845,14 @@ function clearSelectedCustomer() {
 
   const vchInfo = document.getElementById('customer-voucher-info');
   if (vchInfo) vchInfo.style.display = 'none';
+  const chkVoucher = document.getElementById('chk-enable-voucher-payment');
+  if (chkVoucher) chkVoucher.checked = false;
+  const voucherExpand = document.getElementById('voucher-options-expand-container');
+  if (voucherExpand) voucherExpand.style.display = 'none';
+  const voucherHdrDisp = document.getElementById('voucher-discount-header-display');
+  if (voucherHdrDisp) voucherHdrDisp.style.display = 'none';
+  selectedCustomVoucherKeys.clear();
+  updateSelectedVouchersCountLabel();
 
   const savingsBox = document.getElementById('customer-savings-info');
   if (savingsBox) savingsBox.style.display = 'none';
@@ -18456,7 +20210,6 @@ function switchSalesSubTab(subtabId) {
     focusKulakSearch();
   } else if (subtabId === 'logs') {
     updateSalesDropdowns();
-    onSalesRekapFilterChange();
     renderSalesRekapView();
   } else if (subtabId === 'expenses') {
     renderExpensesTable();
@@ -19272,30 +21025,61 @@ function populateDeliveryProductSelect(selectEl, filterProductIds = null, select
       selectEl.appendChild(opt);
     }
   } else {
-    // Jika belum pilih sales atau sales belum punya daftar produk khusus, tampilkan semua produk
-    products.forEach(p => {
+    // Jika belum pilih sales / tidak ada filter produk khusus:
+    // OPTIMASI: Batasi maksimal 150 produk teratas untuk mencegah freeze / lag di DOM ketika katalog mencapai ribuan produk
+    const MAX_SELECT_OPTIONS = 150;
+    const listToRender = products.slice(0, MAX_SELECT_OPTIONS);
+
+    // Pastikan jika ada produk yang terpilih (misal saat edit nota), produk tersebut tetap ada di list
+    if (selectedId && !listToRender.some(p => p.id === selectedId)) {
+      const currentSelectedProd = products.find(p => p.id === selectedId);
+      if (currentSelectedProd) {
+        listToRender.unshift(currentSelectedProd);
+      }
+    }
+
+    listToRender.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = `${p.nama} (Stok: ${p.stok})`;
       if (p.id === selectedId) opt.selected = true;
       selectEl.appendChild(opt);
     });
+
+    if (products.length > MAX_SELECT_OPTIONS) {
+      const hintOpt = document.createElement('option');
+      hintOpt.disabled = true;
+      hintOpt.textContent = `... (Menampilkan 150 dari ${products.length} produk. Gunakan kotak cari di atas untuk mencari nama lain)`;
+      selectEl.appendChild(hintOpt);
+    }
   }
 }
 
-// Helper: Scan Barcode Cepat untuk Nota Barang Datang dari Sales
+// Helper: Scan Barcode atau Cari Cepat berdasarkan Nama/Kode untuk Nota Barang Datang dari Sales
 function findProductByBarcodeOrCode(code) {
   if (!code) return null;
   const searchVal = String(code).trim().toLowerCase();
+
+  // 1. Coba cocokkan barcode utama
   let matched = products.find(p => p.barcode && String(p.barcode).trim().toLowerCase() === searchVal);
+  // 2. Coba cocokkan barcode multi-unit
   if (!matched) {
     matched = products.find(p => Array.isArray(p.units) && p.units.some(u => u.barcode && String(u.barcode).trim().toLowerCase() === searchVal));
   }
+  // 3. Coba cocokkan barcode box / karton
   if (!matched) {
     matched = products.find(p => p.has_unit_box && p.barcode_box && String(p.barcode_box).trim().toLowerCase() === searchVal);
   }
+  // 4. Coba cocokkan ID produk
   if (!matched) {
     matched = products.find(p => String(p.id).trim().toLowerCase() === searchVal);
+  }
+  // 5. Coba cocokkan nama produk yang sama persis atau mengandung kata kunci
+  if (!matched) {
+    matched = products.find(p => String(p.nama || '').trim().toLowerCase() === searchVal);
+  }
+  if (!matched && searchVal.length >= 2) {
+    matched = products.find(p => String(p.nama || '').toLowerCase().includes(searchVal));
   }
   return matched;
 }
@@ -19687,7 +21471,7 @@ function saveSalesDelivery(e) {
 
   // 1. Update Stok, Harga Beli, Harga Jual, dan Tanggal Kadaluarsa pada masing-masing produk
   let updatedAnyProduct = false;
-  const priceIncreasedProducts = [];
+  const priceChangedProducts = [];
 
   // Jika sedang edit, kembalikan stok lama terlebih dahulu
   if (existingDelivery && existingDelivery.items) {
@@ -19706,8 +21490,8 @@ function saveSalesDelivery(e) {
     if (prod) {
       const oldHargaJual = Number(prod.harga_jual || prod.harga || 0);
       const newHargaJual = Number(item.hargaJual || 0);
-      if (newHargaJual > oldHargaJual && oldHargaJual > 0) {
-        priceIncreasedProducts.push({
+      if (newHargaJual !== oldHargaJual && oldHargaJual > 0 && newHargaJual > 0) {
+        priceChangedProducts.push({
           product: prod,
           oldPrice: oldHargaJual,
           newPrice: newHargaJual
@@ -19814,20 +21598,11 @@ function saveSalesDelivery(e) {
   const returMsg = totalReturPotongan > 0 ? `\n(Potongan retur langsung diterapkan: ${formatRupiah(totalReturPotongan)})` : '';
   alert(`✅ Nota ${noNota} dari ${salesName} berhasil disimpan!\n${statusMsg}${returMsg}\nStok ${items.length} jenis barang telah otomatis bertambah ke database.`);
 
-  // Dialog cetak label rak jika ada produk yang harga jualnya naik
-  if (priceIncreasedProducts.length > 0) {
-    const daftarNama = priceIncreasedProducts.map(p => `• ${p.product.nama}: ${formatRupiah(p.oldPrice)} ➔ ${formatRupiah(p.newPrice)}`).join('\n');
+  // Tampilkan Dialog pengingat Cetak Label Rak dengan desain khusus yang identik
+  if (priceChangedProducts.length > 0) {
     setTimeout(() => {
-      if (confirm(`🏷️ PERUBAHAN HARGA JUAL TERDETEKSI!\n\nAda ${priceIncreasedProducts.length} produk yang harga jualnya naik:\n${daftarNama}\n\nBuka dialog Cetak Label Rak sekarang agar harga di rak toko sama dengan sistem kasir?`)) {
-        selectedProductIds.clear();
-        priceIncreasedProducts.forEach(item => {
-          selectedProductIds.add(item.product.id);
-        });
-        if (typeof openBulkPrintLabelModal === 'function') {
-          openBulkPrintLabelModal();
-        }
-      }
-    }, 200);
+      showPriceChangeNotification(priceChangedProducts);
+    }, 250);
   }
 }
 
@@ -21980,6 +23755,15 @@ function renderCustomerDebtBook() {
   const appListEl = document.getElementById('list-member-debt-applications');
   const appBadgeEl = document.getElementById('badge-debt-app-count');
 
+  // Pastikan data customers sinkron dengan localStorage
+  try {
+    const cachedCust = localStorage.getItem('kasir_customers');
+    if (cachedCust) {
+      const parsed = JSON.parse(cachedCust);
+      if (Array.isArray(parsed) && parsed.length > 0) customers = parsed;
+    }
+  } catch(e) {}
+
   if (appContainer && appListEl) {
     const pendingApps = [];
     customers.forEach(cust => {
@@ -22025,6 +23809,64 @@ function renderCustomerDebtBook() {
       }).join('');
     } else {
       appContainer.style.display = 'none';
+    }
+    checkAndNotifyPendingDebtApplications(false);
+  }
+
+  // Render Permohonan Klaim Poin Masuk dari Anggota
+  const pointAppContainer = document.getElementById('container-member-point-applications');
+  const pointAppListEl = document.getElementById('list-member-point-applications');
+  const pointAppBadgeEl = document.getElementById('badge-point-app-count');
+
+  if (pointAppContainer && pointAppListEl) {
+    const pendingPointApps = [];
+    customers.forEach(cust => {
+      if (Array.isArray(cust.pengajuan_klaim_poin)) {
+        cust.pengajuan_klaim_poin.forEach(clm => {
+          if (clm.status === 'Menunggu Persetujuan Admin' || !clm.status) {
+            pendingPointApps.push({ ...clm, custId: cust.id, custNama: cust.nama, custTelp: cust.telepon, custCurrentPoints: cust.poin });
+          }
+        });
+      }
+    });
+
+    if (pendingPointApps.length > 0) {
+      pointAppContainer.style.display = 'block';
+      if (pointAppBadgeEl) pointAppBadgeEl.textContent = `${pendingPointApps.length} Klaim Menunggu`;
+
+      pointAppListEl.innerHTML = pendingPointApps.map(app => {
+        const tglStr = new Date(app.tanggal).toLocaleDateString('id-ID');
+
+        return `
+          <div style="background: #fff; border: 1px solid #fcd34d; border-radius: 10px; padding: 0.85rem 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <strong style="font-size: 0.95rem; color: #92400e;">${escapeHtml(app.custNama || 'Anggota')}</strong>
+                <span style="font-size: 0.75rem; background: #fef3c7; color: #b45309; padding: 0.15rem 0.5rem; border-radius: 999px; font-weight: 700;">${app.custTelp || 'No HP -'}</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Tgl: ${tglStr}</span>
+                <span style="font-size: 0.73rem; background: #fef3c7; color: #b45309; padding: 0.15rem 0.5rem; border-radius: 6px; font-weight: 700;">Klaim Poin Mandiri</span>
+              </div>
+              <div style="font-size: 0.84rem; color: var(--text-main); margin-top: 0.3rem;">
+                <b>Klaim Poin:</b> <span style="font-size: 1.05rem; font-weight: 900; color: #d97706; font-family: monospace;">${formatRupiah(app.poin)} Poin</span>
+                <span style="margin-left: 0.5rem; font-size: 1.05rem; font-weight: 900; color: #16a34a; font-family: monospace;">(Rp ${formatRupiah(app.nilai_rupiah)})</span>
+                <span style="margin-left: 0.75rem; color: var(--text-muted); font-size: 0.78rem;">| Saldo Poin Sekarang: <b>${formatRupiah(app.custCurrentPoints || 0)} Poin</b></span>
+              </div>
+              ${app.detail_bank ? `<div style="font-size: 0.78rem; color: #0369a1; margin-top: 0.2rem; font-weight: 600;"><b>Rekening/Tujuan:</b> ${escapeHtml(app.detail_bank)}</div>` : ''}
+              ${app.catatan ? `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem;"><b>Catatan:</b> ${escapeHtml(app.catatan)}</div>` : ''}
+            </div>
+            <div style="display: flex; gap: 0.45rem;">
+              <button type="button" onclick="approveMemberPointApplication('${app.id}', '${app.custId}')" style="background: #d97706; color: #fff; border: none; font-weight: 800; font-size: 0.82rem; padding: 0.5rem 0.95rem; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; box-shadow: 0 2px 4px rgba(217,119,6,0.25);">
+                <span>✓ ACC &amp; Cairkan Poin</span>
+              </button>
+              <button type="button" onclick="rejectMemberPointApplication('${app.id}', '${app.custId}')" style="background: #dc2626; color: #fff; border: none; font-weight: 800; font-size: 0.82rem; padding: 0.5rem 0.85rem; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;">
+                <span>✕ Tolak</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      pointAppContainer.style.display = 'none';
     }
   }
 
@@ -22083,8 +23925,8 @@ function renderCustomerDebtBook() {
     const tr = document.createElement('tr');
     const sisa = tx.sisa_piutang || 0;
     const isLunas = sisa <= 0;
-    const waktuStr = tx.waktu ? parseTxDate(tx.waktu).toLocaleString('id-ID', { hour12: false }) : '-';
-    const dueDate = tx.jatuh_tempo || '-';
+    const waktuStr = formatDateTimeIndo(tx.waktu);
+    const dueDate = tx.jatuh_tempo ? formatDateIndo(tx.jatuh_tempo) : '-';
     const isOverdue = !isLunas && tx.jatuh_tempo && (tx.jatuh_tempo < todayStr);
     const isDueToday = !isLunas && tx.jatuh_tempo && (tx.jatuh_tempo === todayStr);
 
@@ -22121,7 +23963,7 @@ function renderCustomerDebtBook() {
       if (hasHistory) {
         const lastPayment = tx.riwayat_pelunasan[tx.riwayat_pelunasan.length - 1];
         if (lastPayment && lastPayment.waktu) {
-          lunasDateStr = parseTxDate(lastPayment.waktu).toLocaleString('id-ID', { hour12: false });
+          lunasDateStr = formatDateTimeIndo(lastPayment.waktu);
         }
       }
       settlementHistoryHtml = `
@@ -22149,6 +23991,9 @@ function renderCustomerDebtBook() {
     let actionBtnHtml = '';
     if (isLunas) {
       actionBtnHtml = `
+        <button type="button" class="btn btn-warning btn-sm" onclick="toggleDebtPaymentStatus('${tx.id}')" title="Ubah status menjadi Belum Lunas" style="font-size: 0.75rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 6px; background: #f59e0b; border-color: #f59e0b; color: #fff; display: inline-flex; align-items: center; gap: 0.25rem;">
+          <span>↩ Buka Hutang</span>
+        </button>
         <button type="button" class="btn btn-secondary btn-sm" onclick="showReceipt(transactions.find(t=>t.id==='${tx.id}'), transactions.find(t=>t.id==='${tx.id}')?.items)" title="Lihat Struk Transaksi Lengkap" style="font-size: 0.75rem; padding: 0.35rem 0.65rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem;">
           <i data-lucide="receipt" style="width: 13px; height: 13px;"></i>
           <span>Struk</span>
@@ -22167,7 +24012,7 @@ function renderCustomerDebtBook() {
         <button type="button" class="btn btn-success btn-sm" onclick="sendWhatsAppDebtReminder('${tx.id}')" title="Kirim Tagihan &amp; Rincian Bon via WhatsApp" style="font-size: 0.75rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 6px; background: #25d366; border-color: #25d366; color: #fff; display: inline-flex; align-items: center; gap: 0.25rem;">
           <span>💬 WA</span>
         </button>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="quickPayFullDebt('${tx.id}')" title="Langsung Tandai Lunas Cepat" style="font-size: 0.75rem; font-weight: 600; padding: 0.35rem 0.5rem; border-radius: 6px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleDebtPaymentStatus('${tx.id}')" title="Ubah status langsung jadi Lunas" style="font-size: 0.75rem; font-weight: 600; padding: 0.35rem 0.5rem; border-radius: 6px;">
           <span>⚡ Lunas</span>
         </button>
         <button type="button" class="btn btn-danger btn-sm" onclick="deleteCustomerDebt('${tx.id}')" title="Hapus Catatan Hutang Ini" style="font-size: 0.75rem; padding: 0.35rem 0.6rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.25rem; background: #ef4444; border-color: #ef4444; color: #fff;">
@@ -22334,6 +24179,7 @@ async function submitPayDebt(event) {
         nominal: payAmount,
         kategori: 'Pelunasan Piutang',
         is_debt_payment: true,
+        txId: tx.id,
         sumberDana: 'laci_kasir',
         keterangan: `Pelunasan Bon #${tx.id} (${tx.nama_pelanggan || 'Pelanggan'})`,
         staff: activeCashier || 'Admin'
@@ -22398,6 +24244,7 @@ function quickPayFullDebt(txId) {
       nominal: sisa,
       kategori: 'Pelunasan Piutang',
       is_debt_payment: true,
+      txId: tx.id,
       sumberDana: 'laci_kasir',
       keterangan: `Pelunasan Bon #${tx.id} (${tx.nama_pelanggan || 'Pelanggan'})`,
       staff: activeCashier || 'Admin'
@@ -22414,6 +24261,60 @@ function quickPayFullDebt(txId) {
     updateAnalytics();
     syncSingleTransactionToCloud(tx);
     alert(`✅ Tagihan sebesar Rp ${formatRupiah(sisa)} berhasil dilunasi!`);
+  }
+}
+
+// Ubah status hutang: Lunas -> Belum Lunas atau sebaliknya
+async function toggleDebtPaymentStatus(txId) {
+  const tx = transactions.find(t => t.id === txId);
+  if (!tx) {
+    alert("Transaksi tidak ditemukan!");
+    return;
+  }
+
+  const isLunas = (tx.sisa_piutang === 0 || tx.status_pembayaran === 'Lunas');
+
+  if (isLunas) {
+    if (!confirm(`Apakah Anda yakin ingin mengubah status hutang transaksi #${tx.id} (${tx.nama_pelanggan || 'Pelanggan'}) menjadi BELUM LUNAS?`)) {
+      return;
+    }
+
+    // Hitung DP awal transaksi asli jika ada
+    const dpAwal = Math.max(0, (Number(tx.bayar) || 0) - (Number(tx.kembalian) || 0));
+    const totalTagihan = Number(tx.total) || 0;
+    const sisaKembali = Math.max(0, totalTagihan - dpAwal);
+
+    tx.sisa_piutang = sisaKembali;
+    tx.status_pembayaran = 'Bon';
+
+    // Kosongkan riwayat pelunasan
+    tx.riwayat_pelunasan = [];
+
+    // Hapus pencatatan kas pelunasan piutang di expenses
+    if (Array.isArray(expenses)) {
+      const prevCount = expenses.length;
+      expenses = expenses.filter(e => {
+        if (!e) return false;
+        const matchKeterangan = (e.keterangan || '').includes(`Bon #${tx.id}`) || (e.keterangan || '').includes(tx.id);
+        const isLinkedDebtExpense = (e.is_debt_payment === true || (e.kategori && e.kategori.toLowerCase().includes('pelunasan piutang'))) && matchKeterangan;
+        return !isLinkedDebtExpense;
+      });
+      if (expenses.length !== prevCount) {
+        saveExpensesLocally();
+        if (typeof syncExpensesToCloud === 'function') syncExpensesToCloud();
+      }
+    }
+
+    saveTransactionsLocally();
+    syncSingleTransactionToCloud(tx);
+    renderCustomerDebtBook();
+    renderTransactionsTable();
+    updateAnalytics();
+
+    alert(`✅ Status transaksi #${tx.id} berhasil diubah menjadi BELUM LUNAS (Sisa: Rp ${formatRupiah(sisaKembali)}).`);
+  } else {
+    // Belum Lunas -> Ubah menjadi Lunas
+    quickPayFullDebt(txId);
   }
 }
 
@@ -23790,6 +25691,101 @@ function deleteExpense(id) {
   if (!item) return;
 
   if (confirm(`Hapus catatan kas "${item.keterangan}" sebesar Rp ${formatRupiah(item.nominal)}?`)) {
+    // 1. Sinkronisasi Pembalikan Mutasi Tabungan Anggota (jika berasal dari Tarik/Setor Tabungan)
+    const isSavings = item.is_savings_mutation === true || 
+      (item.kategori && (item.kategori.includes('Tabungan') || item.kategori.toLowerCase().includes('tabungan'))) ||
+      (item.keterangan && (item.keterangan.includes('Tabungan Anggota') || item.keterangan.includes('Setor Tabungan') || item.keterangan.includes('Tarik Tabungan')));
+
+    if (isSavings) {
+      let cust = null;
+      if (item.customerId) {
+        cust = customers.find(c => c.id === item.customerId);
+      }
+      if (!cust && item.keterangan) {
+        const matchBracket = item.keterangan.match(/\[(.*?)\]/);
+        if (matchBracket && matchBracket[1]) {
+          const idOrKode = matchBracket[1].trim();
+          cust = customers.find(c => c.id === idOrKode || c.kode_anggota === idOrKode);
+        }
+      }
+
+      if (cust) {
+        const nom = Number(item.nominal) || 0;
+        const isKeluar = (item.tipe === 'keluar'); // Penarikan tabungan -> uang keluar dari kasir
+        if (isKeluar) {
+          // Tarik tabungan dihapus -> kembalikan saldo ke tabungan anggota
+          cust.saldo_tabungan = (Number(cust.saldo_tabungan) || 0) + nom;
+          if (!Array.isArray(cust.riwayat_tabungan)) cust.riwayat_tabungan = [];
+          cust.riwayat_tabungan.push({
+            waktu: new Date().toISOString(),
+            tipe: 'koreksi_kembali',
+            nominal: nom,
+            sisa_saldo: cust.saldo_tabungan,
+            sumber_kas: 'laci_kasir',
+            catatan: `Pembatalan/Hapus Laporan Tarik Tabungan di Kas Kecil`,
+            kasir: activeCashier || 'Kasir'
+          });
+        } else {
+          // Setor tabungan dihapus -> kurangi saldo tabungan anggota
+          cust.saldo_tabungan = Math.max(0, (Number(cust.saldo_tabungan) || 0) - nom);
+          if (!Array.isArray(cust.riwayat_tabungan)) cust.riwayat_tabungan = [];
+          cust.riwayat_tabungan.push({
+            waktu: new Date().toISOString(),
+            tipe: 'tarik',
+            nominal: nom,
+            sisa_saldo: cust.saldo_tabungan,
+            sumber_kas: 'laci_kasir',
+            catatan: `Pembatalan/Hapus Laporan Setor Tabungan di Kas Kecil`,
+            kasir: activeCashier || 'Kasir'
+          });
+        }
+        saveCustomersLocally();
+        if (typeof saveCustomerCloud === 'function') saveCustomerCloud(cust);
+        if (typeof renderCustomersTable === 'function') renderCustomersTable();
+      }
+    }
+
+    // 2. Sinkronisasi Pembalikan Pelunasan Hutang (jika berasal dari Pelunasan Bon / Piutang)
+    const isDebt = item.is_debt_payment === true ||
+      (item.kategori && item.kategori.toLowerCase().includes('pelunasan piutang')) ||
+      (item.keterangan && item.keterangan.toLowerCase().includes('pelunasan bon'));
+
+    if (isDebt) {
+      let txTarget = null;
+      if (item.txId) {
+        txTarget = transactions.find(t => t.id === item.txId);
+      }
+      if (!txTarget && item.keterangan) {
+        const matchBon = item.keterangan.match(/#([A-Za-z0-9-]+)/);
+        if (matchBon && matchBon[1]) {
+          const extractedId = matchBon[1].trim();
+          txTarget = transactions.find(t => t.id === extractedId);
+        }
+      }
+
+      if (txTarget) {
+        const nom = Number(item.nominal) || 0;
+        const maxDebt = Math.max(0, (Number(txTarget.total) || 0) - Math.max(0, (Number(txTarget.bayar) || 0) - (Number(txTarget.kembalian) || 0)));
+        txTarget.sisa_piutang = Math.min(maxDebt > 0 ? maxDebt : (Number(txTarget.total) || 0), (Number(txTarget.sisa_piutang) || 0) + nom);
+        txTarget.status_pembayaran = 'Bon';
+
+        // Hapus entri pembayaran yang bersesuaian dari riwayat_pelunasan
+        if (Array.isArray(txTarget.riwayat_pelunasan)) {
+          const matchIdx = txTarget.riwayat_pelunasan.findIndex(p => Math.abs((Number(p.bayar) || 0) - nom) < 0.01);
+          if (matchIdx !== -1) {
+            txTarget.riwayat_pelunasan.splice(matchIdx, 1);
+          } else if (txTarget.riwayat_pelunasan.length > 0) {
+            txTarget.riwayat_pelunasan.pop();
+          }
+        }
+
+        saveTransactionsLocally();
+        if (typeof syncSingleTransactionToCloud === 'function') syncSingleTransactionToCloud(txTarget);
+        if (typeof renderCustomerDebtBook === 'function') renderCustomerDebtBook();
+        if (typeof renderTransactionsTable === 'function') renderTransactionsTable();
+      }
+    }
+
     expenses = expenses.filter(x => x.id !== id);
     saveExpensesLocally();
     syncExpensesToCloud();
@@ -23871,6 +25867,9 @@ function renderExpensesTable() {
     return true;
   });
 
+  // Urutkan dari transaksi terbaru di paling atas
+  filtered.sort((a, b) => new Date(b.tanggal || 0) - new Date(a.tanggal || 0));
+
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Belum ada catatan pengeluaran/kas masuk yang sesuai.</td></tr>`;
     return;
@@ -23892,7 +25891,7 @@ function renderExpensesTable() {
 
     return `
       <tr>
-        <td style="font-size:0.82rem;">${e.tanggal ? new Date(e.tanggal).toLocaleString('id-ID') : '-'}</td>
+        <td style="font-size:0.82rem;">${formatDateTimeIndo(e.tanggal)}</td>
         <td>${typeBadge}</td>
         <td><strong>${e.kategori || '-'}</strong></td>
         <td>${e.keterangan || '-'}</td>
@@ -24162,20 +26161,45 @@ function calculateProfitLossData() {
   // 1. Hitung Omset Penjualan Bersih Kasir & HPP (Modal Barang Terjual)
   let totalOmset = 0;
   let totalHpp = 0;
+  let totalLabaKotor = 0;
+  let validTxCount = 0;
 
   filteredTxs.forEach(tx => {
-    totalOmset += (Number(tx.total) || 0);
+    // Abaikan pinjaman hutang manual (bukan penjualan barang dagang)
+    if (tx.is_manual_debt) return;
+
+    validTxCount++;
+    const txTotal = Number(tx.total) || 0;
+    totalOmset += txTotal;
+
+    let txSubtotal = 0;
+    let txBuyTotal = 0;
 
     if (Array.isArray(tx.items)) {
       tx.items.forEach(item => {
-        const buyPrice = Number(item.harga_beli) || 0;
-        const qty = Number(item.qty) || 1;
-        totalHpp += (buyPrice * qty);
+        let buyPrice = Number(item.harga_beli) || 0;
+        // Fallback jika item adalah bundle dan belum memiliki harga_beli tercatat
+        if (item.isBundle && buyPrice === 0 && Array.isArray(item.bundleItems)) {
+          item.bundleItems.forEach(b => {
+            const cp = products.find(p => String(p.id) === String(b.productId));
+            if (cp) buyPrice += (Number(cp.harga_beli) || 0) * (Number(b.qty) || 1);
+          });
+        }
+        const sellPrice = Number(item.harga) || 0;
+        const q = Number(item.qty) || 1;
+        txBuyTotal += (buyPrice * q);
+        txSubtotal += (sellPrice * q);
       });
     }
+
+    const txDiscount = Math.max(0, txSubtotal - txTotal);
+    const txNet = (txSubtotal - txBuyTotal) - txDiscount;
+
+    totalHpp += txBuyTotal;
+    totalLabaKotor += txNet;
   });
 
-  const labaKotor = Math.max(0, totalOmset - totalHpp);
+  const labaKotor = Math.max(0, totalLabaKotor);
 
   // 2. Hitung Pengeluaran Kas Kecil & Kas Masuk pada periode ini
   let totalExpenses = 0;
@@ -24219,7 +26243,7 @@ function calculateProfitLossData() {
     expenseCatMap,
     labaBersihRiil,
     marginPercent,
-    txCount: filteredTxs.length
+    txCount: validTxCount
   };
 }
 

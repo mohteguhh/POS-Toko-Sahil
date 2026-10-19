@@ -158,6 +158,19 @@ function createWindow() {
     console.log(`[Renderer Console] (${level}) ${message} [${sourceId}:${line}]`);
   });
 
+  // Pintasan Keyboard Developer: F12 / Ctrl+Shift+I untuk buka inspect element & Ctrl+R / F5 untuk refresh
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown') {
+      if (input.key === 'F12' || ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i')) {
+        mainWindow.webContents.toggleDevTools();
+        event.preventDefault();
+      } else if (input.key === 'F5' || ((input.control || input.meta) && input.key.toLowerCase() === 'r')) {
+        mainWindow.webContents.reloadIgnoringCache();
+        event.preventDefault();
+      }
+    }
+  });
+
   // Dukung cetak struk/laporan popup (window.open) dan link eksternal (WhatsApp, Browser)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Jika URL WhatsApp atau link web eksternal, buka di browser default pengguna
@@ -184,7 +197,20 @@ function createWindow() {
   mainWindow.loadFile(entryFile);
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Pastikan di lingkungan Electron desktop tidak ada Service Worker / CacheStorage
+  // dari file:/// yang menyebabkan layar blank putih karena gagal resolve Response object.
+  try {
+    const { session } = require('electron');
+    if (session && session.defaultSession) {
+      await session.defaultSession.clearStorageData({
+        storages: ['serviceworkers', 'cachestorage']
+      });
+    }
+  } catch (err) {
+    console.warn('Gagal membersihkan cache serviceworker desktop:', err);
+  }
+
   createWindow();
 
   app.on('activate', () => {
