@@ -17477,6 +17477,20 @@ function deleteCustomer(id) {
 
 function saveCustomersLocally() {
   localStorage.setItem('kasir_customers', JSON.stringify(customers));
+  if (typeof window !== 'undefined' && window.desktopAPI && window.desktopAPI.saveLocalDb) {
+    try {
+      const snapshot = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('kasir_')) {
+          snapshot[k] = localStorage.getItem(k);
+        }
+      }
+      window.desktopAPI.saveLocalDb(snapshot);
+    } catch (e) {
+      console.warn('saveCustomersLocally desktop sync error:', e);
+    }
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -19007,6 +19021,24 @@ setInterval(() => {
 // ═════════════════════════════════════════════════════════════════════════════
 // PROSES PERSETUJUAN / PENOLAKAN PENGAJUAN KLAIM POIN ANGGOTA
 // ═════════════════════════════════════════════════════════════════════════════
+// Variabel state untuk dialog modal approve / reject
+let currentActionApplication = null; // { type: 'point'|'debt', mode: 'approve'|'reject', appId, custId, cust, app }
+
+function closeApproveApplicationModal() {
+  const m = document.getElementById('modal-approve-application');
+  if (m) m.style.display = 'none';
+  currentActionApplication = null;
+}
+
+function closeRejectApplicationModal() {
+  const m = document.getElementById('modal-reject-application');
+  if (m) m.style.display = 'none';
+  currentActionApplication = null;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROSES PERSETUJUAN / PENOLAKAN PENGAJUAN KLAIM POIN ANGGOTA
+// ═════════════════════════════════════════════════════════════════════════════
 function approveMemberPointApplication(appId, custId) {
   const c = customers.find(x => x.id === custId);
   if (!c || !Array.isArray(c.pengajuan_klaim_poin)) {
@@ -19034,90 +19066,36 @@ function approveMemberPointApplication(appId, custId) {
     return;
   }
 
-  // Konfirmasi dan Pilih Sumber Dana: Laci Kasir vs Dana Lain / Kas Toko
-  const choicePrompt = prompt(
-    `ACC Klaim Poin Anggota: "${c.nama}"\n` +
-    `Jumlah: ${formatRupiah(claimPoints)} Poin (Senilai Rp ${formatRupiah(nominalRp)})\n\n` +
-    `Pilih SUMBER DANA untuk pencairan ini:\n` +
-    `Ketik "1" = Potong langsung dari LACI KASIR (Kas Shift Aktif)\n` +
-    `Ketik "2" = Dari DANA LAIN / Kas Toko / Rekening Bank\n\n` +
-    `Ketik 1 atau 2 lalu tekan OK:`,
-    '1'
-  );
-
-  if (choicePrompt === null) return; // Dibatalkan
-
-  const choiceTrimmed = choicePrompt.trim();
-  let sumberDana = 'laci_kasir';
-  let sumberDanaLabel = 'Laci Kasir (Kas Tunai Shift)';
-
-  if (choiceTrimmed === '2') {
-    sumberDana = 'dana_lain';
-    sumberDanaLabel = 'Dana Lain / Kas Toko';
-  } else if (choiceTrimmed === '1') {
-    sumberDana = 'laci_kasir';
-    sumberDanaLabel = 'Laci Kasir';
-  } else {
-    alert("Pilihan sumber dana tidak valid! Masukkan 1 atau 2.");
-    return;
-  }
-
-  const now = new Date();
-
-  // 1. Potong Poin Pelanggan
-  c.poin = Math.max(0, currentPoints - claimPoints);
-
-  // Catat riwayat penggunaan poin jika ada property riwayat_poin
-  if (!Array.isArray(c.riwayat_poin)) c.riwayat_poin = [];
-  c.riwayat_poin.unshift({
-    tanggal: now.toISOString(),
-    tipe: 'claim',
-    poin: -claimPoints,
-    nilai_rp: nominalRp,
-    sumber_dana: sumberDana,
-    keterangan: `Klaim Poin Mandiri disetujui (${sumberDanaLabel})`,
-    staff: activeCashier || 'Admin'
-  });
-
-  // 2. Catat ke Pengeluaran / Kas Toko
-  const pointExpense = {
-    id: 'EXP_' + Date.now(),
-    tanggal: now.toISOString(),
-    tipe: 'keluar',
-    nominal: nominalRp,
-    kategori: 'Klaim Poin Anggota',
-    is_point_claim: true,
-    claimId: app.id,
-    customerId: c.id,
-    sumberDana: sumberDana, // 'laci_kasir' atau 'dana_lain'
-    keterangan: `Pencairan Klaim Poin Anggota [${c.kode_anggota || c.id}] ${c.nama} - ${formatRupiah(claimPoints)} Poin via ${sumberDanaLabel}`,
-    staff: activeCashier || 'Admin'
+  currentActionApplication = {
+    type: 'point',
+    mode: 'approve',
+    appId: appId,
+    custId: custId,
+    cust: c,
+    app: app,
+    currentPoints: currentPoints,
+    claimPoints: claimPoints,
+    nominalRp: nominalRp
   };
 
-  if (!Array.isArray(expenses)) expenses = [];
-  expenses.unshift(pointExpense);
-  saveExpensesLocally();
-  if (firebaseDb && typeof getStorePath === 'function') {
-    firebaseDb.ref(getStorePath('expenses/' + pointExpense.id)).set(pointExpense);
+  const modal = document.getElementById('modal-approve-application');
+  const titleEl = document.getElementById('modal-approve-app-title');
+  const infoEl = document.getElementById('modal-approve-app-info');
+
+  if (titleEl) titleEl.innerHTML = `<span>🪙</span> <span>ACC Pencairan Klaim Poin: ${escapeHtml(c.nama)}</span>`;
+  if (infoEl) {
+    infoEl.innerHTML = `
+      <div style="font-weight: 700; font-size: 1rem; color: #1e293b; margin-bottom: 0.35rem;">
+        ${escapeHtml(c.nama)} <span style="font-size: 0.8rem; background: #fef3c7; color: #b45309; padding: 0.15rem 0.5rem; border-radius: 999px;">${c.telepon || 'No HP -'}</span>
+      </div>
+      <div>Jumlah Poin: <strong style="color: #d97706; font-size: 1.05rem;">${formatRupiah(claimPoints)} Poin</strong></div>
+      <div>Nilai Pencairan: <strong style="color: #16a34a; font-size: 1.1rem; font-family: monospace;">Rp ${formatRupiah(nominalRp)}</strong></div>
+      <div style="color: #64748b; font-size: 0.82rem; margin-top: 0.25rem;">Sisa Poin Anggota jika disetujui: <b>${formatRupiah(Math.max(0, currentPoints - claimPoints))} Poin</b></div>
+      ${app.detail_bank ? `<div style="margin-top: 0.35rem; font-size: 0.84rem; color: #0284c7; background: #f0f9ff; padding: 0.35rem 0.5rem; border-radius: 6px;"><b>Tujuan Transfer/Rekening:</b> ${escapeHtml(app.detail_bank)}</div>` : ''}
+    `;
   }
 
-  // 3. Update Status Pengajuan
-  app.status = 'Disetujui';
-  app.disetujui_pada = now.toISOString();
-  app.disetujui_oleh = activeCashier || 'Admin';
-  app.sumber_dana = sumberDana;
-  app.sumber_dana_label = sumberDanaLabel;
-  app.expense_id = pointExpense.id;
-
-  saveCustomersLocally();
-  saveCustomerCloud(c);
-
-  updateAnalytics();
-  alert(`✅ Sukses! Klaim ${formatRupiah(claimPoints)} Poin (Rp ${formatRupiah(nominalRp)}) untuk ${c.nama} telah DISETUJUI.\nSumber Dana: ${sumberDanaLabel}.\nSisa Poin Anggota: ${formatRupiah(c.poin)} Poin.`);
-
-  renderCustomerDebtBook();
-  renderCustomersTable();
-  checkAndNotifyPendingDebtApplications(false);
+  if (modal) modal.style.display = 'flex';
 }
 
 function rejectMemberPointApplication(appId, custId) {
@@ -19133,20 +19111,29 @@ function rejectMemberPointApplication(appId, custId) {
     return;
   }
 
-  const reason = prompt(`Masukkan alasan penolakan klaim poin untuk ${c.nama}:`, 'Poin tidak mencukupi / syarat dan ketentuan belum terpenuhi');
-  if (reason === null) return;
+  currentActionApplication = {
+    type: 'point',
+    mode: 'reject',
+    appId: appId,
+    custId: custId,
+    cust: c,
+    app: app
+  };
 
-  app.status = 'Ditolak';
-  app.ditolak_pada = new Date().toISOString();
-  app.ditolak_oleh = activeCashier || 'Admin';
-  app.alasan_penolakan = reason.trim() || 'Ditolak oleh admin/kasir';
+  const modal = document.getElementById('modal-reject-application');
+  const titleEl = document.getElementById('modal-reject-app-title');
+  const infoEl = document.getElementById('modal-reject-app-info');
+  const reasonInput = document.getElementById('reject-app-reason-input');
 
-  saveCustomersLocally();
-  saveCustomerCloud(c);
+  if (titleEl) titleEl.innerHTML = `<span>✕</span> <span>Tolak Klaim Poin: ${escapeHtml(c.nama)}</span>`;
+  if (infoEl) {
+    infoEl.innerHTML = `
+      Anda akan menolak pengajuan klaim <b>${formatRupiah(app.poin || 0)} Poin</b> (Rp ${formatRupiah(app.nilai_rupiah || 0)}) dari <b>${escapeHtml(c.nama)}</b>.
+    `;
+  }
+  if (reasonInput) reasonInput.value = 'Poin tidak mencukupi atau belum memenuhi syarat penukaran';
 
-  alert(`Permohonan klaim poin untuk ${c.nama} telah ditolak.`);
-  renderCustomerDebtBook();
-  checkAndNotifyPendingDebtApplications(false);
+  if (modal) modal.style.display = 'flex';
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -19170,107 +19157,32 @@ function approveMemberDebtApplication(appId, custId) {
     return;
   }
 
-  // Konfirmasi dan Pilih Sumber Dana: Laci Kasir vs Dana Lain / Kas Toko
-  const choicePrompt = prompt(
-    `ACC Pengajuan Hutang/Pinjaman Anggota: "${c.nama}"\n` +
-    `Nominal Pinjaman: Rp ${formatRupiah(app.nominal)}\n` +
-    `Alasan: ${app.alasan || '-'}\n` +
-    `${app.jatuh_tempo ? `Rencana Jatuh Tempo: ${app.jatuh_tempo}\n` : ''}\n` +
-    `Pilih SUMBER DANA untuk pencairan pinjaman ini:\n` +
-    `Ketik "1" = Dari LACI KASIR (Kas Tunai Shift Aktif)\n` +
-    `Ketik "2" = Dari DANA LAIN / Kas Toko / Rekening Bank\n\n` +
-    `Ketik 1 atau 2 lalu tekan OK:`,
-    '1'
-  );
-
-  if (choicePrompt === null) return; // Dibatalkan admin
-
-  const choiceTrimmed = choicePrompt.trim();
-  let sumberDana = 'laci_kasir';
-  let sumberDanaLabel = 'Laci Kasir (Kas Tunai Shift)';
-
-  if (choiceTrimmed === '2') {
-    sumberDana = 'dana_lain';
-    sumberDanaLabel = 'Dana Lain / Kas Toko';
-  } else if (choiceTrimmed === '1') {
-    sumberDana = 'laci_kasir';
-    sumberDanaLabel = 'Laci Kasir';
-  } else {
-    alert("Pilihan sumber dana tidak valid! Masukkan angka 1 atau 2.");
-    return;
-  }
-
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  const ss = String(now.getSeconds()).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  const MM = String(now.getMonth() + 1).padStart(2, '0');
-  const yy = now.getFullYear().toString().slice(-2);
-  const txId = `${hh}${mm}${ss}${dd}${MM}${yy}`;
-
-  const tx = {
-    id: txId,
-    waktu: now.toISOString(),
-    items: [],
-    total: app.nominal,
-    bayar: 0,
-    kembalian: 0,
-    metode_pembayaran: 'Manual',
-    kasir: activeCashier || 'Admin',
-    status_pembayaran: 'Bon',
-    nama_pelanggan: c.nama,
-    telepon_pelanggan: c.telepon || '',
-    customerId: c.id,
-    sisa_piutang: app.nominal,
-    jatuh_tempo: app.jatuh_tempo || null,
-    catatan_bon: `[Disetujui dari Portal - ${sumberDanaLabel}] ${app.alasan || 'Pengajuan Mandiri Anggota'}`,
-    keterangan_manual: app.alasan || 'Pengajuan Mandiri Anggota',
-    sumber_dana: sumberDana,
-    is_manual_debt: true,
-    riwayat_pelunasan: []
+  currentActionApplication = {
+    type: 'debt',
+    mode: 'approve',
+    appId: appId,
+    custId: custId,
+    cust: c,
+    app: app
   };
 
-  transactions.unshift(tx);
-  saveTransactionsLocally();
-  syncSingleTransactionToCloud(tx);
+  const modal = document.getElementById('modal-approve-application');
+  const titleEl = document.getElementById('modal-approve-app-title');
+  const infoEl = document.getElementById('modal-approve-app-info');
 
-  // Jika dicairkan dari Laci Kasir atau Dana Lain, catat pula pengeluaran kas
-  const loanExpense = {
-    id: 'EXP_' + Date.now(),
-    tanggal: now.toISOString(),
-    tipe: 'keluar',
-    nominal: app.nominal,
-    kategori: 'Pencairan Pinjaman Anggota',
-    is_loan_disbursement: true,
-    loanAppId: app.id,
-    customerId: c.id,
-    sumberDana: sumberDana, // 'laci_kasir' atau 'dana_lain'
-    keterangan: `Pencairan Pinjaman Mandiri [${c.kode_anggota || c.id}] ${c.nama} - Rp ${formatRupiah(app.nominal)} via ${sumberDanaLabel}`,
-    staff: activeCashier || 'Admin'
-  };
-
-  if (!Array.isArray(expenses)) expenses = [];
-  expenses.unshift(loanExpense);
-  saveExpensesLocally();
-  if (firebaseDb && typeof getStorePath === 'function') {
-    firebaseDb.ref(getStorePath('expenses/' + loanExpense.id)).set(loanExpense);
+  if (titleEl) titleEl.innerHTML = `<span>📋</span> <span>ACC Pengajuan Hutang: ${escapeHtml(c.nama)}</span>`;
+  if (infoEl) {
+    infoEl.innerHTML = `
+      <div style="font-weight: 700; font-size: 1rem; color: #1e293b; margin-bottom: 0.35rem;">
+        ${escapeHtml(c.nama)} <span style="font-size: 0.8rem; background: #fef3c7; color: #b45309; padding: 0.15rem 0.5rem; border-radius: 999px;">${c.telepon || 'No HP -'}</span>
+      </div>
+      <div>Nominal Pinjaman: <strong style="color: #dc2626; font-size: 1.15rem; font-family: monospace;">Rp ${formatRupiah(app.nominal)}</strong></div>
+      <div style="color: #64748b; font-size: 0.84rem; margin-top: 0.2rem;">Alasan Pengajuan: <em>"${escapeHtml(app.alasan || '-')}"</em></div>
+      ${app.jatuh_tempo ? `<div style="color: #ea580c; font-size: 0.84rem; font-weight: 600; margin-top: 0.2rem;">Rencana Pelunasan: ${escapeHtml(app.jatuh_tempo)}</div>` : ''}
+    `;
   }
 
-  app.status = 'Disetujui';
-  app.disetujui_pada = now.toISOString();
-  app.disetujui_oleh = activeCashier || 'Admin';
-  app.sumber_dana = sumberDana;
-  app.sumber_dana_label = sumberDanaLabel;
-  app.tx_id = txId;
-  app.expense_id = loanExpense.id;
-
-  saveCustomersLocally();
-  saveCustomerCloud(c);
-
-  alert(`✅ Sukses! Permohonan hutang Rp ${formatRupiah(app.nominal)} untuk ${c.nama} telah DISETUJUI.\nSumber Dana: ${sumberDanaLabel}.\nTransaksi hutang telah otomatis tercatat ke Buku Hutang & Pembukuan Kas.`);
-  renderCustomerDebtBook();
-  checkAndNotifyPendingDebtApplications(false);
+  if (modal) modal.style.display = 'flex';
 }
 
 function rejectMemberDebtApplication(appId, custId) {
@@ -19286,18 +19198,198 @@ function rejectMemberDebtApplication(appId, custId) {
     return;
   }
 
-  const reason = prompt(`Masukkan alasan penolakan pengajuan hutang untuk ${c.nama}:`, 'Tidak memenuhi persyaratan / batas kredit tercapai');
-  if (reason === null) return;
+  currentActionApplication = {
+    type: 'debt',
+    mode: 'reject',
+    appId: appId,
+    custId: custId,
+    cust: c,
+    app: app
+  };
+
+  const modal = document.getElementById('modal-reject-application');
+  const titleEl = document.getElementById('modal-reject-app-title');
+  const infoEl = document.getElementById('modal-reject-app-info');
+  const reasonInput = document.getElementById('reject-app-reason-input');
+
+  if (titleEl) titleEl.innerHTML = `<span>✕</span> <span>Tolak Pengajuan Hutang: ${escapeHtml(c.nama)}</span>`;
+  if (infoEl) {
+    infoEl.innerHTML = `
+      Anda akan menolak pengajuan pinjaman/hutang sebesar <b>Rp ${formatRupiah(app.nominal)}</b> dari <b>${escapeHtml(c.nama)}</b>.
+    `;
+  }
+  if (reasonInput) reasonInput.value = 'Tidak memenuhi persyaratan pinjaman atau batas kredit tercapai';
+
+  if (modal) modal.style.display = 'flex';
+}
+
+// Handler Eksekusi Konfirmasi Modal Persetujuan (ACC)
+function confirmApproveApplication() {
+  if (!currentActionApplication) return;
+  const { type, cust, app, currentPoints, claimPoints, nominalRp } = currentActionApplication;
+
+  const selectedRadio = document.querySelector('input[name="modal_approve_fund_source"]:checked');
+  const sumberDana = selectedRadio ? selectedRadio.value : 'laci_kasir';
+  const sumberDanaLabel = (sumberDana === 'dana_lain') ? 'Dana Lain / Kas Toko' : 'Laci Kasir (Kas Tunai Shift)';
+
+  const now = new Date();
+
+  if (type === 'point') {
+    // 1. Potong Poin Pelanggan
+    cust.poin = Math.max(0, currentPoints - claimPoints);
+
+    if (!Array.isArray(cust.riwayat_poin)) cust.riwayat_poin = [];
+    cust.riwayat_poin.unshift({
+      tanggal: now.toISOString(),
+      tipe: 'claim',
+      poin: -claimPoints,
+      nilai_rp: nominalRp,
+      sumber_dana: sumberDana,
+      keterangan: `Klaim Poin Mandiri disetujui (${sumberDanaLabel})`,
+      staff: activeCashier || 'Admin'
+    });
+
+    // 2. Catat ke Pengeluaran Kas
+    const pointExpense = {
+      id: 'EXP_' + Date.now(),
+      tanggal: now.toISOString(),
+      tipe: 'keluar',
+      nominal: nominalRp,
+      kategori: 'Klaim Poin Anggota',
+      is_point_claim: true,
+      claimId: app.id,
+      customerId: cust.id,
+      sumberDana: sumberDana,
+      keterangan: `Pencairan Klaim Poin Anggota [${cust.kode_anggota || cust.id}] ${cust.nama} - ${formatRupiah(claimPoints)} Poin via ${sumberDanaLabel}`,
+      staff: activeCashier || 'Admin'
+    };
+
+    if (!Array.isArray(expenses)) expenses = [];
+    expenses.unshift(pointExpense);
+    saveExpensesLocally();
+    if (firebaseDb && typeof getStorePath === 'function') {
+      firebaseDb.ref(getStorePath('expenses/' + pointExpense.id)).set(pointExpense);
+    }
+
+    // 3. Update Status Pengajuan
+    app.status = 'Disetujui';
+    app.disetujui_pada = now.toISOString();
+    app.disetujui_oleh = activeCashier || 'Admin';
+    app.sumber_dana = sumberDana;
+    app.sumber_dana_label = sumberDanaLabel;
+    app.expense_id = pointExpense.id;
+
+    saveCustomersLocally();
+    saveCustomerCloud(cust);
+
+    closeApproveApplicationModal();
+    updateAnalytics();
+    alert(`✅ Sukses! Klaim ${formatRupiah(claimPoints)} Poin (Rp ${formatRupiah(nominalRp)}) untuk ${cust.nama} telah DISETUJUI.\nSumber Dana: ${sumberDanaLabel}.\nSisa Poin Anggota: ${formatRupiah(cust.poin)} Poin.`);
+
+    renderCustomerDebtBook();
+    renderCustomersTable();
+    checkAndNotifyPendingDebtApplications(false);
+
+  } else if (type === 'debt') {
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const MM = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = now.getFullYear().toString().slice(-2);
+    const txId = `${hh}${mm}${ss}${dd}${MM}${yy}`;
+
+    const tx = {
+      id: txId,
+      waktu: now.toISOString(),
+      items: [],
+      total: app.nominal,
+      bayar: 0,
+      kembalian: 0,
+      metode_pembayaran: 'Manual',
+      kasir: activeCashier || 'Admin',
+      status_pembayaran: 'Bon',
+      nama_pelanggan: cust.nama,
+      telepon_pelanggan: cust.telepon || '',
+      customerId: cust.id,
+      sisa_piutang: app.nominal,
+      jatuh_tempo: app.jatuh_tempo || null,
+      catatan_bon: `[Disetujui dari Portal - ${sumberDanaLabel}] ${app.alasan || 'Pengajuan Mandiri Anggota'}`,
+      keterangan_manual: app.alasan || 'Pengajuan Mandiri Anggota',
+      sumber_dana: sumberDana,
+      is_manual_debt: true,
+      riwayat_pelunasan: []
+    };
+
+    transactions.unshift(tx);
+    saveTransactionsLocally();
+    syncSingleTransactionToCloud(tx);
+
+    // Jika dicairkan, catat pengeluaran kas
+    const loanExpense = {
+      id: 'EXP_' + Date.now(),
+      tanggal: now.toISOString(),
+      tipe: 'keluar',
+      nominal: app.nominal,
+      kategori: 'Pencairan Pinjaman Anggota',
+      is_loan_disbursement: true,
+      loanAppId: app.id,
+      customerId: cust.id,
+      sumberDana: sumberDana,
+      keterangan: `Pencairan Pinjaman Mandiri [${cust.kode_anggota || cust.id}] ${cust.nama} - Rp ${formatRupiah(app.nominal)} via ${sumberDanaLabel}`,
+      staff: activeCashier || 'Admin'
+    };
+
+    if (!Array.isArray(expenses)) expenses = [];
+    expenses.unshift(loanExpense);
+    saveExpensesLocally();
+    if (firebaseDb && typeof getStorePath === 'function') {
+      firebaseDb.ref(getStorePath('expenses/' + loanExpense.id)).set(loanExpense);
+    }
+
+    app.status = 'Disetujui';
+    app.disetujui_pada = now.toISOString();
+    app.disetujui_oleh = activeCashier || 'Admin';
+    app.sumber_dana = sumberDana;
+    app.sumber_dana_label = sumberDanaLabel;
+    app.tx_id = txId;
+    app.expense_id = loanExpense.id;
+
+    saveCustomersLocally();
+    saveCustomerCloud(cust);
+
+    closeApproveApplicationModal();
+    alert(`✅ Sukses! Permohonan pinjaman/hutang Rp ${formatRupiah(app.nominal)} untuk ${cust.nama} telah DISETUJUI.\nSumber Dana: ${sumberDanaLabel}.\nTransaksi otomatis tercatat ke Buku Hutang.`);
+    renderCustomerDebtBook();
+    checkAndNotifyPendingDebtApplications(false);
+  }
+}
+
+// Handler Eksekusi Konfirmasi Modal Penolakan (Reject)
+function confirmRejectApplication() {
+  if (!currentActionApplication) return;
+  const { type, cust, app } = currentActionApplication;
+  const reasonInput = document.getElementById('reject-app-reason-input');
+  const reason = (reasonInput ? reasonInput.value : '').trim() || 'Ditolak oleh admin/kasir';
+
+  const now = new Date().toISOString();
 
   app.status = 'Ditolak';
-  app.ditolak_pada = new Date().toISOString();
+  app.ditolak_pada = now;
   app.ditolak_oleh = activeCashier || 'Admin';
-  app.alasan_penolakan = reason.trim() || 'Ditolak oleh kasir';
+  app.alasan_penolakan = reason;
 
   saveCustomersLocally();
-  saveCustomerCloud(c);
+  saveCustomerCloud(cust);
 
-  alert(`Permohonan hutang untuk ${c.nama} telah ditolak.`);
+  closeRejectApplicationModal();
+
+  if (type === 'point') {
+    alert(`Permohonan klaim poin untuk ${cust.nama} telah DITOLAK.`);
+  } else {
+    alert(`Permohonan pinjaman/hutang untuk ${cust.nama} telah DITOLAK.`);
+  }
+
   renderCustomerDebtBook();
   checkAndNotifyPendingDebtApplications(false);
 }
@@ -27938,10 +28030,63 @@ async function initDesktopIntegration() {
       if (localDiskData && Object.keys(localDiskData).length > 0) {
         console.log('📂 Memuat database lokal dari disk Electron...');
         for (const key in localDiskData) {
-          if (!localStorage.getItem(key)) {
-            localStorage.setItem(key, typeof localDiskData[key] === 'string' ? localDiskData[key] : JSON.stringify(localDiskData[key]));
+          const diskVal = typeof localDiskData[key] === 'string' ? localDiskData[key] : JSON.stringify(localDiskData[key]);
+          const currentLocal = localStorage.getItem(key);
+
+          if (!currentLocal) {
+            localStorage.setItem(key, diskVal);
+          } else if (key === 'kasir_customers') {
+            // Gabungkan data customer dari disk dan localStorage agar tidak ada pengajuan pending yang hilang
+            try {
+              const diskCusts = JSON.parse(diskVal || '[]');
+              const localCusts = JSON.parse(currentLocal || '[]');
+              const mergedMap = new Map();
+
+              (Array.isArray(diskCusts) ? diskCusts : []).forEach(c => {
+                if (c && c.id) mergedMap.set(c.id, c);
+              });
+
+              (Array.isArray(localCusts) ? localCusts : []).forEach(lc => {
+                if (!lc || !lc.id) return;
+                const dc = mergedMap.get(lc.id);
+                if (!dc) {
+                  mergedMap.set(lc.id, lc);
+                } else {
+                  // Merge pengajuan_hutang
+                  const debtMap = new Map();
+                  (Array.isArray(dc.pengajuan_hutang) ? dc.pengajuan_hutang : []).forEach(a => { if (a && a.id) debtMap.set(a.id, a); });
+                  (Array.isArray(lc.pengajuan_hutang) ? lc.pengajuan_hutang : []).forEach(a => { if (a && a.id) debtMap.set(a.id, a); });
+                  const mergedDebts = Array.from(debtMap.values());
+
+                  // Merge pengajuan_klaim_poin
+                  const pointMap = new Map();
+                  (Array.isArray(dc.pengajuan_klaim_poin) ? dc.pengajuan_klaim_poin : []).forEach(a => { if (a && a.id) pointMap.set(a.id, a); });
+                  (Array.isArray(lc.pengajuan_klaim_poin) ? lc.pengajuan_klaim_poin : []).forEach(a => { if (a && a.id) pointMap.set(a.id, a); });
+                  const mergedPoints = Array.from(pointMap.values());
+
+                  const combinedCust = { ...dc, ...lc, pengajuan_hutang: mergedDebts, pengajuan_klaim_poin: mergedPoints };
+                  mergedMap.set(lc.id, combinedCust);
+                }
+              });
+
+              customers = Array.from(mergedMap.values());
+              localStorage.setItem('kasir_customers', JSON.stringify(customers));
+            } catch (mergeErr) {
+              console.warn('Gagal merge customers disk/local:', mergeErr);
+            }
           }
         }
+
+        // Re-sync memory customer state
+        try {
+          const freshCust = localStorage.getItem('kasir_customers');
+          if (freshCust) {
+            customers = JSON.parse(freshCust);
+            if (typeof renderCustomerDebtBook === 'function') renderCustomerDebtBook();
+            if (typeof renderCustomersTable === 'function') renderCustomersTable();
+            if (typeof checkAndNotifyPendingDebtApplications === 'function') checkAndNotifyPendingDebtApplications(false);
+          }
+        } catch (e) {}
       }
 
       // 3. Pasang Auto-Save berkala ke File Disk Electron (Setiap 5 detik jika ada perubahan)

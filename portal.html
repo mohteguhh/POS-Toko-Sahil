@@ -931,7 +931,29 @@
 
     function initFirebaseSync() {
       const cloudBadge = document.getElementById('cloud-badge');
-      if (!appConfigData.enableCloudSync || !appConfigData.firebaseConfig || !appConfigData.firebaseConfig.apiKey) {
+      
+      // Ambil konfigurasi Firebase dari appConfigData atau kasir_firebase_config
+      let fbCfg = appConfigData.firebaseConfig;
+      if (!fbCfg || !fbCfg.apiKey) {
+        try {
+          const stored = localStorage.getItem('kasir_firebase_config');
+          if (stored) fbCfg = JSON.parse(stored);
+        } catch (e) {}
+      }
+      if (!fbCfg || !fbCfg.apiKey) {
+        // Fallback konfigurasi default
+        fbCfg = {
+          apiKey: "AIzaSyAw0gC79nL0yI6P1X-example",
+          authDomain: "database-aplikasi-toko-sahil.firebaseapp.com",
+          projectId: "database-aplikasi-toko-sahil",
+          storageBucket: "database-aplikasi-toko-sahil.firebasestorage.app",
+          messagingSenderId: "513609035060",
+          appId: "1:513609035060:web:ec2afe8d5b6e4d14224961",
+          databaseURL: "https://database-aplikasi-toko-sahil-default-rtdb.asia-southeast1.firebasedatabase.app"
+        };
+      }
+
+      if (!fbCfg || !fbCfg.databaseURL) {
         if (cloudBadge) {
           cloudBadge.textContent = '💾 Offline / Lokal';
           cloudBadge.style.background = 'rgba(100,116,139,0.2)';
@@ -942,11 +964,17 @@
 
       try {
         if (typeof firebase !== 'undefined' && !firebase.apps.length) {
-          firebase.initializeApp(appConfigData.firebaseConfig);
+          firebase.initializeApp(fbCfg);
         }
         if (typeof firebase !== 'undefined' && firebase.database) {
           firebaseDb = firebase.database();
-          const storeCode = (appConfigData.firebaseStoreCode || localStorage.getItem('kasir_license_key') || 'default_store').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const storeCode = (appConfigData.firebaseStoreCode || localStorage.getItem('kasir_license_key') || 'DEFAULT').replace(/[.#$\[\]\/]/g, '_');
+
+          if (cloudBadge) {
+            cloudBadge.textContent = '☁️ Cloud Terhubung';
+            cloudBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+            cloudBadge.style.color = '#10b981';
+          }
 
           // Listener live customers
           firebaseDb.ref(`stores/${storeCode}/customers`).on('value', snap => {
@@ -1001,9 +1029,9 @@
 
     function saveCustomersLocalAndCloud(cust) {
       localStorage.setItem('kasir_customers', JSON.stringify(customersData));
-      if (firebaseDb && appConfigData.enableCloudSync && cust) {
+      if (firebaseDb && cust) {
         try {
-          const storeCode = (appConfigData.firebaseStoreCode || localStorage.getItem('kasir_license_key') || 'default_store').replace(/[^a-zA-Z0-9_-]/g, '_');
+          const storeCode = (appConfigData.firebaseStoreCode || localStorage.getItem('kasir_license_key') || 'DEFAULT').replace(/[.#$\[\]\/]/g, '_');
           const clean = JSON.parse(JSON.stringify(cust));
           const key = clean.id || clean.no_hp || ('CUST-' + Date.now());
           firebaseDb.ref(`stores/${storeCode}/customers/${key}`).set(clean).catch(e => console.warn(e));
