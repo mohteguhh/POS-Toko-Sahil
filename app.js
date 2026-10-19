@@ -20845,18 +20845,92 @@ function shareEmptyStockToSalesWhatsApp(salesId) {
   openSalesWaModal(salesId);
 }
 
-// Preview Gambar Nota Datang
+// Preview Gambar Nota Datang (Mendukung URL & Base64 Data URL)
 function previewDeliveryImage(url) {
   const container = document.getElementById('delivery-image-preview-container');
   const img = document.getElementById('delivery-image-preview');
+  const clearBtn = document.getElementById('btn-clear-delivery-img');
   if (!container || !img) return;
 
-  if (url && url.trim().startsWith('http')) {
+  if (url && (url.trim().startsWith('http') || url.trim().startsWith('data:image'))) {
     img.src = url.trim();
     container.style.display = 'block';
+    if (clearBtn) clearBtn.style.display = 'inline-block';
   } else {
     container.style.display = 'none';
     img.src = '';
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
+}
+
+// Handler Upload File Gambar Nota Fisik (Otomatis Kompres Ringan agar Penyimpanan Hemat)
+function handleDeliveryImageFileUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const nameDisplay = document.getElementById('delivery-file-name-display');
+  if (nameDisplay) nameDisplay.textContent = file.name;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const rawDataUrl = e.target.result;
+    // Kompres gambar nota jika ukurannya besar agar database tetap ringan dan cepat
+    const img = new Image();
+    img.onload = function() {
+      const maxWidth = 1200;
+      const maxHeight = 1600;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth || height > maxHeight) {
+        if (width / height > maxWidth / maxHeight) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        } else {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.78);
+
+      const urlInput = document.getElementById('delivery-image-url');
+      if (urlInput) urlInput.value = compressedDataUrl;
+      previewDeliveryImage(compressedDataUrl);
+    };
+    img.src = rawDataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearDeliveryImage() {
+  const fileInput = document.getElementById('delivery-image-file');
+  if (fileInput) fileInput.value = '';
+  const urlInput = document.getElementById('delivery-image-url');
+  if (urlInput) urlInput.value = '';
+  const nameDisplay = document.getElementById('delivery-file-name-display');
+  if (nameDisplay) nameDisplay.textContent = 'Belum ada file dipilih';
+  previewDeliveryImage('');
+}
+
+function openFullDeliveryImage(src) {
+  if (!src) return;
+  const w = window.open('', '_blank');
+  if (w) {
+    w.document.write(`
+      <html>
+        <head><title>Foto Nota Pembelian Sales</title></head>
+        <body style="margin:0; background:#0f172a; display:flex; justify-content:center; align-items:center; min-height:100vh;">
+          <img src="${src}" style="max-width:98%; max-height:98vh; object-fit:contain; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+        </body>
+      </html>
+    `);
+    w.document.close();
   }
 }
 
