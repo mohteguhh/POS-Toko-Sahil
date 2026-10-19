@@ -20845,22 +20845,38 @@ function shareEmptyStockToSalesWhatsApp(salesId) {
   openSalesWaModal(salesId);
 }
 
-// Preview Gambar Nota Datang (Mendukung URL & Base64 Data URL)
+// Preview Gambar Nota Datang (Mendukung URL, Google Drive Link, & Base64 Data URL)
 function previewDeliveryImage(url) {
   const container = document.getElementById('delivery-image-preview-container');
   const img = document.getElementById('delivery-image-preview');
   const clearBtn = document.getElementById('btn-clear-delivery-img');
+  const urlInput = document.getElementById('delivery-image-url');
   if (!container || !img) return;
 
-  if (url && (url.trim().startsWith('http') || url.trim().startsWith('data:image'))) {
-    img.src = url.trim();
-    container.style.display = 'block';
-    if (clearBtn) clearBtn.style.display = 'inline-block';
-  } else {
-    container.style.display = 'none';
-    img.src = '';
-    if (clearBtn) clearBtn.style.display = 'none';
+  if (url) {
+    let cleanUrl = url.trim();
+
+    // Otomatis ubah link sharing Google Drive menjadi link gambar langsung
+    // Contoh format: https://drive.google.com/file/d/ID_FILE/view?usp=sharing
+    const driveMatch = cleanUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || cleanUrl.match(/id=([a-zA-Z0-9_-]+)/);
+    if (driveMatch && driveMatch[1]) {
+      cleanUrl = `https://lh3.googleusercontent.com/d/${driveMatch[1]}`;
+      if (urlInput && urlInput.value !== cleanUrl) {
+        urlInput.value = cleanUrl;
+      }
+    }
+
+    if (cleanUrl.startsWith('http') || cleanUrl.startsWith('data:image')) {
+      img.src = cleanUrl;
+      container.style.display = 'block';
+      if (clearBtn) clearBtn.style.display = 'inline-block';
+      return;
+    }
   }
+
+  container.style.display = 'none';
+  img.src = '';
+  if (clearBtn) clearBtn.style.display = 'none';
 }
 
 // Handler Upload File Gambar Nota Fisik (Otomatis Kompres Ringan agar Penyimpanan Hemat)
