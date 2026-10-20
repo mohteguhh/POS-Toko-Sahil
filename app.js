@@ -2256,6 +2256,7 @@ if (receiptSettings.logoMarginLR === undefined) receiptSettings.logoMarginLR = 0
 if (receiptSettings.nameMarginLR === undefined) receiptSettings.nameMarginLR = 0;
 if (receiptSettings.addressMarginLR === undefined) receiptSettings.addressMarginLR = 0;
 if (receiptSettings.phoneMarginLR === undefined) receiptSettings.phoneMarginLR = 0;
+if (receiptSettings.paperSize === undefined) receiptSettings.paperSize = '58mm';
 
 let labelSettings = safeJsonParse('kasir_label_settings', {
   width: 65,
@@ -2990,10 +2991,14 @@ function loadReceiptSettings() {
     
     const lHtml = document.getElementById(`${item}-margin-preview-val`);
     const lText = document.getElementById(`${item}-margin-preview-text-val`);
-    if (lHtml) lHtml.textContent = `${val}mm`;
     if (lText) lText.textContent = `${val}mm`;
   });
   
+  const paperSizeEl = document.getElementById('receipt-paper-size');
+  if (paperSizeEl) {
+    paperSizeEl.value = receiptSettings.paperSize || '58mm';
+  }
+
   applyReceiptSettings();
 }
 
@@ -3281,7 +3286,36 @@ function applyReceiptSettings() {
     }
   }
   
-  // Set CSS Variables for Plain Text Format dynamic values
+  // Set CSS Variables for Paper Size & Plain Text Format dynamic values
+  const paperSize = receiptSettings.paperSize || '58mm';
+  document.documentElement.style.setProperty('--receipt-paper-width', paperSize);
+  
+  const paperSizeSelect = document.getElementById('receipt-paper-size');
+  if (paperSizeSelect && paperSizeSelect.value !== paperSize) {
+    paperSizeSelect.value = paperSize;
+  }
+  
+  // Update quick toggle buttons di modal struk
+  const btn58 = document.getElementById('btn-quick-paper-58mm');
+  const btn80 = document.getElementById('btn-quick-paper-80mm');
+  if (btn58 && btn80) {
+    if (paperSize === '80mm') {
+      btn80.style.background = '#2563eb';
+      btn80.style.color = '#ffffff';
+      btn80.style.boxShadow = '0 1px 3px rgba(37,99,235,0.3)';
+      btn58.style.background = 'transparent';
+      btn58.style.color = '#64748b';
+      btn58.style.boxShadow = 'none';
+    } else {
+      btn58.style.background = '#2563eb';
+      btn58.style.color = '#ffffff';
+      btn58.style.boxShadow = '0 1px 3px rgba(37,99,235,0.3)';
+      btn80.style.background = 'transparent';
+      btn80.style.color = '#64748b';
+      btn80.style.boxShadow = 'none';
+    }
+  }
+
   const textTitleFontSize = receiptSettings.textTitleFontSize !== undefined ? receiptSettings.textTitleFontSize : 16; // in pt
   const textFontSize = receiptSettings.textFontSize !== undefined ? receiptSettings.textFontSize : 12; // in pt
   const textPaddingLeft = receiptSettings.textPaddingLeft !== undefined ? receiptSettings.textPaddingLeft : 1; // in mm
@@ -3377,6 +3411,78 @@ function updateItemMarginPreview(type, val) {
   });
 }
 
+// Preset Otomatis Ukuran Kertas Thermal (58mm vs 80mm)
+function applyPaperPreset(size) {
+  receiptSettings.paperSize = size;
+  if (size === '80mm') {
+    receiptSettings.textWidth = 42;
+    receiptSettings.textFontSize = 10;
+    receiptSettings.textTitleFontSize = 14;
+    receiptSettings.fontSizeHeader = 16;
+    receiptSettings.fontSizeItems = 13;
+    receiptSettings.fontSizeFooter = 13;
+    receiptSettings.textPaddingLeft = 0;
+  } else {
+    // Standar 58mm
+    receiptSettings.paperSize = '58mm';
+    receiptSettings.textWidth = 32;
+    receiptSettings.textFontSize = 9;
+    receiptSettings.textTitleFontSize = 12;
+    receiptSettings.fontSizeHeader = 13;
+    receiptSettings.fontSizeItems = 11;
+    receiptSettings.fontSizeFooter = 11;
+    receiptSettings.textPaddingLeft = 0;
+  }
+
+  // Update elemen input di pengaturan jika ada
+  const inputWidth = document.getElementById('receipt-text-width');
+  if (inputWidth) {
+    inputWidth.value = receiptSettings.textWidth;
+    const wLabel = document.getElementById('text-width-preview-val');
+    if (wLabel) wLabel.textContent = `${receiptSettings.textWidth} karakter`;
+  }
+  const inputFontSize = document.getElementById('receipt-text-font-size');
+  if (inputFontSize) {
+    inputFontSize.value = receiptSettings.textFontSize;
+    const fsLabel = document.getElementById('text-font-preview-val');
+    if (fsLabel) fsLabel.textContent = `${receiptSettings.textFontSize}pt`;
+  }
+  const inputTitleSize = document.getElementById('receipt-text-title-font-size');
+  if (inputTitleSize) {
+    inputTitleSize.value = receiptSettings.textTitleFontSize;
+    const tsLabel = document.getElementById('text-title-font-preview-val');
+    if (tsLabel) tsLabel.textContent = `${receiptSettings.textTitleFontSize}pt`;
+  }
+  const inputPadLeft = document.getElementById('receipt-text-padding-left');
+  if (inputPadLeft) {
+    inputPadLeft.value = receiptSettings.textPaddingLeft;
+    const padLabel = document.getElementById('text-padding-preview-val');
+    if (padLabel) padLabel.textContent = `${receiptSettings.textPaddingLeft}mm`;
+  }
+
+  // Simpan preferensi lokal
+  localStorage.setItem('kasir_receipt_settings', JSON.stringify(receiptSettings));
+
+  applyReceiptSettings();
+
+  // Jika modal struk sedang terbuka, render ulang teks struk dengan lebar baru
+  const receiptModal = document.getElementById('receipt-modal');
+  if (receiptModal && receiptModal.classList.contains('active') && currentActiveReceiptTx) {
+    const textBody = document.getElementById('rec-text-body');
+    if (textBody && typeof generatePlainTextReceipt === 'function') {
+      textBody.innerHTML = generatePlainTextReceipt(currentActiveReceiptTx, currentActiveReceiptItems);
+    }
+  }
+}
+
+function onPaperSizeChanged(val) {
+  applyPaperPreset(val);
+}
+
+function quickSetReceiptPaperSize(val) {
+  applyPaperPreset(val);
+}
+
 function saveReceiptSettings() {
   receiptSettings.name = document.getElementById('store-name-input').value.trim() || 'Toko Sahil POS';
   receiptSettings.phone = document.getElementById('store-phone-input').value.trim() || '-';
@@ -3406,11 +3512,16 @@ function saveReceiptSettings() {
   receiptSettings.showMethod = document.getElementById('chk-show-method').checked;
   receiptSettings.printFormat = document.getElementById('receipt-print-format').value;
   
+  const paperSizeSelect = document.getElementById('receipt-paper-size');
+  if (paperSizeSelect) {
+    receiptSettings.paperSize = paperSizeSelect.value || '58mm';
+  }
+  
   // Save Text Format Settings
   receiptSettings.textTitleFontSize = parseFloat(document.getElementById('receipt-text-title-font-size').value) || 16;
   receiptSettings.textFontSize = parseFloat(document.getElementById('receipt-text-font-size').value) || 12;
-  receiptSettings.textPaddingLeft = parseFloat(document.getElementById('receipt-text-padding-left').value) || 1;
-  receiptSettings.textWidth = parseInt(document.getElementById('receipt-text-width').value) || 25;
+  receiptSettings.textPaddingLeft = parseFloat(document.getElementById('receipt-text-padding-left').value) || 0;
+  receiptSettings.textWidth = parseInt(document.getElementById('receipt-text-width').value) || (receiptSettings.paperSize === '80mm' ? 42 : 32);
   
   localStorage.setItem('kasir_receipt_settings', JSON.stringify(receiptSettings));
   
