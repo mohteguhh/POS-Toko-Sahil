@@ -9153,7 +9153,15 @@ function updateReceiptButtonsHighlight() {
   });
 }
 
+function printReceiptDirectly() {
+  document.body.classList.add('printing-receipt');
+  setTimeout(() => {
+    window.print();
+  }, 50);
+}
+
 function closeReceiptModal() {
+  document.body.classList.remove('printing-receipt');
   document.getElementById('receipt-modal').classList.remove('active');
   focusSearchInput();
 }
@@ -12285,7 +12293,7 @@ function handleGlobalKeydowns(e) {
           const target = activeBtns[selectedReceiptButtonIndex];
           if (target) {
             if (target.action === 'print') {
-              window.print();
+              printReceiptDirectly();
             } else if (target.action === 'delivery') {
               printDeliveryNoteFromCurrentReceipt();
             } else if (target.action === 'wa') {
