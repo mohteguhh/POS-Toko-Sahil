@@ -3908,9 +3908,25 @@ body.print-format-html #receipt-text-content {
     padding: 0 !important;
     text-align: left !important;
   }
+  #receipt-modal .receipt-logo-container,
   #receipt-modal .receipt-text-logo-container {
     width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
     box-sizing: border-box !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  #receipt-modal .receipt-logo-img {
+    display: block !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    max-width: 160px !important;
+    height: auto !important;
+    max-height: 72px !important;
+    object-fit: contain !important;
   }
   #receipt-modal .receipt-text-header-title {
     font-size: var(--print-text-title-size, 1.25em) !important;
