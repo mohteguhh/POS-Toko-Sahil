@@ -2895,6 +2895,14 @@
                 <input type="number" id="setting-label-margin-left" min="0" max="50" value="0">
               </div>
               <div class="form-group">
+                <label for="setting-label-margin-top">Batas Atas / Margin Atas (mm)</label>
+                <input type="number" id="setting-label-margin-top" min="0" max="50" value="0" step="0.5">
+              </div>
+              <div class="form-group">
+                <label for="setting-label-margin-bottom">Batas Bawah / Margin Bawah (mm)</label>
+                <input type="number" id="setting-label-margin-bottom" min="0" max="50" value="0" step="0.5">
+              </div>
+              <div class="form-group">
                 <label for="setting-label-chars">Batas Karakter Nama Produk</label>
                 <input type="number" id="setting-label-chars" min="10" max="50" value="25">
               </div>
@@ -4158,6 +4166,17 @@
           <input type="number" id="print-label-qty" min="1" max="100" value="1" oninput="updateLabelPreview()" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); font-weight: 600; outline: none;">
         </div>
 
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+          <div class="form-group" style="margin: 0;">
+            <label for="modal-label-margin-top" style="font-size: 0.85rem; font-weight: 600;">Batas Atas (mm)</label>
+            <input type="number" id="modal-label-margin-top" min="0" max="50" value="0" step="0.5" oninput="onModalLabelMarginChange()" style="width: 100%; padding: 0.45rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.88rem; outline: none;">
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <label for="modal-label-margin-bottom" style="font-size: 0.85rem; font-weight: 600;">Batas Bawah (mm)</label>
+            <input type="number" id="modal-label-margin-bottom" min="0" max="50" value="0" step="0.5" oninput="onModalLabelMarginChange()" style="width: 100%; padding: 0.45rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.88rem; outline: none;">
+          </div>
+        </div>
+
         <div class="form-group">
           <label>Pratinjau Label</label>
           <div id="label-preview-container" style="display: flex; justify-content: center; padding: 1.5rem; background-color: var(--bg-surface-elevated); border: 1px dashed var(--border-color); border-radius: var(--border-radius-sm); margin-top: 0.5rem; overflow: auto;">
@@ -4475,6 +4494,16 @@
           <select id="select-print-rack-target" style="width: 100%; padding: 0.65rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-family: var(--font-main); font-size: 0.95rem; background: var(--bg-surface); color: var(--text-main); outline: none;">
             <!-- Diisi dinamis -->
           </select>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+          <div class="form-group" style="margin: 0;">
+            <label for="print-rack-margin-top" style="font-size: 0.85rem; font-weight: 600;">Batas Atas Kertas (mm)</label>
+            <input type="number" id="print-rack-margin-top" min="0" max="50" value="0" step="0.5" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; outline: none; background: var(--bg-surface); color: var(--text-main);">
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <label for="print-rack-margin-bottom" style="font-size: 0.85rem; font-weight: 600;">Batas Bawah Kertas (mm)</label>
+            <input type="number" id="print-rack-margin-bottom" min="0" max="50" value="0" step="0.5" style="width: 100%; padding: 0.45rem; border: 1.5px solid var(--border-color); border-radius: 8px; font-size: 0.88rem; outline: none; background: var(--bg-surface); color: var(--text-main);">
+          </div>
         </div>
         <div id="print-rack-preview-summary" style="padding: 0.75rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.85rem;">
           <div style="font-weight: 600; color: var(--text-main);">Ringkasan:</div>
