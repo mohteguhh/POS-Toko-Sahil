@@ -3215,7 +3215,10 @@ function applyReceiptSettings() {
     receiptHeader.style.fontSize = `${receiptSettings.fontSizeHeader}px`;
   }
   
-  // Terapkan margin kiri-kanan masing-masing elemen (HTML & Text)
+  // Terapkan margin kiri-kanan / offset masing-masing elemen (HTML & Text)
+  const logoOffset = receiptSettings.logoMarginLR || 0;
+  document.documentElement.style.setProperty('--logo-offset-x', `${logoOffset}mm`);
+
   const headerItemsMap = [
     { type: 'logo', ids: ['rec-logo-container', 'rec-text-logo-container'] },
     { type: 'name', ids: ['rec-store-name', 'rec-text-store-name'] },
@@ -3228,7 +3231,12 @@ function applyReceiptSettings() {
     itemObj.ids.forEach(id => {
       const el = document.getElementById(id);
       if (el) {
-        el.style.paddingLeft = m > 0 ? `${m}mm` : '0px';
+        if (itemObj.type === 'logo') {
+          const img = el.querySelector('img') || el;
+          img.style.transform = `translateX(${m}mm)`;
+        } else {
+          el.style.paddingLeft = m > 0 ? `${m}mm` : '0px';
+        }
         el.style.boxSizing = 'border-box';
       }
     });
@@ -3393,6 +3401,10 @@ function updateItemMarginPreview(type, val) {
   if (lHtml) lHtml.textContent = `${marginVal}mm`;
   if (lText) lText.textContent = `${marginVal}mm`;
 
+  if (type === 'logo') {
+    document.documentElement.style.setProperty('--logo-offset-x', `${marginVal}mm`);
+  }
+
   // Dynamic preview update for both HTML and Text elements
   const targetMap = {
     logo: ['rec-logo-container', 'rec-text-logo-container'],
@@ -3405,7 +3417,12 @@ function updateItemMarginPreview(type, val) {
   targets.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      el.style.paddingLeft = marginVal > 0 ? `${marginVal}mm` : '0px';
+      if (type === 'logo') {
+        const img = el.querySelector('img') || el;
+        img.style.transform = `translateX(${marginVal}mm)`;
+      } else {
+        el.style.paddingLeft = marginVal > 0 ? `${marginVal}mm` : '0px';
+      }
       el.style.boxSizing = 'border-box';
     }
   });
@@ -9090,7 +9107,8 @@ function showReceipt(tx, items) {
   const textLogoContainer = document.getElementById('rec-text-logo-container');
   if (textLogoContainer) {
     if (receiptSettings.logo && receiptSettings.showLogo) {
-      textLogoContainer.innerHTML = `<img src="${receiptSettings.logo}" alt="Logo" class="receipt-logo-img">`;
+      const logoOffset = receiptSettings.logoMarginLR || 0;
+      textLogoContainer.innerHTML = `<img src="${receiptSettings.logo}" alt="Logo" class="receipt-logo-img" style="transform: translateX(${logoOffset}mm);">`;
       textLogoContainer.style.display = 'flex';
     } else {
       textLogoContainer.innerHTML = '';

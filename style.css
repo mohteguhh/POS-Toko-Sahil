@@ -3831,12 +3831,20 @@ body.print-format-html #receipt-text-content {
     display: none !important;
   }
   
-  /* 1. Cetak struk thermal kasir (Aktif baik dengan body.printing-receipt maupun saat #receipt-modal.active terbuka) */
-  #receipt-modal,
-  #receipt-modal * {
+  /* Sembunyikan modal receipt secara mutlak jika mencetak laporan atau label */
+  body.printing-rack-report #receipt-modal,
+  body.printing-labels #receipt-modal,
+  body.printing-daily-report #receipt-modal {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* 1. Cetak struk thermal kasir (Hanya tampil saat struk kasir aktif) */
+  body:not(.printing-rack-report):not(.printing-labels):not(.printing-daily-report) #receipt-modal,
+  body:not(.printing-rack-report):not(.printing-labels):not(.printing-daily-report) #receipt-modal * {
     visibility: visible !important;
   }
-  #receipt-modal {
+  body:not(.printing-rack-report):not(.printing-labels):not(.printing-daily-report) #receipt-modal {
     position: static !important;
     left: 0 !important;
     top: 0 !important;
@@ -3901,32 +3909,26 @@ body.print-format-html #receipt-text-content {
   }
   #receipt-modal .text-receipt-wrapper {
     font-size: var(--print-text-font-size, 9.5pt) !important;
-    width: 100% !important;
+    width: calc(var(--print-text-width, 25) * 1ch) !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
     margin: 0 !important;
     padding: 0 !important;
     text-align: left !important;
   }
-  #receipt-modal .receipt-logo-container,
   #receipt-modal .receipt-text-logo-container {
     width: 100% !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    text-align: center !important;
     box-sizing: border-box !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
+    margin-bottom: 0.25rem !important;
   }
   #receipt-modal .receipt-logo-img {
     display: block !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    max-width: 160px !important;
-    height: auto !important;
-    max-height: 72px !important;
-    object-fit: contain !important;
+    margin: 0 auto !important;
+    transform: translateX(var(--logo-offset-x, 0mm)) !important;
   }
   #receipt-modal .receipt-text-header-title {
     font-size: var(--print-text-title-size, 1.25em) !important;
@@ -3971,7 +3973,7 @@ body.print-format-html #receipt-text-content {
     width: 100% !important;
     background-color: #ffffff !important;
     display: block !important;
-    padding: 5mm !important;
+    padding: 2mm 5mm !important;
     font-family: monospace;
     page-break-after: auto;
   }
@@ -4001,9 +4003,11 @@ body.print-format-html #receipt-text-content {
     width: 100% !important;
     background-color: #ffffff !important;
     display: block !important;
-    padding: 5mm !important;
+    padding: 0 4mm !important;
+    padding-top: 0 !important;
     font-family: monospace;
     page-break-after: auto;
+    page-break-before: avoid !important;
   }
   body.printing-rack-report .rack-report-print-area table {
     border-collapse: collapse;
@@ -4495,12 +4499,14 @@ body.print-format-html #receipt-text-content {
   }
   body.printing-labels #labels-print-area {
     position: static !important;
+    margin: 0 !important;
     width: 100% !important;
     background-color: #ffffff !important;
     display: block !important;
-    padding: 0;
+    padding: 0 !important;
     overflow: visible !important;
     page-break-after: auto;
+    page-break-before: avoid !important;
   }
 }
 
