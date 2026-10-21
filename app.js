@@ -4232,14 +4232,9 @@ function getAnalyticsFilteredTxs() {
 }
 
 function getHistoricalProductStock(targetDateStr) {
-  // Rekonstruksi akurat posisi produk dan stok pada tanggal targetDateStr (YYYY-MM-DD):
-  // 1. Produk belum ada pada tanggal tersebut jika tanggal dibuat / transaksi pertama / kulak pertama setelah targetDateStr.
-  // 2. Stok pada tanggal = stok_saat_ini 
-  //    + sum(penjualan SETELAH targetDateStr) 
-  //    - sum(kulak/pembelian sales SETELAH targetDateStr) 
-  //    + sum(retur sales SETELAH targetDateStr)
-  //    - penyesuaian opname SETELAH targetDateStr
-  if (!targetDateStr) {
+  // Jika targetDateStr kosong atau sama dengan hari ini, gunakan langsung stok produk terkini
+  const todayStr = getLocalISODate(new Date()).slice(0, 10);
+  if (!targetDateStr || targetDateStr.slice(0, 10) >= todayStr) {
     return products.map(p => ({ ...p, stok: Number(p.stok) || 0 }));
   }
 
@@ -7895,10 +7890,10 @@ function openPaymentModal() {
   statusSelect.value = 'Lunas';
   statusSelect.disabled = false;
   
-  // Populate Customer Datalist
+  // Populate Customer Datalist (Maksimal 50 entri atau gunakan dropdown dinamis agar modal instan terbuka)
   const datalist = document.getElementById('customer-list');
   if (datalist) {
-    datalist.innerHTML = customers.map(c => `<option value="${c.nama}">`).join('');
+    datalist.innerHTML = customers.slice(0, 50).map(c => `<option value="${c.nama}">`).join('');
   }
   
   const customerNameGroup = document.getElementById('customer-name-group');
@@ -17946,7 +17941,7 @@ function updateCustomerNameGlobally(id, oldName, newName, newPhone) {
   // Refresh datalist pelanggan di POS kasir
   const datalist = document.getElementById('customer-list');
   if (datalist) {
-    datalist.innerHTML = customers.map(c => `<option value="${c.nama}">`).join('');
+    datalist.innerHTML = customers.slice(0, 50).map(c => `<option value="${c.nama}">`).join('');
   }
 }
 
@@ -20304,14 +20299,16 @@ function updateCustomerDropdownActiveState() {
   });
 }
 
+let customerSearchDebounceTimer = null;
 function onCustomerSearchInput(val) {
   const clearBtn = document.getElementById('btn-clear-customer');
   if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
 
-  renderCustomerDropdown(val);
+  clearTimeout(customerSearchDebounceTimer);
+  customerSearchDebounceTimer = setTimeout(() => {
+    renderCustomerDropdown(val);
+  }, 120);
 
-  // Jangan auto-pilih saat mengetik agar tidak langsung mengunci nama awalan yang sama (misal 'Budi' vs 'Budi Santoso')
-  // Pemilihan hanya terjadi jika user klik nama di dropdown atau tekan Enter
   if (!val.trim()) {
     applySelectedCustomer(null);
   }
