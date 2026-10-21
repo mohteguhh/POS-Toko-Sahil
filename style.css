@@ -5903,3 +5903,83 @@ body.print-landscape {
     }
   }
 }
+
+
+/* ========================================================================== */
+/* RESPONSIVITAS MOBILE MENYELURUH (TABLE, CARDS, GRID, & MODALS) */
+/* ========================================================================== */
+@media (max-width: 768px) {
+  /* 1. Kontainer & Padding Halaman */
+  .content-area {
+    padding: 0.65rem !important;
+    padding-bottom: 85px !important; /* Ruang aman agar konten paling bawah tidak tertutup M3 Bottom Nav */
+  }
+
+  /* 2. Grid & Banner di Semua Halaman (Kulak, Anggota, Produk, Laporan) */
+  .metrics-grid,
+  .fin-grid,
+  .crm-quick-stats,
+  .sales-nav-pills {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.5rem !important;
+  }
+
+  .card {
+    padding: 0.85rem !important;
+    border-radius: 12px !important;
+  }
+
+  /* 3. Tabel Responsif di Semua Halaman */
+  .table-wrapper,
+  .table-responsive {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    display: block !important;
+    border-radius: 8px !important;
+  }
+
+  .data-table,
+  table {
+    min-width: 600px !important; /* Memastikan tabel dapat digeser mulus tanpa teks terhimpit */
+  }
+
+  /* 4. Toolbar & Form Filter agar tidak terpotong */
+  .table-search-wrapper,
+  .table-actions,
+  .analytics-btn-group,
+  .toolbar-wrapper {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+  }
+
+  .table-search-wrapper > div,
+  .table-actions > button,
+  .analytics-btn-group > button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* 5. Header subtab / pills di mobile */
+  .subnav-pills,
+  .sales-nav-pills {
+    display: flex !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 4px !important;
+  }
+
+  /* 6. Form Input & Modals */
+  .form-row,
+  .modal-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 7. Bottom Navigation Z-Index */
+  .m3-bottom-nav {
+    z-index: 9990 !important;
+  }
+}

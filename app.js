@@ -53,6 +53,7 @@ if (typeof loyaltySettings.voucherMonthlyQuota === 'undefined') loyaltySettings.
 let currentCustomerVoucherFilter = 'all'; // 'all' | 'used' | 'unused'
 let currentVoucherFilterMode = 'month'; // 'month' | 'month-range' | 'date-range' | 'year' | 'all'
 let currentVoucherCategoryFilter = 'All';
+let currentVoucherNameFilter = 'All';
 
 // Helper: dapatkan kode bulan kalender aktif saat ini (contoh: "2026-10")
 function getCurrentMonthKey() {
@@ -143,6 +144,13 @@ function isCustomVoucherAllocationInFilter(allocItem) {
     }
   }
 
+  // Filter Spesifik Nama Voucher (e.g. "Voucher Ramadhan")
+  if (currentVoucherNameFilter && currentVoucherNameFilter !== 'All') {
+    if ((allocItem.namaVoucher || '').toLowerCase().trim() !== currentVoucherNameFilter.toLowerCase().trim()) {
+      return false;
+    }
+  }
+
   // Filter Status: sudah ambil vs belum ambil
   if (currentCustomerVoucherFilter === 'used' && allocItem.status !== 'sudah_diambil') return false;
   if (currentCustomerVoucherFilter === 'unused' && allocItem.status !== 'belum_diambil') return false;
@@ -163,6 +171,9 @@ function resetVoucherDateRangeFilter() {
   const startInp = document.getElementById('voucher-filter-date-start');
   const endInp = document.getElementById('voucher-filter-date-end');
   const catSel = document.getElementById('voucher-filter-category-select');
+  const nameSel = document.getElementById('voucher-filter-name-select');
+  if (nameSel) nameSel.value = 'All';
+  currentVoucherNameFilter = 'All';
   if (startInp) startInp.value = '';
   if (endInp) endInp.value = '';
   if (catSel) catSel.value = 'All';
@@ -2244,6 +2255,11 @@ if (receiptSettings.showSubtotal === undefined) receiptSettings.showSubtotal = t
 if (receiptSettings.showDiscount === undefined) receiptSettings.showDiscount = true;
 if (receiptSettings.showMethod === undefined) receiptSettings.showMethod = true;
 if (receiptSettings.fontSizeHeader === undefined) receiptSettings.fontSizeHeader = receiptSettings.fontSize || 14;
+if (receiptSettings.fontSizeName === undefined) receiptSettings.fontSizeName = 16;
+if (receiptSettings.fontSizeAddress === undefined) receiptSettings.fontSizeAddress = 11;
+if (receiptSettings.fontSizePhone === undefined) receiptSettings.fontSizePhone = 11;
+if (receiptSettings.textAddressFontSize === undefined) receiptSettings.textAddressFontSize = 10;
+if (receiptSettings.textPhoneFontSize === undefined) receiptSettings.textPhoneFontSize = 10;
 if (receiptSettings.fontSizeItems === undefined) receiptSettings.fontSizeItems = receiptSettings.fontSize || 12;
 if (receiptSettings.fontSizeFooter === undefined) receiptSettings.fontSizeFooter = receiptSettings.fontSize || 12;
 if (receiptSettings.printFormat === undefined) receiptSettings.printFormat = 'text';
@@ -2959,6 +2975,34 @@ function loadReceiptSettings() {
   
   document.getElementById('receipt-font-header').value = receiptSettings.fontSizeHeader;
   document.getElementById('font-preview-header-val').textContent = `${receiptSettings.fontSizeHeader}px`;
+  
+  const fNameEl = document.getElementById('receipt-font-name');
+  if (fNameEl) {
+    fNameEl.value = receiptSettings.fontSizeName || 16;
+    document.getElementById('font-preview-name-val').textContent = `${receiptSettings.fontSizeName || 16}px`;
+  }
+  const fAddrEl = document.getElementById('receipt-font-address');
+  if (fAddrEl) {
+    fAddrEl.value = receiptSettings.fontSizeAddress || 11;
+    document.getElementById('font-preview-address-val').textContent = `${receiptSettings.fontSizeAddress || 11}px`;
+  }
+  const fPhoneEl = document.getElementById('receipt-font-phone');
+  if (fPhoneEl) {
+    fPhoneEl.value = receiptSettings.fontSizePhone || 11;
+    document.getElementById('font-preview-phone-val').textContent = `${receiptSettings.fontSizePhone || 11}px`;
+  }
+
+  // Text Format detail fonts
+  const tAddrEl = document.getElementById('receipt-text-address-font-size');
+  if (tAddrEl) {
+    tAddrEl.value = receiptSettings.textAddressFontSize || 10;
+    document.getElementById('text-address-font-preview-val').textContent = `${receiptSettings.textAddressFontSize || 10}pt`;
+  }
+  const tPhoneEl = document.getElementById('receipt-text-phone-font-size');
+  if (tPhoneEl) {
+    tPhoneEl.value = receiptSettings.textPhoneFontSize || 10;
+    document.getElementById('text-phone-font-preview-val').textContent = `${receiptSettings.textPhoneFontSize || 10}pt`;
+  }
   document.getElementById('receipt-font-items').value = receiptSettings.fontSizeItems;
   document.getElementById('font-preview-items-val').textContent = `${receiptSettings.fontSizeItems}px`;
   document.getElementById('receipt-font-footer').value = receiptSettings.fontSizeFooter;
@@ -3217,6 +3261,19 @@ function applyReceiptSettings() {
   const receiptHeader = receiptCard.querySelector('.receipt-header');
   if (receiptHeader) {
     receiptHeader.style.fontSize = `${receiptSettings.fontSizeHeader}px`;
+  }
+  const storeNameEl = document.getElementById('rec-store-name');
+  if (storeNameEl) {
+    storeNameEl.style.fontSize = `${receiptSettings.fontSizeName || 16}px`;
+    storeNameEl.style.fontWeight = '800';
+  }
+  const storeAddrEl = document.getElementById('rec-store-address');
+  if (storeAddrEl) {
+    storeAddrEl.style.fontSize = `${receiptSettings.fontSizeAddress || 11}px`;
+  }
+  const storePhoneEl = document.getElementById('rec-store-phone');
+  if (storePhoneEl) {
+    storePhoneEl.style.fontSize = `${receiptSettings.fontSizePhone || 11}px`;
   }
   
   // Terapkan margin kiri-kanan / offset masing-masing elemen (HTML & Text)
@@ -3510,6 +3567,9 @@ function saveReceiptSettings() {
   receiptSettings.address = document.getElementById('store-address-input').value.trim() || '-';
   
   receiptSettings.fontSizeHeader = parseInt(document.getElementById('receipt-font-header').value) || 14;
+  receiptSettings.fontSizeName = parseInt(document.getElementById('receipt-font-name')?.value) || 16;
+  receiptSettings.fontSizeAddress = parseInt(document.getElementById('receipt-font-address')?.value) || 11;
+  receiptSettings.fontSizePhone = parseInt(document.getElementById('receipt-font-phone')?.value) || 11;
   receiptSettings.fontSizeItems = parseInt(document.getElementById('receipt-font-items').value) || 12;
   receiptSettings.fontSizeFooter = parseInt(document.getElementById('receipt-font-footer').value) || 12;
   
@@ -3540,6 +3600,8 @@ function saveReceiptSettings() {
   
   // Save Text Format Settings
   receiptSettings.textTitleFontSize = parseFloat(document.getElementById('receipt-text-title-font-size').value) || 16;
+  receiptSettings.textAddressFontSize = parseFloat(document.getElementById('receipt-text-address-font-size')?.value) || 10;
+  receiptSettings.textPhoneFontSize = parseFloat(document.getElementById('receipt-text-phone-font-size')?.value) || 10;
   receiptSettings.textFontSize = parseFloat(document.getElementById('receipt-text-font-size').value) || 12;
   receiptSettings.textPaddingLeft = parseFloat(document.getElementById('receipt-text-padding-left').value) || 0;
   receiptSettings.textWidth = parseInt(document.getElementById('receipt-text-width').value) || (receiptSettings.paperSize === '80mm' ? 42 : 32);
@@ -16707,19 +16769,51 @@ function setVoucherTableFilter(filter) {
 
 function updateVoucherCategoryDropdown() {
   const catSel = document.getElementById('voucher-filter-category-select');
-  if (!catSel) return;
-  const currentVal = catSel.value || 'All';
-  const categoriesSet = new Set();
-  customVouchers.forEach(v => {
-    if (v.kategori && String(v.kategori).trim()) {
-      categoriesSet.add(String(v.kategori).trim());
-    }
-  });
-  let opts = '<option value="All">-- Semua Kategori --</option>';
-  Array.from(categoriesSet).sort().forEach(cat => {
-    opts += `<option value="${escapeJsQuotes(cat)}" ${cat === currentVal ? 'selected' : ''}>${cat}</option>`;
-  });
-  catSel.innerHTML = opts;
+  if (catSel) {
+    const currentVal = catSel.value || 'All';
+    const categoriesSet = new Set();
+    customVouchers.forEach(v => {
+      if (v.kategori && String(v.kategori).trim()) {
+        categoriesSet.add(String(v.kategori).trim());
+      }
+    });
+    let opts = '<option value="All">-- Semua Kategori --</option>';
+    Array.from(categoriesSet).sort().forEach(cat => {
+      opts += `<option value="${escapeJsQuotes(cat)}" ${cat === currentVal ? 'selected' : ''}>${cat}</option>`;
+    });
+    catSel.innerHTML = opts;
+  }
+
+  // Isi dropdown nama voucher spesifik (e.g. Voucher Ramadhan)
+  const nameSel = document.getElementById('voucher-filter-name-select');
+  if (nameSel) {
+    const currentNameVal = nameSel.value || currentVoucherNameFilter || 'All';
+    const namesSet = new Set();
+    customVouchers.forEach(v => {
+      if (v.namaVoucher && String(v.namaVoucher).trim()) {
+        // Jika sedang filter kategori, filter nama sesuai kategori
+        if (!currentVoucherCategoryFilter || currentVoucherCategoryFilter === 'All' || (v.kategori || 'Umum').toLowerCase() === currentVoucherCategoryFilter.toLowerCase()) {
+          namesSet.add(String(v.namaVoucher).trim());
+        }
+      }
+    });
+    let nameOpts = '<option value="All">-- Semua Nama Voucher --</option>';
+    Array.from(namesSet).sort().forEach(vname => {
+      nameOpts += `<option value="${escapeJsQuotes(vname)}" ${vname === currentNameVal ? 'selected' : ''}>${vname}</option>`;
+    });
+    nameSel.innerHTML = nameOpts;
+  }
+}
+
+function onVoucherCategoryFilterChange() {
+  const catSel = document.getElementById('voucher-filter-category-select');
+  if (catSel) currentVoucherCategoryFilter = catSel.value;
+  // Reset nama voucher saat kategori berubah
+  const nameSel = document.getElementById('voucher-filter-name-select');
+  if (nameSel) nameSel.value = 'All';
+  currentVoucherNameFilter = 'All';
+  updateVoucherCategoryDropdown();
+  renderCustomersTable();
 }
 
 function renderCustomersTable() {
@@ -16776,9 +16870,11 @@ function renderCustomersTable() {
   if (statMemberTxEl) statMemberTxEl.textContent = memberTxCount;
   const isVoucher = (loyaltySettings.rewardMode === 'voucher');
 
-  // Ambil kategori filter aktif
+  // Ambil kategori & nama voucher filter aktif
   const catSel = document.getElementById('voucher-filter-category-select');
   if (catSel) currentVoucherCategoryFilter = catSel.value;
+  const nameSel = document.getElementById('voucher-filter-name-select');
+  if (nameSel) currentVoucherNameFilter = nameSel.value;
 
   // Hitung count untuk filter status (Semua / Sudah Ambil / Belum Ambil)
   let countUsed = 0;
@@ -19599,7 +19695,7 @@ setInterval(() => {
   if (typeof checkAndNotifyPendingDebtApplications === 'function') {
     checkAndNotifyPendingDebtApplications(true);
   }
-}, 6000);
+}, 30000);
 
 // ═════════════════════════════════════════════════════════════════════════════
 // PROSES PERSETUJUAN / PENOLAKAN PENGAJUAN KLAIM POIN ANGGOTA
@@ -28728,21 +28824,28 @@ async function initDesktopIntegration() {
         } catch (e) {}
       }
 
-      // 3. Pasang Auto-Save berkala ke File Disk Electron (Setiap 5 detik jika ada perubahan)
+      // 3. Pasang Auto-Save berkala ke File Disk Electron (HANYA jika ada perubahan nyata)
+      let lastDbSnapshotHash = '';
       setInterval(async () => {
         try {
+          let currentHash = '';
           const snapshot = {};
           for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
             if (k && k.startsWith('kasir_')) {
-              snapshot[k] = localStorage.getItem(k);
+              const val = localStorage.getItem(k) || '';
+              snapshot[k] = val;
+              currentHash += k + ':' + val.length + ';';
             }
           }
-          await window.desktopAPI.saveLocalDb(snapshot);
+          if (currentHash !== lastDbSnapshotHash) {
+            lastDbSnapshotHash = currentHash;
+            await window.desktopAPI.saveLocalDb(snapshot);
+          }
         } catch (e) {
           // ignore error background save
         }
-      }, 5000);
+      }, 15000);
 
     } catch (e) {
       console.warn('Gagal inisialisasi Desktop API:', e);
@@ -28955,3 +29058,326 @@ if (document.readyState === 'loading') {
   initDesktopIntegration();
 }
 
+
+
+// ==========================================================================
+// MODAL CEK STATUS KLAIM VOUCHER SPESIFIK (SUDAH KLAIM VS BELUM KLAIM)
+// ==========================================================================
+let currentVoucherClaimModalTab = 'all'; // 'all' | 'used' | 'unused'
+let selectedVoucherForClaimDetail = null;
+
+function openVoucherClaimDetailModal(targetVoucherId = null) {
+  const modal = document.getElementById('voucher-claim-detail-modal');
+  if (!modal) return;
+
+  // Jika ada ID tertentu atau ambil dari filter dropdown atau voucher pertama
+  if (targetVoucherId) {
+    selectedVoucherForClaimDetail = customVouchers.find(v => v.id === targetVoucherId) || null;
+  } else {
+    const nameSel = document.getElementById('voucher-filter-name-select');
+    const selectedName = nameSel ? nameSel.value : 'All';
+    if (selectedName && selectedName !== 'All') {
+      selectedVoucherForClaimDetail = customVouchers.find(v => (v.namaVoucher || '').trim().toLowerCase() === selectedName.trim().toLowerCase()) || null;
+    }
+    if (!selectedVoucherForClaimDetail && customVouchers.length > 0) {
+      selectedVoucherForClaimDetail = customVouchers[0];
+    }
+  }
+
+  if (!selectedVoucherForClaimDetail && customVouchers.length === 0) {
+    alert('Belum ada program voucher yang dibuat. Silakan buat voucher di pengaturan CRM terlebih dahulu.');
+    return;
+  }
+
+  currentVoucherClaimModalTab = 'all';
+  updateVoucherClaimModalHeader();
+  renderVoucherClaimModalList();
+  modal.classList.add('active');
+}
+
+function closeVoucherClaimDetailModal() {
+  const modal = document.getElementById('voucher-claim-detail-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+function filterVoucherClaimModalTab(tab) {
+  currentVoucherClaimModalTab = tab;
+  ['all', 'used', 'unused'].forEach(t => {
+    const btn = document.getElementById(`btn-vclaim-${t}`);
+    if (btn) {
+      if (t === tab) {
+        btn.style.background = t === 'used' ? '#059669' : t === 'unused' ? '#ea580c' : '#ea580c';
+        btn.style.color = '#fff';
+        btn.style.border = 'none';
+      } else {
+        btn.style.background = 'var(--bg-body)';
+        btn.style.color = 'var(--text-muted)';
+        btn.style.border = '1px solid var(--border-color)';
+      }
+    }
+  });
+  renderVoucherClaimModalList();
+}
+
+function updateVoucherClaimModalHeader() {
+  const v = selectedVoucherForClaimDetail;
+  if (!v) return;
+
+  const vnameEl = document.getElementById('voucher-claim-modal-vname');
+  if (vnameEl) vnameEl.textContent = v.namaVoucher || 'Voucher';
+
+  const subtitleEl = document.getElementById('voucher-claim-modal-subtitle');
+  if (subtitleEl) {
+    const expLabel = v.tipeKadaluarsa === 'tanpa_kadaluarsa' ? 'Tanpa Batas Kadaluarsa' : `Kadaluarsa: ${v.tanggalKadaluarsa || '-'}`;
+    subtitleEl.textContent = `Kategori: ${v.kategori || 'Umum'} | Nominal per Anggota: Rp ${formatRupiah(v.nominalDef || 0)} | ${expLabel}`;
+  }
+}
+
+function renderVoucherClaimModalList() {
+  const v = selectedVoucherForClaimDetail;
+  const tbody = document.getElementById('voucher-claim-modal-tbody');
+  if (!tbody || !v) return;
+
+  const search = (document.getElementById('vclaim-modal-search')?.value || '').toLowerCase().trim();
+  const allocations = Array.isArray(v.allocations) ? v.allocations : [];
+
+  let countTotal = allocations.length;
+  let countUsed = 0;
+  let countUnused = 0;
+
+  allocations.forEach(alloc => {
+    if (alloc.status === 'sudah_diambil') countUsed++;
+    else countUnused++;
+  });
+
+  const statTotalEl = document.getElementById('vclaim-stat-total');
+  const statUsedEl = document.getElementById('vclaim-stat-used');
+  const statUnusedEl = document.getElementById('vclaim-stat-unused');
+  if (statTotalEl) statTotalEl.textContent = countTotal;
+  if (statUsedEl) statUsedEl.textContent = countUsed;
+  if (statUnusedEl) statUnusedEl.textContent = countUnused;
+
+  // Filter tab dan pencarian
+  let filtered = allocations.filter(alloc => {
+    // Tab filter
+    if (currentVoucherClaimModalTab === 'used' && alloc.status !== 'sudah_diambil') return false;
+    if (currentVoucherClaimModalTab === 'unused' && alloc.status !== 'belum_diambil') return false;
+
+    // Search filter
+    if (search) {
+      const matchName = String(alloc.anggotaNama || '').toLowerCase().includes(search);
+      const matchId = String(alloc.anggotaId || '').toLowerCase().includes(search);
+      return matchName || matchId;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+          Tidak ada data penerima voucher yang sesuai dengan filter atau kata kunci.
+        </td>
+      </tr>`;
+    return;
+  }
+
+  let rows = '';
+  filtered.forEach((alloc, idx) => {
+    // Cari data pelanggan lengkap
+    const cust = customers.find(c => String(c.id) === String(alloc.anggotaId) || String(c.kode_anggota) === String(alloc.anggotaId));
+    const instansi = cust ? (cust.instansi || cust.domisili || '-') : '-';
+    const isUsed = alloc.status === 'sudah_diambil';
+
+    const statusBadge = isUsed 
+      ? `<span style="background: #ecfdf5; color: #047857; font-weight: 800; font-size: 0.76rem; padding: 0.25rem 0.65rem; border-radius: 20px; border: 1px solid #a7f3d0; display: inline-flex; align-items: center; gap: 4px;">✓ Sudah Klaim</span>`
+      : `<span style="background: #fff7ed; color: #c2410c; font-weight: 800; font-size: 0.76rem; padding: 0.25rem 0.65rem; border-radius: 20px; border: 1px solid #fed7aa; display: inline-flex; align-items: center; gap: 4px;">⏳ Belum Klaim</span>`;
+
+    const waktuKlaim = isUsed 
+      ? (alloc.tanggalAmbil ? new Date(alloc.tanggalAmbil).toLocaleString('id-ID') : 'Terklaim')
+      : '-';
+
+    rows += `
+      <tr style="border-bottom: 1px solid var(--border-color); font-size: 0.84rem;">
+        <td style="padding: 0.65rem; color: var(--text-muted);">${idx + 1}</td>
+        <td style="padding: 0.65rem; font-weight: 700; color: var(--text-main);">
+          ${alloc.anggotaNama || 'Anggota'}
+          <br><small style="color: var(--text-muted); font-size: 0.72rem;">ID: ${alloc.anggotaId || '-'}</small>
+        </td>
+        <td style="padding: 0.65rem; color: var(--text-muted);">${instansi}</td>
+        <td style="padding: 0.65rem; text-align: right; font-weight: 800; color: #ea580c;">
+          Rp ${formatRupiah(alloc.nominal || 0)}
+        </td>
+        <td style="padding: 0.65rem; text-align: center;">${statusBadge}</td>
+        <td style="padding: 0.65rem; color: var(--text-muted); font-size: 0.78rem;">${waktuKlaim}</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = rows;
+}
+
+// Ekspor Laporan Klaim Voucher ke Gambar JPG
+function exportVoucherClaimReportToJPG() {
+  const v = selectedVoucherForClaimDetail;
+  if (!v) {
+    alert('Voucher tidak ditemukan!');
+    return;
+  }
+  const modalCard = document.querySelector('#voucher-claim-detail-modal .modal-card');
+  if (!modalCard) return;
+
+  saveElementAsJPG(modalCard, `Laporan_Klaim_${(v.namaVoucher || 'Voucher').replace(/\s+/g, '_')}_${Date.now()}.jpg`);
+}
+
+window.openVoucherClaimDetailModal = openVoucherClaimDetailModal;
+window.closeVoucherClaimDetailModal = closeVoucherClaimDetailModal;
+window.filterVoucherClaimModalTab = filterVoucherClaimModalTab;
+window.renderVoucherClaimModalList = renderVoucherClaimModalList;
+window.exportVoucherClaimReportToJPG = exportVoucherClaimReportToJPG;
+
+
+// ==========================================================================
+// UNIVERSAL EXPORT KE JPG (SEMUA LAPORAN & DOKUMEN CETAK)
+// ==========================================================================
+async function saveElementAsJPG(element, filename = 'Laporan.jpg') {
+  if (!element) {
+    alert('Komponen laporan tidak ditemukan untuk diekspor!');
+    return;
+  }
+  
+  if (typeof html2canvas === 'undefined') {
+    alert('Modul html2canvas belum dimuat. Pastikan file lib/html2canvas.min.js tersedia.');
+    return;
+  }
+
+  // Tampilkan loading toast / alert kecil
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #0f172a; color: #fff; padding: 12px 20px; border-radius: 10px; font-weight: 700; font-size: 14px; z-index: 100099; box-shadow: 0 10px 25px rgba(0,0,0,0.3); display: flex; align-items: center; gap: 8px;';
+  toast.innerHTML = '<span>⏳ Memproses gambar JPG kualitas tinggi...</span>';
+  document.body.appendChild(toast);
+
+  try {
+    const canvas = await html2canvas(element, {
+      scale: 2, // Kualitas tinggi (Retina 2x resolution)
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      scrollX: 0,
+      scrollY: -window.scrollY
+    });
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const link = document.createElement('a');
+    link.href = imgData;
+    link.download = filename.endsWith('.jpg') ? filename : (filename + '.jpg');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.style.background = '#059669';
+    toast.innerHTML = '<span>✅ Laporan JPG berhasil disimpan!</span>';
+    setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 2500);
+  } catch (err) {
+    console.error('Gagal export JPG:', err);
+    toast.style.background = '#dc2626';
+    toast.innerHTML = '<span>❌ Gagal menyimpan JPG: ' + (err.message || 'Error') + '</span>';
+    setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 3500);
+  }
+}
+
+// 1. Simpan Laporan Harian / Analitik ke JPG
+function saveDailyReportAsJPG() {
+  generateDailyReportHtml();
+  const printArea = document.getElementById('daily-report-print-area');
+  if (!printArea) {
+    alert('Laporan belum siap dicetak.');
+    return;
+  }
+  
+  // Clone laporan ke container off-screen dengan tema putih bersih
+  const clone = printArea.cloneNode(true);
+  clone.style.width = '800px';
+  clone.style.padding = '25px';
+  clone.style.background = '#ffffff';
+  clone.style.color = '#000000';
+  clone.style.position = 'fixed';
+  clone.style.left = '-9999px';
+  clone.style.top = '0';
+  clone.style.visibility = 'visible';
+  document.body.appendChild(clone);
+
+  const startD = document.getElementById('analytics-start-date')?.value || '';
+  const endD = document.getElementById('analytics-end-date')?.value || '';
+  const fname = `Laporan_Penjualan_${startD}_sd_${endD}_${Date.now()}.jpg`;
+
+  saveElementAsJPG(clone, fname).finally(() => {
+    if (clone.parentNode) clone.parentNode.removeChild(clone);
+  });
+}
+
+// 2. Simpan Laporan Kas Kecil / Pengeluaran ke JPG
+function saveExpensesReportAsJPG() {
+  const table = document.querySelector('#pane-kulak #subpane-expenses .table-wrapper') || document.querySelector('#subpane-expenses');
+  if (!table) return;
+  saveElementAsJPG(table, `Laporan_Kas_Pengeluaran_${Date.now()}.jpg`);
+}
+
+// 3. Simpan Laporan Opname Stok ke JPG
+function saveStockOpnameReportAsJPG() {
+  const table = document.querySelector('#prod-subpane-opname .table-wrapper') || document.querySelector('#opname-history-table');
+  if (!table) return;
+  saveElementAsJPG(table, `Laporan_Stock_Opname_${Date.now()}.jpg`);
+}
+
+window.saveElementAsJPG = saveElementAsJPG;
+window.saveDailyReportAsJPG = saveDailyReportAsJPG;
+window.saveExpensesReportAsJPG = saveExpensesReportAsJPG;
+window.saveStockOpnameReportAsJPG = saveStockOpnameReportAsJPG;
+
+
+function addJpgButtonToPreviewWindow(win, filename, containerSelector = '.report-paper, body') {
+  if (!win || !win.document) return;
+  try {
+    const doc = win.document;
+    const script = doc.createElement('script');
+    script.src = 'lib/html2canvas.min.js';
+    doc.head.appendChild(script);
+
+    // Cari toolbar
+    const toolbar = doc.querySelector('.preview-toolbar, .no-print');
+    if (toolbar) {
+      const btn = doc.createElement('button');
+      btn.innerHTML = '🖼️ Simpan JPG';
+      btn.style.cssText = 'padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-right: 6px; transition: 0.2s;';
+      btn.onclick = function() {
+        const target = doc.querySelector(containerSelector) || doc.body;
+        if (typeof win.html2canvas === 'undefined') {
+          alert('Sedang memuat pustaka gambar...');
+          return;
+        }
+        btn.textContent = '⏳ Memproses...';
+        btn.disabled = true;
+        win.html2canvas(target, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(canvas => {
+          const a = doc.createElement('a');
+          a.href = canvas.toDataURL('image/jpeg', 0.95);
+          a.download = filename || ('Laporan_' + Date.now() + '.jpg');
+          doc.body.appendChild(a);
+          a.click();
+          doc.body.removeChild(a);
+          btn.innerHTML = '✅ Berhasil!';
+          setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000);
+        }).catch(err => {
+          alert('Gagal export JPG: ' + err.message);
+          btn.innerHTML = '🖼️ Simpan JPG';
+          btn.disabled = false;
+        });
+      };
+      toolbar.insertBefore(btn, toolbar.firstChild);
+    }
+  } catch(e) {
+    console.error('Error adding JPG button to preview:', e);
+  }
+}
+window.addJpgButtonToPreviewWindow = addJpgButtonToPreviewWindow;
