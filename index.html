@@ -1828,71 +1828,63 @@
 
           <div class="card" style="border-radius: 16px; padding: 1.5rem; border: 1px solid var(--border-color);">
 
-            <!-- Top bar: search + voucher filter tabs -->
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
-              <div>
-                <div style="display: flex; align-items: center; gap: 0.6rem;">
-                  <h2 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Daftar Anggota</h2>
-                  <span id="customer-total-badge" style="background: rgba(234,88,12,0.1); color: #ea580c; font-weight: 700; font-size: 0.78rem; padding: 0.2rem 0.65rem; border-radius: 999px; border: 1px solid rgba(234,88,12,0.2);">0 Anggota</span>
-                </div>
-                <!-- Voucher Filter Tabs & Sorting (Rentang Tanggal Dari - Sampai) -->
-                <div id="voucher-filter-tabs-container" style="display: none; margin-top: 0.75rem;">
-                  <!-- Baris 1: Filter Rentang Tanggal -->
-                  <div style="display: flex; align-items: center; gap: 0.65rem; margin-bottom: 0.65rem; flex-wrap: wrap; background: rgba(234,88,12,0.06); padding: 0.6rem 0.85rem; border-radius: 12px; border: 1px solid rgba(234,88,12,0.2);">
-                    <span style="font-size: 0.82rem; font-weight: 800; color: #c2410c; display: flex; align-items: center; gap: 0.35rem;">
-                      <i data-lucide="calendar" style="width: 15px; height: 15px;"></i>
-                      Rentang Tanggal Voucher:
-                    </span>
-                    
-                    <div style="display: inline-flex; align-items: center; gap: 0.4rem;">
-                      <input type="date" id="voucher-filter-date-start" class="form-control" style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.6rem; border-radius: 8px; width: auto;" onchange="renderCustomersTable()" title="Tanggal Mulai">
-                      <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted);">s/d</span>
-                      <input type="date" id="voucher-filter-date-end" class="form-control" style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.6rem; border-radius: 8px; width: auto;" onchange="renderCustomersTable()" title="Tanggal Sampai">
+            <!-- Top bar: Header & Single Toolbar Row (Sejajar dan Rapi) -->
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem;">
+              <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <h2 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--text-main);">Daftar Anggota</h2>
+                <span id="customer-total-badge" style="background: rgba(234,88,12,0.1); color: #ea580c; font-weight: 700; font-size: 0.78rem; padding: 0.2rem 0.65rem; border-radius: 999px; border: 1px solid rgba(234,88,12,0.2);">0 Anggota</span>
+              </div>
+
+              <!-- Baris Toolbar Sejajar: Filter Voucher, Status Klaim, Tombol Aksi, & Kolom Pencarian -->
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <!-- Container Filter Voucher (Dropdown & Pill Status) -->
+                <div id="voucher-filter-tabs-container" style="display: none;">
+                  <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; background: rgba(234,88,12,0.06); padding: 0.35rem 0.65rem; border-radius: 50px; border: 1px solid rgba(234,88,12,0.2);">
+                    <!-- Dropdown Pilih Voucher -->
+                    <div style="display: inline-flex; align-items: center; gap: 0.3rem;">
+                      <span style="font-size: 0.78rem; font-weight: 800; color: #c2410c; display: flex; align-items: center; gap: 0.25rem;">
+                        <i data-lucide="ticket" style="width: 14px; height: 14px;"></i>
+                        Voucher:
+                      </span>
+                      <select id="voucher-filter-name-select" class="form-control" style="font-size: 0.8rem; font-weight: 700; padding: 0.28rem 0.65rem; border-radius: 20px; width: auto; border: 1.5px solid #ea580c; background: #fff; color: #ea580c; cursor: pointer;" onchange="renderCustomersTable()" title="Pilih Program Voucher">
+                        <option value="All">Semua Voucher</option>
+                      </select>
                     </div>
 
-                    <!-- Filter Kategori Voucher -->
-                    <select id="voucher-filter-category-select" class="form-control" style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);" onchange="onVoucherCategoryFilterChange()">
-                      <option value="All">-- Semua Kategori --</option>
-                    </select>
+                    <!-- Pemisah Vertikal Halus -->
+                    <span style="color: rgba(234,88,12,0.3); font-size: 0.9rem;">|</span>
 
-                    <!-- Filter Spesifik Nama Voucher (e.g. Voucher Ramadhan) -->
-                    <select id="voucher-filter-name-select" class="form-control" style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto; border: 1.5px solid #ea580c; background: #fff; color: #ea580c;" onchange="renderCustomersTable()" title="Pilih Nama Voucher Spesifik (Misal: Voucher Ramadhan)">
-                      <option value="All">-- Semua Nama Voucher --</option>
-                    </select>
-
-                    <button type="button" onclick="resetVoucherDateRangeFilter()" style="font-size: 0.78rem; font-weight: 700; color: #ea580c; background: #fff; border: 1px solid rgba(234,88,12,0.3); padding: 0.35rem 0.75rem; border-radius: 8px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                      Reset Tanggal
-                    </button>
-                  </div>
-
-                  <!-- Baris 2: Tab Status Klaim Voucher (Semua / Sudah Ambil / Belum Ambil) -->
-                  <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
-                    <button type="button" id="btn-vf-all" onclick="setVoucherTableFilter('all')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: #ea580c; color: #fff; border: none; cursor: pointer;">
-                      Semua (<span id="count-vf-all">0</span>)
-                    </button>
-                    <button type="button" id="btn-vf-used" onclick="setVoucherTableFilter('used')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-color); cursor: pointer;">
-                      &#10003; Sudah Ambil (<span id="count-vf-used">0</span>)
-                    </button>
-                    <button type="button" id="btn-vf-unused" onclick="setVoucherTableFilter('unused')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-color); cursor: pointer;">
-                      &#9202; Belum Ambil (<span id="count-vf-unused">0</span>)
-                    </button>
+                    <!-- Quick Filter Status (Semua / Sudah Klaim / Belum Klaim) -->
+                    <div style="display: inline-flex; align-items: center; gap: 0.3rem;">
+                      <button type="button" id="btn-vf-all" onclick="setVoucherTableFilter('all')" style="border-radius: 20px; font-weight: 700; font-size: 0.76rem; padding: 0.28rem 0.75rem; background: #ea580c; color: #fff; border: none; cursor: pointer; transition: all 0.15s ease;">
+                        Semua (<span id="count-vf-all">0</span>)
+                      </button>
+                      <button type="button" id="btn-vf-used" onclick="setVoucherTableFilter('used')" style="border-radius: 20px; font-weight: 700; font-size: 0.76rem; padding: 0.28rem 0.75rem; background: var(--bg-surface); color: var(--text-muted); border: 1px solid var(--border-color); cursor: pointer; transition: all 0.15s ease;">
+                        ✓ Sudah Klaim (<span id="count-vf-used">0</span>)
+                      </button>
+                      <button type="button" id="btn-vf-unused" onclick="setVoucherTableFilter('unused')" style="border-radius: 20px; font-weight: 700; font-size: 0.76rem; padding: 0.28rem 0.75rem; background: var(--bg-surface); color: var(--text-muted); border: 1px solid var(--border-color); cursor: pointer; transition: all 0.15s ease;">
+                        ⏱ Belum Klaim (<span id="count-vf-unused">0</span>)
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                <!-- Tombol Cetak Massal ID Card (Akses Cepat Toolbar) -->
-                <button type="button" class="btn btn-sm" onclick="openVoucherClaimDetailModal()" title="Cek siapa saja yang sudah / belum klaim voucher tertentu (misal: Voucher Ramadhan)" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #fff; border: none; font-weight: 800; font-size: 0.82rem; padding: 0.5rem 0.95rem; border-radius: 50px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; box-shadow: 0 2px 6px rgba(16,185,129,0.25);">
-                  <i data-lucide="award" style="width: 15px; height: 15px;"></i>
-                  <span>🎯 Cek Status Klaim Voucher</span>
+
+                <!-- Tombol Cetak Laporan (Hanya mencetak voucher yang aktif dipilih) -->
+                <button type="button" class="btn btn-sm" onclick="openVoucherFullReportPreview()" title="Lihat pratinjau dan download laporan voucher & klaim anggota dalam format JPG" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #fff; border: none; font-weight: 800; font-size: 0.8rem; padding: 0.45rem 0.85rem; border-radius: 50px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; box-shadow: 0 2px 6px rgba(16,185,129,0.25); white-space: nowrap;">
+                  <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
+                  <span>Cetak Laporan</span>
                 </button>
-                <button type="button" class="btn btn-sm" onclick="openBulkIdCardModal()" title="Cetak ID Card untuk semua atau beberapa anggota sekaligus" style="background: linear-gradient(135deg, #b45309 0%, #ea580c 100%); color: #fff; border: none; font-weight: 800; font-size: 0.82rem; padding: 0.5rem 0.95rem; border-radius: 50px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; box-shadow: 0 2px 6px rgba(234,88,12,0.25);">
-                  <i data-lucide="printer" style="width: 15px; height: 15px;"></i>
-                  <span>🪪 Cetak Massal ID Card</span>
+
+                <!-- Tombol Cetak Massal ID Anggota -->
+                <button type="button" class="btn btn-sm" onclick="openBulkIdCardModal()" title="Cetak ID Card untuk semua atau beberapa anggota sekaligus" style="background: linear-gradient(135deg, #b45309 0%, #ea580c 100%); color: #fff; border: none; font-weight: 800; font-size: 0.8rem; padding: 0.45rem 0.85rem; border-radius: 50px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; box-shadow: 0 2px 6px rgba(234,88,12,0.25); white-space: nowrap;">
+                  <i data-lucide="printer" style="width: 14px; height: 14px;"></i>
+                  <span>🪪 Cetak Massal ID Anggota</span>
                 </button>
-                <!-- Search box -->
-                <div style="position: relative; min-width: 250px; display: flex; align-items: center;">
-                  <i data-lucide="search" style="position: absolute; left: 12px; width: 16px; height: 16px; color: var(--text-muted); pointer-events: none;"></i>
-                  <input type="text" id="customer-search" class="form-control" placeholder="Cari ID, nama, instansi, no HP..." oninput="renderCustomersTable()" style="padding: 0.5rem 2rem 0.5rem 2.2rem; border-radius: 50px; border: 1.5px solid var(--border-color); font-size: 0.86rem; width: 100%;">
+
+                <!-- Kolom Pencarian Anggota -->
+                <div style="position: relative; min-width: 220px; display: flex; align-items: center;">
+                  <i data-lucide="search" style="position: absolute; left: 12px; width: 15px; height: 15px; color: var(--text-muted); pointer-events: none;"></i>
+                  <input type="text" id="customer-search" class="form-control" placeholder="Cari ID, nama, instansi..." oninput="renderCustomersTable()" style="padding: 0.45rem 2rem 0.45rem 2.1rem; border-radius: 50px; border: 1.5px solid var(--border-color); font-size: 0.84rem; width: 100%;">
                   <button type="button" id="btn-clear-cust-search" onclick="clearCustomerSearch()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1.1rem; color: var(--text-muted); cursor: pointer; display: none;">&times;</button>
                 </div>
               </div>
@@ -7337,7 +7329,7 @@
 
       <!-- Tabs Filter & Search in Modal -->
       <div style="padding: 0.85rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.65rem; border-bottom: 1px solid var(--border-color);">
-        <div style="display: flex; gap: 0.35rem;">
+        <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
           <button type="button" id="btn-vclaim-all" onclick="filterVoucherClaimModalTab('all')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: #ea580c; color: #fff; border: none; cursor: pointer;">Semua</button>
           <button type="button" id="btn-vclaim-used" onclick="filterVoucherClaimModalTab('used')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-color); cursor: pointer;">Sudah Klaim</button>
           <button type="button" id="btn-vclaim-unused" onclick="filterVoucherClaimModalTab('unused')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-color); cursor: pointer;">Belum Klaim</button>
@@ -7356,6 +7348,7 @@
               <th style="padding: 0.6rem; text-align: right; font-size: 0.8rem;">Nominal</th>
               <th style="padding: 0.6rem; text-align: center; font-size: 0.8rem;">Status Klaim</th>
               <th style="padding: 0.6rem; text-align: left; font-size: 0.8rem;">Waktu Klaim</th>
+              <th style="padding: 0.6rem; text-align: left; font-size: 0.8rem; min-width: 180px;">Rincian Barang yang Dibeli</th>
             </tr>
           </thead>
           <tbody id="voucher-claim-modal-tbody">
@@ -7365,10 +7358,15 @@
       </div>
 
       <!-- Modal Footer -->
-      <div style="padding: 1rem 1.5rem; background: var(--bg-body); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-        <button type="button" class="btn btn-secondary btn-sm" onclick="exportVoucherClaimReportToJPG()" style="display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; background: #0284c7; color: #fff; border: none;">
-          🖼️ Simpan Laporan Klaim JPG
-        </button>
+      <div style="padding: 1rem 1.5rem; background: var(--bg-body); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="exportVoucherClaimReportToJPG()" style="display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; background: #0284c7; color: #fff; border: none; padding: 0.45rem 0.85rem; border-radius: 8px;">
+            🖼️ Simpan Dokumen Ini JPG
+          </button>
+          <button type="button" class="btn btn-sm" onclick="openVoucherFullReportPreview()" style="display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; background: #059669; color: #fff; border: none; padding: 0.45rem 0.85rem; border-radius: 8px;">
+            🖨️ Pratinjau Dokumen Cetak &amp; JPG Lengkap
+          </button>
+        </div>
         <button type="button" class="btn btn-secondary" onclick="closeVoucherClaimDetailModal()">Tutup</button>
       </div>
     </div>

@@ -138,15 +138,16 @@ function getCustomerCustomVouchers(customer) {
 
 // Cek apakah alokasi voucher lolos filter periode yang dipilih user pada tab Anggota
 function isCustomVoucherAllocationInFilter(allocItem) {
-  if (currentVoucherCategoryFilter && currentVoucherCategoryFilter !== 'All') {
-    if ((allocItem.kategori || 'Umum').toLowerCase() !== currentVoucherCategoryFilter.toLowerCase()) {
+  // Filter Spesifik Nama Voucher (e.g. "Voucher Ramadhan")
+  if (currentVoucherNameFilter && currentVoucherNameFilter !== 'All') {
+    if ((allocItem.namaVoucher || '').toLowerCase().trim() !== currentVoucherNameFilter.toLowerCase().trim()) {
       return false;
     }
   }
 
-  // Filter Spesifik Nama Voucher (e.g. "Voucher Ramadhan")
-  if (currentVoucherNameFilter && currentVoucherNameFilter !== 'All') {
-    if ((allocItem.namaVoucher || '').toLowerCase().trim() !== currentVoucherNameFilter.toLowerCase().trim()) {
+  // Filter Kategori Voucher (jika masih digunakan)
+  if (currentVoucherCategoryFilter && currentVoucherCategoryFilter !== 'All') {
+    if ((allocItem.kategori || 'Umum').toLowerCase() !== currentVoucherCategoryFilter.toLowerCase()) {
       return false;
     }
   }
@@ -155,14 +156,16 @@ function isCustomVoucherAllocationInFilter(allocItem) {
   if (currentCustomerVoucherFilter === 'used' && allocItem.status !== 'sudah_diambil') return false;
   if (currentCustomerVoucherFilter === 'unused' && allocItem.status !== 'belum_diambil') return false;
 
-  const refDate = allocItem.status === 'sudah_diambil' ? (allocItem.tanggalAmbil || allocItem.tanggalMulai || '') : (allocItem.tanggalMulai || '');
-  if (!refDate) return true; // Bila tanpa tanggal, loloskan
-
   const startD = document.getElementById('voucher-filter-date-start')?.value || '';
   const endD = document.getElementById('voucher-filter-date-end')?.value || '';
-  const onlyD = refDate.slice(0, 10);
-  if (startD && onlyD < startD) return false;
-  if (endD && onlyD > endD) return false;
+  if (startD || endD) {
+    const refDate = allocItem.status === 'sudah_diambil' ? (allocItem.tanggalAmbil || allocItem.tanggalMulai || '') : (allocItem.tanggalMulai || '');
+    if (refDate) {
+      const onlyD = refDate.slice(0, 10);
+      if (startD && onlyD < startD) return false;
+      if (endD && onlyD > endD) return false;
+    }
+  }
 
   return true;
 }
@@ -16906,15 +16909,12 @@ function updateVoucherCategoryDropdown() {
     const namesSet = new Set();
     customVouchers.forEach(v => {
       if (v.namaVoucher && String(v.namaVoucher).trim()) {
-        // Jika sedang filter kategori, filter nama sesuai kategori
-        if (!currentVoucherCategoryFilter || currentVoucherCategoryFilter === 'All' || (v.kategori || 'Umum').toLowerCase() === currentVoucherCategoryFilter.toLowerCase()) {
-          namesSet.add(String(v.namaVoucher).trim());
-        }
+        namesSet.add(String(v.namaVoucher).trim());
       }
     });
-    let nameOpts = '<option value="All">-- Semua Nama Voucher --</option>';
+    let nameOpts = '<option value="All">Semua Voucher</option>';
     Array.from(namesSet).sort().forEach(vname => {
-      nameOpts += `<option value="${escapeJsQuotes(vname)}" ${vname === currentNameVal ? 'selected' : ''}>${vname}</option>`;
+      nameOpts += `<option value="${escapeJsQuotes(vname)}" ${vname === currentNameVal ? 'selected' : ''}>🎟️ ${vname}</option>`;
     });
     nameSel.innerHTML = nameOpts;
   }
@@ -16991,21 +16991,40 @@ function renderCustomersTable() {
   const nameSel = document.getElementById('voucher-filter-name-select');
   if (nameSel) currentVoucherNameFilter = nameSel.value;
 
-  // Hitung count untuk filter status (Semua / Sudah Ambil / Belum Ambil)
+  // Hitung count untuk filter status (Semua / Sudah Klaim / Belum Klaim) sesuai voucher yang dipilih
+  let countAll = 0;
   let countUsed = 0;
   let countUnused = 0;
+  const isSpecificVoucher = currentVoucherNameFilter && currentVoucherNameFilter !== 'All';
+
   customers.forEach(c => {
     const cVouchers = getCustomerCustomVouchers(c);
-    const hasUnused = cVouchers.some(v => v.status === 'belum_diambil' && !v.isExpired);
-    const hasUsed = cVouchers.some(v => v.status === 'sudah_diambil');
-    if (hasUsed) countUsed++;
-    if (hasUnused) countUnused++;
+    // Jika user memilih nama voucher tertentu, hanya hitung anggota yang memiliki alokasi voucher tersebut
+    const relevantVouchers = isSpecificVoucher 
+      ? cVouchers.filter(v => (v.namaVoucher || '').toLowerCase().trim() === currentVoucherNameFilter.toLowerCase().trim())
+      : cVouchers;
+
+    if (isSpecificVoucher) {
+      if (relevantVouchers.length > 0) {
+        countAll++;
+        const hasUsed = relevantVouchers.some(v => v.status === 'sudah_diambil');
+        const hasUnused = relevantVouchers.some(v => v.status === 'belum_diambil' && !v.isExpired);
+        if (hasUsed) countUsed++;
+        if (hasUnused) countUnused++;
+      }
+    } else {
+      countAll++;
+      const hasUsed = relevantVouchers.some(v => v.status === 'sudah_diambil');
+      const hasUnused = relevantVouchers.some(v => v.status === 'belum_diambil' && !v.isExpired);
+      if (hasUsed) countUsed++;
+      if (hasUnused) countUnused++;
+    }
   });
 
   const countAllEl = document.getElementById('count-vf-all');
   const countUsedEl = document.getElementById('count-vf-used');
   const countUnusedEl = document.getElementById('count-vf-unused');
-  if (countAllEl) countAllEl.textContent = customers.length;
+  if (countAllEl) countAllEl.textContent = countAll;
   if (countUsedEl) countUsedEl.textContent = countUsed;
   if (countUnusedEl) countUnusedEl.textContent = countUnused;
 
@@ -17019,23 +17038,34 @@ function renderCustomersTable() {
     (c.domisili && String(c.domisili).toLowerCase().includes(search))
   );
 
-  // Filter berdasarkan status voucher (sudah diambil vs belum diambil) & periode
+  // Filter berdasarkan nama voucher & status klaim (sudah diambil vs belum diambil)
   if (isVoucher) {
-    if (currentCustomerVoucherFilter === 'used') {
+    if (isSpecificVoucher) {
+      // Hanya tampilkan anggota yang memiliki alokasi nama voucher ini
       filtered = filtered.filter(c => {
         const cVouchers = getCustomerCustomVouchers(c);
-        return cVouchers.some(v => v.status === 'sudah_diambil' && isCustomVoucherAllocationInFilter(v));
+        const relevantVouchers = cVouchers.filter(v => (v.namaVoucher || '').toLowerCase().trim() === currentVoucherNameFilter.toLowerCase().trim());
+        if (relevantVouchers.length === 0) return false;
+        
+        if (currentCustomerVoucherFilter === 'used') {
+          return relevantVouchers.some(v => v.status === 'sudah_diambil');
+        } else if (currentCustomerVoucherFilter === 'unused') {
+          return relevantVouchers.some(v => v.status === 'belum_diambil' && !v.isExpired);
+        }
+        return true;
       });
-    } else if (currentCustomerVoucherFilter === 'unused') {
-      filtered = filtered.filter(c => {
-        const cVouchers = getCustomerCustomVouchers(c);
-        return cVouchers.some(v => v.status === 'belum_diambil' && !v.isExpired && isCustomVoucherAllocationInFilter(v));
-      });
-    } else if (currentVoucherCategoryFilter && currentVoucherCategoryFilter !== 'All') {
-      filtered = filtered.filter(c => {
-        const cVouchers = getCustomerCustomVouchers(c);
-        return cVouchers.some(v => isCustomVoucherAllocationInFilter(v));
-      });
+    } else {
+      if (currentCustomerVoucherFilter === 'used') {
+        filtered = filtered.filter(c => {
+          const cVouchers = getCustomerCustomVouchers(c);
+          return cVouchers.some(v => v.status === 'sudah_diambil' && isCustomVoucherAllocationInFilter(v));
+        });
+      } else if (currentCustomerVoucherFilter === 'unused') {
+        filtered = filtered.filter(c => {
+          const cVouchers = getCustomerCustomVouchers(c);
+          return cVouchers.some(v => v.status === 'belum_diambil' && !v.isExpired && isCustomVoucherAllocationInFilter(v));
+        });
+      }
     }
   }
   
@@ -29610,6 +29640,21 @@ function renderVoucherClaimModalList() {
       ? (alloc.tanggalAmbil ? new Date(alloc.tanggalAmbil).toLocaleString('id-ID') : 'Terklaim')
       : '-';
 
+    // Rincian barang belanja jika sudah klaim
+    let itemsPurchasedHtml = '<span style="color: var(--text-muted); font-size: 0.75rem;">-</span>';
+    if (isUsed) {
+      const tx = alloc.txId ? transactions.find(t => String(t.id) === String(alloc.txId)) : null;
+      if (tx && Array.isArray(tx.items) && tx.items.length > 0) {
+        itemsPurchasedHtml = tx.items.map(it => `
+          <div style="font-size: 0.75rem; color: var(--text-main); margin-bottom: 2px;">
+            • <b>${escapeHtml(it.nama || 'Produk')}</b> (${it.qty || 1}x @Rp ${formatRupiah(it.harga || 0)})
+          </div>
+        `).join('');
+      } else {
+        itemsPurchasedHtml = `<span style="color: #64748b; font-size: 0.75rem; font-style: italic;">Dipakai saat transaksi kasir</span>`;
+      }
+    }
+
     rows += `
       <tr style="border-bottom: 1px solid var(--border-color); font-size: 0.84rem;">
         <td style="padding: 0.65rem; color: var(--text-muted);">${idx + 1}</td>
@@ -29623,6 +29668,7 @@ function renderVoucherClaimModalList() {
         </td>
         <td style="padding: 0.65rem; text-align: center;">${statusBadge}</td>
         <td style="padding: 0.65rem; color: var(--text-muted); font-size: 0.78rem;">${waktuKlaim}</td>
+        <td style="padding: 0.65rem; vertical-align: top;">${itemsPurchasedHtml}</td>
       </tr>
     `;
   });
@@ -29642,6 +29688,323 @@ function exportVoucherClaimReportToJPG() {
 
   saveElementAsJPG(modalCard, `Laporan_Klaim_${(v.namaVoucher || 'Voucher').replace(/\s+/g, '_')}_${Date.now()}.jpg`);
 }
+
+// ==========================================================================
+// PRATINJAU & DOWNLOAD DOKUMEN CETAK LAPORAN VOUCHER LENGKAP (+ SIMPAN JPG)
+// ==========================================================================
+function openVoucherFullReportPreview() {
+  if (!customVouchers || customVouchers.length === 0) {
+    alert('Belum ada data program voucher yang dibuat.');
+    return;
+  }
+
+  // Cek apakah ada filter nama voucher yang sedang aktif dipilih di dropdown
+  const nameSel = document.getElementById('voucher-filter-name-select');
+  const activeSelectedName = (nameSel ? nameSel.value : (currentVoucherNameFilter || 'All')).trim();
+  const isFiltered = (activeSelectedName && activeSelectedName !== 'All');
+
+  // Filter daftar voucher yang akan dicetak
+  const vouchersToReport = isFiltered
+    ? customVouchers.filter(v => (v.namaVoucher || '').trim().toLowerCase() === activeSelectedName.toLowerCase())
+    : customVouchers;
+
+  if (vouchersToReport.length === 0) {
+    alert(`Data voucher "${activeSelectedName}" tidak ditemukan.`);
+    return;
+  }
+
+  // Hitung total ringkasan
+  let grandTotalAlloc = 0;
+  let grandTotalNominal = 0;
+  let grandClaimedCount = 0;
+  let grandClaimedNominal = 0;
+  let grandUnclaimedCount = 0;
+  let grandUnclaimedNominal = 0;
+
+  // Bangun bagian per program voucher
+  let sectionsHtml = '';
+
+  vouchersToReport.forEach((v, vIdx) => {
+    const allocations = Array.isArray(v.allocations) ? v.allocations : [];
+    let vTotalNominal = 0;
+    let vClaimedCount = 0;
+    let vClaimedNominal = 0;
+    let vUnclaimedCount = 0;
+    let vUnclaimedNominal = 0;
+
+    let memberRows = '';
+    allocations.forEach((alloc, aIdx) => {
+      const cust = customers.find(c => String(c.id) === String(alloc.anggotaId) || String(c.kode_anggota) === String(alloc.anggotaId));
+      const instansi = cust ? (cust.instansi || cust.domisili || '-') : '-';
+      const noHp = cust ? (cust.telepon || '-') : '-';
+      const nom = Number(alloc.nominal) || 0;
+      const isUsed = alloc.status === 'sudah_diambil';
+
+      vTotalNominal += nom;
+      if (isUsed) {
+        vClaimedCount++;
+        vClaimedNominal += nom;
+      } else {
+        vUnclaimedCount++;
+        vUnclaimedNominal += nom;
+      }
+
+      // Cari rincian transaksi belanja jika sudah diambil
+      let purchasedItemsStr = '-';
+      if (isUsed) {
+        const tx = alloc.txId ? transactions.find(t => String(t.id) === String(alloc.txId)) : null;
+        if (tx && Array.isArray(tx.items) && tx.items.length > 0) {
+          purchasedItemsStr = tx.items.map(it => `${escapeHtml(it.nama || 'Produk')} (${it.qty || 1}x @Rp ${formatRupiah(it.harga || 0)})`).join(', ');
+        } else {
+          purchasedItemsStr = 'Belanja via kasir';
+        }
+      }
+
+      const waktuKlaimStr = isUsed 
+        ? (alloc.tanggalAmbil ? new Date(alloc.tanggalAmbil).toLocaleString('id-ID') : 'Terklaim')
+        : '-';
+
+      const statusBadge = isUsed
+        ? '<span style="color:#059669; font-weight:bold;">✓ SUDAH KLAIM</span>'
+        : '<span style="color:#ea580c; font-weight:bold;">⏱ BELUM KLAIM</span>';
+
+      memberRows += `
+        <tr>
+          <td style="text-align: center;">${aIdx + 1}</td>
+          <td><b>${escapeHtml(alloc.anggotaNama || 'Anggota')}</b><br><small style="color:#64748b;">ID: ${escapeHtml(alloc.anggotaId || '-')}</small></td>
+          <td>${escapeHtml(instansi)}</td>
+          <td>${escapeHtml(noHp)}</td>
+          <td style="text-align: right; font-weight: bold; color: #b45309;">Rp ${formatRupiah(nom)}</td>
+          <td style="text-align: center;">${statusBadge}</td>
+          <td style="font-size: 11px; color: #475569;">${waktuKlaimStr}</td>
+          <td style="font-size: 11px; line-height: 1.4;">${purchasedItemsStr}</td>
+        </tr>
+      `;
+    });
+
+    grandTotalAlloc += allocations.length;
+    grandTotalNominal += vTotalNominal;
+    grandClaimedCount += vClaimedCount;
+    grandClaimedNominal += vClaimedNominal;
+    grandUnclaimedCount += vUnclaimedCount;
+    grandUnclaimedNominal += vUnclaimedNominal;
+
+    const expText = v.tipeKadaluarsa === 'tanpa_kadaluarsa' ? 'Tanpa Kadaluarsa' : (v.tanggalKadaluarsa ? `Kadaluarsa s/d ${v.tanggalKadaluarsa}` : '-');
+
+    sectionsHtml += `
+      <div style="margin-top: 24px; page-break-inside: avoid;">
+        <div style="background: #fff7ed; border-left: 4px solid #ea580c; padding: 10px 14px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <span style="font-size: 15px; font-weight: 800; color: #9a3412;">🎟️ ${vIdx + 1}. Program: ${escapeHtml(v.namaVoucher || 'Voucher')}</span>
+            <div style="font-size: 11px; color: #78350f; margin-top: 2px;">
+              Kategori: <b>${escapeHtml(v.kategori || 'Umum')}</b> &bull; Masa Berlaku: <b>${expText}</b>
+            </div>
+          </div>
+          <div style="text-align: right; font-size: 12px;">
+            <div>Penerima: <b>${allocations.length} Orang</b> &bull; Total: <b>Rp ${formatRupiah(vTotalNominal)}</b></div>
+            <div style="color: #059669; font-weight: 700; font-size: 11px;">Sudah Klaim: ${vClaimedCount} (Rp ${formatRupiah(vClaimedNominal)}) | <span style="color: #ea580c;">Belum: ${vUnclaimedCount} (Rp ${formatRupiah(vUnclaimedNominal)})</span></div>
+          </div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px;">
+          <thead>
+            <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 6px; width: 30px; text-align: center;">No</th>
+              <th style="padding: 6px; text-align: left; width: 140px;">Nama Anggota</th>
+              <th style="padding: 6px; text-align: left; width: 110px;">Instansi</th>
+              <th style="padding: 6px; text-align: left; width: 95px;">No. HP</th>
+              <th style="padding: 6px; text-align: right; width: 85px;">Nominal</th>
+              <th style="padding: 6px; text-align: center; width: 100px;">Status</th>
+              <th style="padding: 6px; text-align: left; width: 120px;">Waktu Klaim</th>
+              <th style="padding: 6px; text-align: left;">Dibelanjakan Untuk (Barang &amp; Qty)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${memberRows || '<tr><td colspan="8" style="text-align:center; padding:12px; color:#94a3b8;">Belum ada anggota yang dialokasikan untuk voucher ini.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  });
+
+  const reportTitle = isFiltered
+    ? `LAPORAN REKAPITULASI PROGRAM VOUCHER: ${escapeHtml(activeSelectedName.toUpperCase())}`
+    : `LAPORAN REKAPITULASI SEMUA PROGRAM VOUCHER & KLAIM ANGGOTA`;
+
+  const reportSubtitle = isFiltered
+    ? `Menampilkan khusus program voucher: <b>${escapeHtml(activeSelectedName)}</b> &bull; Dicetak: <b>${new Date().toLocaleString('id-ID')}</b>`
+    : `Dicetak pada: <b>${new Date().toLocaleString('id-ID')}</b> &bull; Total Program Voucher: <b>${customVouchers.length} Program</b>`;
+
+  const downloadFilename = isFiltered
+    ? `Laporan_Voucher_${activeSelectedName.replace(/\s+/g, '_')}_${Date.now()}.jpg`
+    : `Laporan_Rekap_Semua_Voucher_${Date.now()}.jpg`;
+
+  const printHtml = `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>Laporan Lengkap Voucher &amp; Klaim Anggota</title>
+      <style>
+        body {
+          font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+          margin: 0;
+          padding: 20px;
+          color: #1e293b;
+          background: #f8fafc;
+        }
+        .report-paper {
+          max-width: 1100px;
+          margin: 0 auto;
+          background: #fff;
+          padding: 30px;
+          border-radius: 8px;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+        }
+        .no-print {
+          position: sticky;
+          top: 0;
+          z-index: 9999;
+          background: #0f172a;
+          padding: 12px 20px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          border-radius: 8px;
+          margin-bottom: 20px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        table th, table td {
+          border: 1px solid #e2e8f0;
+          padding: 6px 8px;
+        }
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+          margin: 16px 0;
+        }
+        .summary-box {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          padding: 12px 14px;
+          border-radius: 8px;
+          text-align: center;
+        }
+        .summary-box .val {
+          font-size: 16px;
+          font-weight: 800;
+          margin-top: 4px;
+        }
+        @media print {
+          body { background: #fff; padding: 0; }
+          .report-paper { box-shadow: none; padding: 10px; max-width: 100%; }
+          .no-print { display: none !important; }
+          @page { size: landscape; margin: 10mm; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="no-print">
+        <div style="color: #fff; font-weight: 800; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+          <span>📊 Pratinjau Laporan Voucher &amp; Klaim Belanja</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button onclick="window.print()" style="padding: 8px 18px; background: #ea580c; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+          <button type="button" onclick="downloadVoucherReportDocJPG()" style="padding: 8px 18px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖼️ Download JPG</button>
+          <button onclick="window.close()" style="padding: 8px 14px; background: #475569; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">Tutup</button>
+        </div>
+      </div>
+
+      <div class="report-paper">
+        ${getStorePrintHeader()}
+        
+        <h2 style="text-align: center; margin: 12px 0 4px 0; font-size: 18px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px;">
+          ${reportTitle}
+        </h2>
+        <div style="text-align: center; font-size: 11px; color: #64748b; margin-bottom: 16px;">
+          ${reportSubtitle}
+        </div>
+
+        <!-- KPI Ringkasan Total Sesuai Pilihan Voucher -->
+        <div class="summary-grid">
+          <div class="summary-box">
+            <div style="font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700;">Total Alokasi Voucher</div>
+            <div class="val" style="color: #0284c7;">${grandTotalAlloc} Voucher (Rp ${formatRupiah(grandTotalNominal)})</div>
+          </div>
+          <div class="summary-box" style="background: #ecfdf5; border-color: #a7f3d0;">
+            <div style="font-size: 11px; color: #047857; text-transform: uppercase; font-weight: 700;">✓ Sudah Diklaim (Ambil)</div>
+            <div class="val" style="color: #059669;">${grandClaimedCount} Voucher (Rp ${formatRupiah(grandClaimedNominal)})</div>
+          </div>
+          <div class="summary-box" style="background: #fff7ed; border-color: #fed7aa;">
+            <div style="font-size: 11px; color: #c2410c; text-transform: uppercase; font-weight: 700;">⏱ Belum Diklaim</div>
+            <div class="val" style="color: #ea580c;">${grandUnclaimedCount} Voucher (Rp ${formatRupiah(grandUnclaimedNominal)})</div>
+          </div>
+        </div>
+
+        ${sectionsHtml}
+
+        <div style="margin-top: 35px; display: flex; justify-content: space-between; page-break-inside: avoid; font-size: 12px;">
+          <div style="text-align: center; width: 220px;">
+            <div>Petugas Kasir / Admin,</div>
+            <div style="height: 55px;"></div>
+            <div style="border-top: 1px solid #94a3b8; font-weight: bold;">( ......................................... )</div>
+          </div>
+          <div style="text-align: center; width: 220px;">
+            <div>Pengurus / Pimpinan Toko,</div>
+            <div style="height: 55px;"></div>
+            <div style="border-top: 1px solid #94a3b8; font-weight: bold;">( ......................................... )</div>
+          </div>
+        </div>
+      </div>
+
+      <script src="lib/html2canvas.min.js"></script>
+      <script>
+        function downloadVoucherReportDocJPG() {
+          const btn = event ? event.target.closest('button') : null;
+          if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+          const target = document.querySelector('.report-paper') || document.body;
+          html2canvas(target, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            ignoreElements: function(el) {
+              return !!(el.classList && el.classList.contains('no-print'));
+            }
+          }).then(canvas => {
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL('image/jpeg', 0.95);
+            a.download = '${downloadFilename}';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Download JPG'; btn.disabled = false; }, 2000); }
+          }).catch(err => {
+            alert('Gagal simpan JPG: ' + err.message);
+            if (btn) { btn.innerHTML = '🖼️ Download JPG'; btn.disabled = false; }
+          });
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
+  const printWin = window.open('', '_blank', 'width=1100,height=800');
+  if (printWin) {
+    printWin.document.open();
+    printWin.document.write(printHtml);
+    printWin.document.close();
+    printWin.focus();
+  } else {
+    alert("Popup browser diblokir! Izinkan pop-up untuk melihat dan mencetak dokumen laporan.");
+  }
+}
+
+window.openVoucherFullReportPreview = openVoucherFullReportPreview;
 
 window.openVoucherClaimDetailModal = openVoucherClaimDetailModal;
 window.closeVoucherClaimDetailModal = closeVoucherClaimDetailModal;

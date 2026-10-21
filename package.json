@@ -20,7 +20,7 @@
     "adm-zip": "^0.6.1"
   },
   "devDependencies": {
-    "electron": "^43.8.3",
+    "electron": "^22.3.27",
     "electron-builder": "^26.15.3",
     "pptxgenjs": "^4.0.1"
   },
@@ -44,7 +44,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Kasir Toko Sahil"
+      "shortcutName": "Kasir Toko Sahil",
+      "artifactName": "${productName} Setup ${version} (${arch}).${ext}"
     },
     "files": [
       "**/*",
