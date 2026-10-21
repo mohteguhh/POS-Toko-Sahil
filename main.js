@@ -49,12 +49,10 @@ const activationFilePath = path.join(userDataPath, 'device_activation.json');
 function checkDeviceActivation() {
   try {
     const hwid = getHardwareId();
-    const validKey = generateActivationKey(hwid);
-    
     if (fs.existsSync(activationFilePath)) {
       const data = JSON.parse(fs.readFileSync(activationFilePath, 'utf8'));
-      if (data && data.activationKey && data.activationKey.trim().toUpperCase() === validKey) {
-        return { isActivated: true, hwid: hwid };
+      if (data && (data.licenseKey || data.activationKey)) {
+        return { isActivated: true, hwid: hwid, licenseKey: data.licenseKey || data.activationKey };
       }
     }
     return { isActivated: false, hwid: hwid };
@@ -63,22 +61,23 @@ function checkDeviceActivation() {
   }
 }
 
-function saveDeviceActivation(inputKey) {
+function saveDeviceActivation(licenseKey) {
   try {
     const hwid = getHardwareId();
-    const validKey = generateActivationKey(hwid);
-    const cleanKey = String(inputKey).trim().toUpperCase();
+    const cleanKey = String(licenseKey).trim().toUpperCase();
 
-    if (cleanKey === validKey) {
-      fs.writeFileSync(activationFilePath, JSON.stringify({
-        hwid: hwid,
-        activationKey: cleanKey,
-        activatedAt: new Date().toISOString()
-      }, null, 2), 'utf8');
-      return { success: true, message: 'Aktivasi perangkat berhasil!' };
-    } else {
-      return { success: false, message: 'Kunci aktivasi salah atau tidak sesuai untuk perangkat ini!' };
+    if (!cleanKey) {
+      return { success: false, message: 'Kode Lisensi tidak boleh kosong!' };
     }
+
+    fs.writeFileSync(activationFilePath, JSON.stringify({
+      hwid: hwid,
+      licenseKey: cleanKey,
+      activationKey: cleanKey,
+      activatedAt: new Date().toISOString()
+    }, null, 2), 'utf8');
+
+    return { success: true, message: 'Lisensi perangkat berhasil disimpan!' };
   } catch (err) {
     return { success: false, message: err.message };
   }

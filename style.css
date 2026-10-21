@@ -3962,24 +3962,29 @@ body.print-format-html #receipt-text-content {
     text-align: left !important;
   }
   
-  /* 2. Jika mencetak laporan harian kasir */
+  /* 2. Jika mencetak laporan harian kasir (Responsif A4 / A5 / A6 / Thermal / Kertas Custom) */
   body.printing-daily-report #daily-report-print-area,
   body.printing-daily-report #daily-report-print-area * {
     visibility: visible;
   }
   body.printing-daily-report #daily-report-print-area {
     position: static !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
     background-color: #ffffff !important;
     display: block !important;
-    padding: 2mm 5mm !important;
-    font-family: monospace;
+    padding: 3mm 6mm !important;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: clamp(8pt, 1.6vw, 11pt) !important;
     page-break-after: auto;
   }
   body.printing-daily-report .daily-report-print-area table {
     border-collapse: collapse;
-    width: 100%;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    table-layout: auto !important;
     page-break-inside: auto;
   }
   body.printing-daily-report .daily-report-print-area tr {
@@ -3989,29 +3994,36 @@ body.print-format-html #receipt-text-content {
   body.printing-daily-report .daily-report-print-area th,
   body.printing-daily-report .daily-report-print-area td {
     border: none;
-    padding: 0.35rem 0;
+    padding: 0.25rem 0.2rem;
+    word-break: break-word !important;
+    font-size: clamp(7.5pt, 1.5vw, 10.5pt) !important;
   }
 
-  /* 3. Jika mencetak laporan daftar barang di rak (Bisa Ratusan Produk Multi-Page) */
+  /* 3. Jika mencetak laporan daftar barang di rak (Responsif Multi-Page A4 / A5 / A6 / Custom) */
   body.printing-rack-report #rack-report-print-area,
   body.printing-rack-report #rack-report-print-area * {
     visibility: visible;
   }
   body.printing-rack-report #rack-report-print-area {
     position: static !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
     background-color: #ffffff !important;
     display: block !important;
     padding: 0 4mm !important;
     padding-top: 0 !important;
-    font-family: monospace;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: clamp(8pt, 1.5vw, 11pt) !important;
     page-break-after: auto;
     page-break-before: avoid !important;
   }
   body.printing-rack-report .rack-report-print-area table {
     border-collapse: collapse;
     width: 100% !important;
+    box-sizing: border-box !important;
+    table-layout: auto !important;
     page-break-inside: auto;
   }
   body.printing-rack-report .rack-report-print-area thead {
@@ -4024,7 +4036,9 @@ body.print-format-html #receipt-text-content {
   body.printing-rack-report .rack-report-print-area th,
   body.printing-rack-report .rack-report-print-area td {
     border: none;
-    padding: 0.35rem 0.25rem;
+    padding: 0.3rem 0.2rem;
+    word-break: break-word !important;
+    font-size: clamp(7.5pt, 1.4vw, 10.5pt) !important;
   }
   
   .no-print {
@@ -4513,14 +4527,20 @@ body.print-format-html #receipt-text-content {
 .labels-print-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-content: flex-start !important;
+  align-items: flex-start !important;
+  justify-content: flex-start;
+  gap: var(--label-gap, 1mm);
   background: white;
-  padding: 10px;
+  padding: 0;
+  box-sizing: border-box;
+  height: auto !important;
+  min-height: 0 !important;
 }
 
 .label-item-print {
-  border: 1px dashed #bbb;
-  padding: 6px;
+  border: 1px dashed #ccc;
+  padding: 2px 4px;
   box-sizing: border-box;
   text-align: center;
   background: white;
@@ -4529,6 +4549,8 @@ body.print-format-html #receipt-text-content {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  page-break-inside: avoid;
+  margin: var(--label-margin, 0);
 }
 
 /* Style for Product Label: size set dynamically from settings */
@@ -5867,3 +5889,17 @@ body.print-format-html #receipt-text-content {
   background: rgba(37, 99, 235, 0.06);
 }
 
+
+/* Dukungan Orientasi Kertas Dinamis (Landscape vs Portrait) */
+body.print-landscape {
+  writing-mode: horizontal-tb;
+}
+
+@media print {
+  body.print-landscape {
+    @page {
+      size: landscape !important;
+      margin: 8mm !important;
+    }
+  }
+}

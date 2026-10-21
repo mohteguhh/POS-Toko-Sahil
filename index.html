@@ -1846,8 +1846,13 @@
                     </div>
 
                     <!-- Filter Kategori Voucher -->
-                    <select id="voucher-filter-category-select" class="form-control" style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);" onchange="renderCustomersTable()">
+                    <select id="voucher-filter-category-select" class="form-control" style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto; border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);" onchange="onVoucherCategoryFilterChange()">
                       <option value="All">-- Semua Kategori --</option>
+                    </select>
+
+                    <!-- Filter Spesifik Nama Voucher (e.g. Voucher Ramadhan) -->
+                    <select id="voucher-filter-name-select" class="form-control" style="font-size: 0.82rem; font-weight: 700; padding: 0.35rem 0.65rem; border-radius: 8px; width: auto; border: 1.5px solid #ea580c; background: #fff; color: #ea580c;" onchange="renderCustomersTable()" title="Pilih Nama Voucher Spesifik (Misal: Voucher Ramadhan)">
+                      <option value="All">-- Semua Nama Voucher --</option>
                     </select>
 
                     <button type="button" onclick="resetVoucherDateRangeFilter()" style="font-size: 0.78rem; font-weight: 700; color: #ea580c; background: #fff; border: 1px solid rgba(234,88,12,0.3); padding: 0.35rem 0.75rem; border-radius: 8px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
@@ -1871,6 +1876,10 @@
               </div>
               <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                 <!-- Tombol Cetak Massal ID Card (Akses Cepat Toolbar) -->
+                <button type="button" class="btn btn-sm" onclick="openVoucherClaimDetailModal()" title="Cek siapa saja yang sudah / belum klaim voucher tertentu (misal: Voucher Ramadhan)" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #fff; border: none; font-weight: 800; font-size: 0.82rem; padding: 0.5rem 0.95rem; border-radius: 50px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; box-shadow: 0 2px 6px rgba(16,185,129,0.25);">
+                  <i data-lucide="award" style="width: 15px; height: 15px;"></i>
+                  <span>🎯 Cek Status Klaim Voucher</span>
+                </button>
                 <button type="button" class="btn btn-sm" onclick="openBulkIdCardModal()" title="Cetak ID Card untuk semua atau beberapa anggota sekaligus" style="background: linear-gradient(135deg, #b45309 0%, #ea580c 100%); color: #fff; border: none; font-weight: 800; font-size: 0.82rem; padding: 0.5rem 0.95rem; border-radius: 50px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; box-shadow: 0 2px 6px rgba(234,88,12,0.25);">
                   <i data-lucide="printer" style="width: 15px; height: 15px;"></i>
                   <span>🪪 Cetak Massal ID Card</span>
@@ -6114,20 +6123,20 @@
        ========================================================================== -->
   <nav class="m3-bottom-nav" id="m3-bottom-nav">
     <div class="m3-nav-container">
-      <!-- 1. Riwayat Transaksi -->
-      <button type="button" class="m3-nav-item" id="m3-tab-transactions" onclick="switchTab('transactions')">
-        <div class="m3-icon-box">
-          <svg viewBox="0 0 24 24" class="m3-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6m-8 5h6m-6 4h6m-8-8h.01"/></svg>
-        </div>
-        <span class="m3-label">Riwayat</span>
-      </button>
-
-      <!-- 2. Grafik / Analisis -->
+      <!-- 1. Grafik / Analisis (Paling Kiri) -->
       <button type="button" class="m3-nav-item" id="m3-tab-analytics" onclick="switchTab('analytics')">
         <div class="m3-icon-box">
           <svg viewBox="0 0 24 24" class="m3-icon"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
         </div>
         <span class="m3-label">Grafik</span>
+      </button>
+
+      <!-- 2. Riwayat Transaksi -->
+      <button type="button" class="m3-nav-item" id="m3-tab-transactions" onclick="switchTab('transactions')">
+        <div class="m3-icon-box">
+          <svg viewBox="0 0 24 24" class="m3-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6m-8 5h6m-6 4h6m-8-8h.01"/></svg>
+        </div>
+        <span class="m3-label">Riwayat</span>
       </button>
 
       <!-- 3. CENTER FLOATING ACTION BUTTON (KASIR POS / TRANSAKSI BARU) -->
@@ -7208,5 +7217,76 @@
   </div>
 
   <script src="app.js?v=6.3"></script>
+
+  <!-- MODAL: DAFTAR DETAIL STATUS KLAIM VOUCHER SPESIFIK -->
+  <div class="modal-overlay" id="voucher-claim-detail-modal" style="z-index: 100060;">
+    <div class="modal-card" style="max-width: 750px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; border-radius: 20px; overflow: hidden; background: var(--bg-surface); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
+      <div style="padding: 1.25rem 1.5rem; background: linear-gradient(135deg, #ea580c, #c2410c); color: #fff; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3 id="voucher-claim-modal-title" style="margin: 0; font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 0.5rem;">
+            🎫 Status Klaim: <span id="voucher-claim-modal-vname">Voucher Ramadhan</span>
+          </h3>
+          <p id="voucher-claim-modal-subtitle" style="margin: 0.25rem 0 0 0; font-size: 0.8rem; opacity: 0.9;">
+            Daftar lengkap anggota yang berhak, siapa saja yang sudah klaim & belum klaim.
+          </p>
+        </div>
+        <button type="button" onclick="closeVoucherClaimDetailModal()" style="background: rgba(255,255,255,0.2); border: none; font-size: 1.3rem; color: #fff; border-radius: 50%; width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+      </div>
+
+      <!-- Quick KPI Counters -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; padding: 1rem 1.5rem; background: var(--bg-body); border-bottom: 1px solid var(--border-color);">
+        <div style="background: var(--bg-surface); padding: 0.65rem 1rem; border-radius: 10px; border: 1px solid var(--border-color); text-align: center;">
+          <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total Penerima</div>
+          <div id="vclaim-stat-total" style="font-size: 1.35rem; font-weight: 900; color: #ea580c; margin-top: 2px;">0</div>
+        </div>
+        <div style="background: #ecfdf5; padding: 0.65rem 1rem; border-radius: 10px; border: 1px solid #a7f3d0; text-align: center;">
+          <div style="font-size: 0.75rem; font-weight: 700; color: #047857; text-transform: uppercase;">Sudah Klaim (Ambil)</div>
+          <div id="vclaim-stat-used" style="font-size: 1.35rem; font-weight: 900; color: #059669; margin-top: 2px;">0</div>
+        </div>
+        <div style="background: #fff7ed; padding: 0.65rem 1rem; border-radius: 10px; border: 1px solid #fed7aa; text-align: center;">
+          <div style="font-size: 0.75rem; font-weight: 700; color: #c2410c; text-transform: uppercase;">Belum Klaim</div>
+          <div id="vclaim-stat-unused" style="font-size: 1.35rem; font-weight: 900; color: #ea580c; margin-top: 2px;">0</div>
+        </div>
+      </div>
+
+      <!-- Tabs Filter & Search in Modal -->
+      <div style="padding: 0.85rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.65rem; border-bottom: 1px solid var(--border-color);">
+        <div style="display: flex; gap: 0.35rem;">
+          <button type="button" id="btn-vclaim-all" onclick="filterVoucherClaimModalTab('all')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: #ea580c; color: #fff; border: none; cursor: pointer;">Semua</button>
+          <button type="button" id="btn-vclaim-used" onclick="filterVoucherClaimModalTab('used')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-color); cursor: pointer;">Sudah Klaim</button>
+          <button type="button" id="btn-vclaim-unused" onclick="filterVoucherClaimModalTab('unused')" style="border-radius: 20px; font-weight: 700; font-size: 0.78rem; padding: 0.3rem 0.8rem; background: var(--bg-body); color: var(--text-muted); border: 1px solid var(--border-color); cursor: pointer;">Belum Klaim</button>
+        </div>
+        <input type="text" id="vclaim-modal-search" placeholder="Cari nama anggota..." oninput="renderVoucherClaimModalList()" style="padding: 0.35rem 0.75rem; border-radius: 20px; border: 1px solid var(--border-color); font-size: 0.82rem; width: 200px;">
+      </div>
+
+      <!-- Table Body -->
+      <div style="flex: 1; overflow-y: auto; padding: 0 1.5rem;">
+        <table class="data-table" style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+          <thead>
+            <tr style="background: var(--bg-body); position: sticky; top: 0; z-index: 5;">
+              <th style="padding: 0.6rem; text-align: left; font-size: 0.8rem;">No</th>
+              <th style="padding: 0.6rem; text-align: left; font-size: 0.8rem;">Nama Anggota</th>
+              <th style="padding: 0.6rem; text-align: left; font-size: 0.8rem;">Instansi / Domisili</th>
+              <th style="padding: 0.6rem; text-align: right; font-size: 0.8rem;">Nominal</th>
+              <th style="padding: 0.6rem; text-align: center; font-size: 0.8rem;">Status Klaim</th>
+              <th style="padding: 0.6rem; text-align: left; font-size: 0.8rem;">Waktu Klaim</th>
+            </tr>
+          </thead>
+          <tbody id="voucher-claim-modal-tbody">
+            <!-- Diisi dinamis via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Modal Footer -->
+      <div style="padding: 1rem 1.5rem; background: var(--bg-body); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="exportVoucherClaimReportToJPG()" style="display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; background: #0284c7; color: #fff; border: none;">
+          🖼️ Simpan Laporan Klaim JPG
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="closeVoucherClaimDetailModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

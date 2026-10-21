@@ -2262,6 +2262,8 @@ let labelSettings = safeJsonParse('kasir_label_settings', {
   width: 65,
   height: 30,
   marginLeft: 0,
+  marginTop: 0,
+  marginBottom: 0,
   chars: 25,
   showBarcode: false,
   showPrice: true,
@@ -2275,6 +2277,8 @@ let productLabelSettings = safeJsonParse('kasir_product_label_settings', {
   width: 50,
   height: 30,
   marginLeft: 0,
+  marginTop: 0,
+  marginBottom: 0,
   chars: 25,
   showBarcode: true,
   showPrice: true,
@@ -3562,6 +3566,10 @@ function loadLabelSettings() {
   document.getElementById('setting-label-width').value = labelSettings.width || 65;
   document.getElementById('setting-label-height').value = labelSettings.height || 30;
   document.getElementById('setting-label-margin-left').value = labelSettings.marginLeft !== undefined ? labelSettings.marginLeft : 0;
+  const mtEl = document.getElementById('setting-label-margin-top');
+  if (mtEl) mtEl.value = labelSettings.marginTop !== undefined ? labelSettings.marginTop : 0;
+  const mbEl = document.getElementById('setting-label-margin-bottom');
+  if (mbEl) mbEl.value = labelSettings.marginBottom !== undefined ? labelSettings.marginBottom : 0;
   document.getElementById('setting-label-chars').value = labelSettings.chars || 25;
   const barcodeEl = document.getElementById('setting-label-show-barcode');
   if (barcodeEl) barcodeEl.checked = !!labelSettings.showBarcode;
@@ -3578,6 +3586,10 @@ function saveLabelSettings() {
   labelSettings.width = parseFloat(document.getElementById('setting-label-width').value) || 65;
   labelSettings.height = parseFloat(document.getElementById('setting-label-height').value) || 30;
   labelSettings.marginLeft = parseFloat(document.getElementById('setting-label-margin-left').value) || 0;
+  const mtEl = document.getElementById('setting-label-margin-top');
+  if (mtEl) labelSettings.marginTop = parseFloat(mtEl.value) || 0;
+  const mbEl = document.getElementById('setting-label-margin-bottom');
+  if (mbEl) labelSettings.marginBottom = parseFloat(mbEl.value) || 0;
   labelSettings.chars = parseInt(document.getElementById('setting-label-chars').value) || 25;
   const barcodeEl = document.getElementById('setting-label-show-barcode');
   labelSettings.showBarcode = barcodeEl ? barcodeEl.checked : false;
@@ -3596,6 +3608,10 @@ function loadProductLabelSettings() {
   document.getElementById('setting-prodlabel-width').value = productLabelSettings.width || 50;
   document.getElementById('setting-prodlabel-height').value = productLabelSettings.height || 30;
   document.getElementById('setting-prodlabel-margin-left').value = productLabelSettings.marginLeft || 0;
+  const mtEl = document.getElementById('setting-prodlabel-margin-top');
+  if (mtEl) mtEl.value = productLabelSettings.marginTop !== undefined ? productLabelSettings.marginTop : 0;
+  const mbEl = document.getElementById('setting-prodlabel-margin-bottom');
+  if (mbEl) mbEl.value = productLabelSettings.marginBottom !== undefined ? productLabelSettings.marginBottom : 0;
   document.getElementById('setting-prodlabel-chars').value = productLabelSettings.chars || 25;
   document.getElementById('setting-prodlabel-show-barcode').checked = productLabelSettings.showBarcode !== false;
   document.getElementById('setting-prodlabel-show-price').checked = productLabelSettings.showPrice !== false;
@@ -3610,6 +3626,10 @@ function saveProductLabelSettings() {
   productLabelSettings.width = parseFloat(document.getElementById('setting-prodlabel-width').value) || 50;
   productLabelSettings.height = parseFloat(document.getElementById('setting-prodlabel-height').value) || 30;
   productLabelSettings.marginLeft = parseFloat(document.getElementById('setting-prodlabel-margin-left').value) || 0;
+  const mtEl = document.getElementById('setting-prodlabel-margin-top');
+  if (mtEl) productLabelSettings.marginTop = parseFloat(mtEl.value) || 0;
+  const mbEl = document.getElementById('setting-prodlabel-margin-bottom');
+  if (mbEl) productLabelSettings.marginBottom = parseFloat(mbEl.value) || 0;
   productLabelSettings.chars = parseInt(document.getElementById('setting-prodlabel-chars').value) || 25;
   productLabelSettings.showBarcode = document.getElementById('setting-prodlabel-show-barcode').checked;
   productLabelSettings.showPrice = document.getElementById('setting-prodlabel-show-price').checked;
@@ -4458,8 +4478,8 @@ function updateAnalytics() {
       revenue += tx.total;
       methodsBreakdown[metode] = (methodsBreakdown[metode] || 0) + tx.total;
     } else {
-      // 4. Non-Tunai biasa (QRIS/Transfer/Debit) yang tidak diganti kas: hanya margin laba bersih
-      revenue += txNetProfit;
+      // 4. Non-Tunai biasa (QRIS/Transfer/Debit) yang TIDAK diganti kas:
+      // Uang masuk ke rekening bank/e-wallet, BUKAN ke laci fisik kasir (TIDAK menambah Cash Revenue laci).
       methodsBreakdown[metode] = (methodsBreakdown[metode] || 0) + tx.total;
     }
   });
@@ -8184,24 +8204,22 @@ async function processCheckout() {
     return;
   }
 
-  // Wajibkan memilih pelanggan jika fitur CRM Pelanggan diaktifkan di pengaturan sistem
+  // Jika fitur CRM Pelanggan diaktifkan di pengaturan sistem:
+  // Kasir tetap bisa melayani pelanggan umum (non-member).
+  // Jika diinputkan nama yang bukan member terdaftar, kita konfirmasi atau izinkan sebagai Pelanggan Umum.
   if (appConfig.customerMode) {
-    if (!customerName) {
-      alert("⚠️ Fitur Pelanggan & CRM sedang Aktif.\nHarap cari dan pilih pelanggan terlebih dahulu sebelum menyelesaikan pembayaran!");
-      const custInput = document.getElementById('customer-name-input');
-      if (custInput) { custInput.focus(); openCustomerDropdown(); }
-      if (btnSubmit) btnSubmit.disabled = false;
-      isCheckingOut = false;
-      return;
-    }
-    const matchedCustomer = customers.find(c => c.nama.toLowerCase() === customerName.toLowerCase());
-    if (!matchedCustomer) {
-      alert(`⚠️ Pelanggan "${customerName}" belum terdaftar di database member toko!\nSilakan pilih dari daftar member atau tambahkan member baru di tab Pelanggan.`);
-      const custInput = document.getElementById('customer-name-input');
-      if (custInput) { custInput.focus(); openCustomerDropdown(); }
-      if (btnSubmit) btnSubmit.disabled = false;
-      isCheckingOut = false;
-      return;
+    if (!customerName || customerName.toLowerCase() === 'pelanggan umum' || customerName.toLowerCase() === 'umum') {
+      // Pelanggan umum diperbolehkan bertransaksi tunai/lunas
+    } else {
+      const matchedCustomer = customers.find(c => c.nama.toLowerCase() === customerName.toLowerCase());
+      if (!matchedCustomer && status === 'Bon') {
+        alert(`⚠️ Pelanggan "${customerName}" belum terdaftar di database member toko!\nPembayaran Bon / Hutang WAJIB memilih member terdaftar.`);
+        const custInput = document.getElementById('customer-name-input');
+        if (custInput) { custInput.focus(); openCustomerDropdown(); }
+        if (btnSubmit) btnSubmit.disabled = false;
+        isCheckingOut = false;
+        return;
+      }
     }
   }
   
@@ -10558,11 +10576,13 @@ function saveProduct(event) {
   }
   
   let isPriceChanged = false;
+  let isPriceIncreased = false;
   let oldPrice = 0;
   if (targetIndex > -1 && products[targetIndex]) {
     const oldProduct = products[targetIndex];
     if (oldProduct && priceSellInput !== oldProduct.harga_jual && oldProduct.harga_jual > 0) {
       isPriceChanged = true;
+      isPriceIncreased = priceSellInput > oldProduct.harga_jual;
       oldPrice = oldProduct.harga_jual;
     }
   }
@@ -10690,10 +10710,16 @@ function toggleMultiUnitFields() {
   const chk = document.getElementById('chk-prod-enable-box');
   const fields = document.getElementById('prod-box-fields');
   const addBtn = document.getElementById('btn-add-unit-tier');
+  const container = document.getElementById('multi-units-container');
   const isEnabled = chk ? chk.checked : false;
 
   if (fields) fields.style.display = isEnabled ? 'flex' : 'none';
   if (addBtn) addBtn.style.display = isEnabled ? 'inline-block' : 'none';
+
+  // Jika dicentang dan kontainer baris masih kosong sama sekali, otomatis tambahkan 1 baris awal
+  if (isEnabled && container && container.querySelectorAll('.multi-unit-row').length === 0) {
+    addMultiUnitRow('', '', '', '');
+  }
 }
 
 function toggleBoxPackagingFields() {
@@ -14919,11 +14945,20 @@ function printDailyReport() {
           <strong style="font-size: 14px; color: #1e293b;">📄 Pratinjau Laporan Penjualan &amp; Stok</strong>
           <span style="font-size: 12px; color: #64748b; margin-left: 8px;">(${periodLabel})</span>
         </div>
-        <div>
-          <button class="btn btn-print" onclick="window.print()">🖨️ Cetak Dokumen</button>
-          <button class="btn btn-close" onclick="window.close()">❌ Tutup Pratinjau</button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label style="font-size: 13px; font-weight: 700; color: #334155;">Orientasi Kertas:</label>
+          <select id="preview-orientation-select" onchange="document.getElementById('print-page-style').textContent = '@page { size: auto ' + this.value + '; margin: 8mm; }'" style="padding: 6px 10px; border: 1.5px solid #cbd5e1; border-radius: 6px; font-size: 13px; font-weight: 600; outline: none;">
+            <option value="portrait" selected>📄 Vertikal (Portrait)</option>
+            <option value="landscape">📑 Horizontal (Landscape)</option>
+          </select>
+          <button class="btn btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+          <button class="btn btn-close" onclick="window.close()">❌ Tutup</button>
         </div>
       </div>
+
+      <style id="print-page-style">
+        @page { size: auto portrait; margin: 8mm; }
+      </style>
 
       <div class="report-paper">
         ${printAreaEl.innerHTML}
@@ -14949,6 +14984,16 @@ function openPrintRackModal() {
   modal.style.display = 'flex';
   modal.classList.add('active');
   
+  // Isi margin atas & bawah dari pengaturan atau default
+  const mtEl = document.getElementById('print-rack-margin-top');
+  if (mtEl && !mtEl.value) {
+    mtEl.value = (labelSettings && labelSettings.marginTop !== undefined) ? labelSettings.marginTop : 0;
+  }
+  const mbEl = document.getElementById('print-rack-margin-bottom');
+  if (mbEl && !mbEl.value) {
+    mbEl.value = (labelSettings && labelSettings.marginBottom !== undefined) ? labelSettings.marginBottom : 0;
+  }
+
   // Perbarui preview saat modal dibuka
   updatePrintRackPreview();
   
@@ -15071,6 +15116,23 @@ function executePrintRackReport() {
     if (totalStockEl) totalStockEl.textContent = `Total Kuantitas Fisik: ${totalStockCount} pcs`;
   }
   
+  // Ambil margin / padding atas & bawah kertas yang ditentukan user
+  const rackMt = parseFloat(document.getElementById('print-rack-margin-top')?.value) || 0;
+  const rackMb = parseFloat(document.getElementById('print-rack-margin-bottom')?.value) || 0;
+  const rackOrientation = document.getElementById('print-rack-orientation')?.value || 'portrait';
+  const rackPrintArea = document.getElementById('rack-report-print-area');
+  if (rackPrintArea) {
+    rackPrintArea.style.paddingTop = `${rackMt}mm`;
+    rackPrintArea.style.paddingBottom = `${rackMb}mm`;
+  }
+
+  // Terapkan orientasi kertas via class
+  if (rackOrientation === 'landscape') {
+    document.body.classList.add('print-landscape');
+  } else {
+    document.body.classList.remove('print-landscape');
+  }
+
   // Tutup modal pilihan cetak
   closePrintRackModal();
   
@@ -15091,8 +15153,18 @@ function openPrintLabelModal(productId, defaultType = 'shelf') {
   document.getElementById('print-label-type').value = defaultType;
   document.getElementById('print-label-qty').value = 1;
   
+  const curSettings = defaultType === 'product' ? productLabelSettings : labelSettings;
+  const mtEl = document.getElementById('modal-label-margin-top');
+  if (mtEl) mtEl.value = curSettings.marginTop !== undefined ? curSettings.marginTop : 0;
+  const mbEl = document.getElementById('modal-label-margin-bottom');
+  if (mbEl) mbEl.value = curSettings.marginBottom !== undefined ? curSettings.marginBottom : 0;
+
   updateLabelPreview();
   document.getElementById('print-label-modal').classList.add('active');
+}
+
+function onModalLabelMarginChange() {
+  updateLabelPreview();
 }
 
 function closePrintLabelModal() {
@@ -15231,8 +15303,17 @@ function printLabels() {
   
   const container = document.createElement('div');
   container.className = 'labels-print-container';
-  const marginLeft = labelType === 'product' ? productLabelSettings.marginLeft : labelSettings.marginLeft;
+  const defaultMt = labelType === 'product' ? productLabelSettings.marginTop : labelSettings.marginTop;
+  const defaultMb = labelType === 'product' ? productLabelSettings.marginBottom : labelSettings.marginBottom;
+  const modalMt = document.getElementById('modal-label-margin-top')?.value;
+  const modalMb = document.getElementById('modal-label-margin-bottom')?.value;
+  const marginTop = modalMt !== undefined && modalMt !== '' ? parseFloat(modalMt) : (defaultMt || 0);
+  const marginBottom = modalMb !== undefined && modalMb !== '' ? parseFloat(modalMb) : (defaultMb || 0);
+  const marginLeft = labelType === 'product' ? (productLabelSettings.marginLeft || 0) : (labelSettings.marginLeft || 0);
+
   container.style.paddingLeft = `${marginLeft}mm`;
+  container.style.paddingTop = `${marginTop}mm`;
+  container.style.paddingBottom = `${marginBottom}mm`;
   
   for (let i = 0; i < qty; i++) {
     const labelWrapper = document.createElement('div');
@@ -15245,6 +15326,189 @@ function printLabels() {
   
   document.body.classList.add('printing-labels');
   window.print();
+}
+
+// Fungsi Simpan Label Langsung ke PDF (Single & Bulk)
+function saveLabelAsPDF(mode = 'single') {
+  let labelType = 'shelf';
+  let qtyList = [];
+  let gapVal = 0.5;
+  let mtVal = 0;
+  let mlVal = 0;
+
+  if (mode === 'single') {
+    const prodId = document.getElementById('print-label-prod-id')?.value;
+    const p = products.find(prod => prod.id === prodId);
+    if (!p) { alert('Produk tidak ditemukan!'); return; }
+    labelType = document.getElementById('print-label-type')?.value || 'shelf';
+    const qty = parseInt(document.getElementById('print-label-qty')?.value) || 1;
+    qtyList.push({ prod: p, qty: qty });
+    mtVal = parseFloat(document.getElementById('modal-label-margin-top')?.value) || 0;
+    mlVal = (labelType === 'product' ? (productLabelSettings.marginLeft || 0) : (labelSettings.marginLeft || 0));
+  } else {
+    labelType = document.getElementById('bulk-print-label-type')?.value || 'shelf';
+    const qtyInputs = document.querySelectorAll('.bulk-print-qty-input');
+    qtyInputs.forEach(input => {
+      const pid = input.getAttribute('data-id');
+      const q = parseInt(input.value) || 0;
+      const p = products.find(prod => prod.id === pid);
+      if (p && q > 0) qtyList.push({ prod: p, qty: q });
+    });
+    const gInp = parseFloat(document.getElementById('bulk-label-gap')?.value);
+    gapVal = !isNaN(gInp) ? gInp : 0.5;
+    mtVal = parseFloat(document.getElementById('bulk-label-margin-top')?.value) || 0;
+    mlVal = parseFloat(document.getElementById('bulk-label-margin-left')?.value) || 0;
+  }
+
+  // Jika gap bernilai minus, kita terapkan sebagai negative margin pada setiap label
+  // agar label bisa saling menumpuk/merapat secara horizontal & vertikal sesuai keinginan user
+  const effectiveGap = gapVal >= 0 ? gapVal : 0;
+  const mtMargin = mtVal < 0 ? mtVal : (gapVal < 0 ? gapVal : 0);
+  const mbMargin = gapVal < 0 ? gapVal : 0;
+  const mlMargin = mlVal < 0 ? mlVal : (gapVal < 0 ? gapVal : 0);
+  const mrMargin = gapVal < 0 ? gapVal : 0;
+
+  if (qtyList.length === 0) {
+    alert('Tidak ada produk yang dipilih!');
+    return;
+  }
+
+  const pdfWindow = window.open('', '_blank', 'width=950,height=750');
+  if (!pdfWindow) {
+    alert('Popup terblokir oleh browser. Silakan izinkan popup untuk menyimpan PDF.');
+    return;
+  }
+
+  let labelsHtml = '';
+  qtyList.forEach(item => {
+    for (let i = 0; i < item.qty; i++) {
+      labelsHtml += buildLabelHTML(item.prod, labelType);
+    }
+  });
+
+  const pdfDoc = `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>Simpan_Label_Harga_${Date.now()}.pdf</title>
+      <style>
+        @page {
+          size: auto portrait;
+          margin: 0;
+        }
+        body {
+          margin: 0;
+          padding: 0;
+          background: #f8fafc;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+        }
+        .pdf-toolbar {
+          position: sticky;
+          top: 0;
+          background: #ffffff;
+          padding: 12px 20px;
+          border-bottom: 1.5px solid #e2e8f0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.06);
+          z-index: 1000;
+        }
+        .pdf-toolbar .btn {
+          padding: 8px 18px;
+          font-size: 13px;
+          font-weight: 700;
+          border-radius: 8px;
+          cursor: pointer;
+          border: none;
+          transition: 0.15s;
+        }
+        .btn-pdf {
+          background: #4f46e5;
+          color: white;
+        }
+        .btn-pdf:hover { background: #4338ca; }
+        .btn-close {
+          background: #64748b;
+          color: white;
+          margin-left: 8px;
+        }
+        .pdf-container {
+          padding-top: ${Math.max(0, mtVal)}mm;
+          padding-left: ${Math.max(0, mlVal)}mm;
+          display: flex;
+          flex-wrap: wrap;
+          align-content: flex-start !important;
+          align-items: flex-start !important;
+          justify-content: flex-start;
+          gap: ${effectiveGap}mm;
+          background: #ffffff;
+          box-sizing: border-box;
+          height: auto !important;
+          min-height: 0 !important;
+        }
+        .label-item-print {
+          border: 1px dashed #cbd5e1;
+          box-sizing: border-box;
+          page-break-inside: avoid;
+          break-inside: avoid;
+          text-align: center;
+          background: white;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          margin-top: ${mtMargin}mm !important;
+          margin-bottom: ${mbMargin}mm !important;
+          margin-left: ${mlMargin}mm !important;
+          margin-right: ${mrMargin}mm !important;
+        }
+        .label-item-print.product-label {
+          width: ${productLabelSettings.width || 50}mm;
+          height: ${productLabelSettings.height || 30}mm;
+          font-size: 8pt;
+        }
+        .label-item-print.shelf-label {
+          width: ${labelSettings.width || 60}mm;
+          height: ${labelSettings.height || 30}mm;
+          font-size: 10pt;
+          border: 2px solid #000;
+        }
+        .label-store { font-size: 8pt; font-weight: 700; text-transform: uppercase; color: #475569; }
+        .label-name { font-weight: 800; color: #000; margin: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+        .label-price { font-weight: 900; font-size: 14pt; color: #000; }
+        .label-barcode-svg { max-width: 90%; }
+        .label-barcode-text { font-family: monospace; font-size: 8pt; }
+        @media print {
+          .pdf-toolbar { display: none !important; }
+          body { background: white !important; }
+          .pdf-container { padding: 0 !important; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="pdf-toolbar">
+        <div>
+          <strong style="font-size: 15px; color: #1e293b;">📄 Simpan Label ke Format PDF</strong>
+          <span style="font-size: 12px; color: #64748b; margin-left: 8px;">(Pilih 'Save as PDF' di jendela cetak)</span>
+        </div>
+        <div>
+          <button class="btn btn-pdf" onclick="window.print()">💾 Simpan sebagai PDF</button>
+          <button class="btn btn-close" onclick="window.close()">✕ Tutup</button>
+        </div>
+      </div>
+      <div class="pdf-container">
+        ${labelsHtml}
+      </div>
+    </body>
+    </html>
+  `;
+
+  pdfWindow.document.open();
+  pdfWindow.document.write(pdfDoc);
+  pdfWindow.document.close();
 }
 
 // Deteksi cetak label selesai
@@ -15377,23 +15641,24 @@ function toggleProductSelection(productId, checkbox) {
 }
 
 function toggleSelectAllProducts(masterCheckbox) {
-  const searchVal = document.getElementById('product-list-search').value.toLowerCase().trim();
+  const searchVal = document.getElementById('product-list-search')?.value.toLowerCase().trim() || '';
   const matched = products.filter(p => {
-    return String(p.nama).toLowerCase().includes(searchVal) || 
-           String(p.id).toLowerCase().includes(searchVal) ||
+    if (!p) return false;
+    return String(p.nama || '').toLowerCase().includes(searchVal) || 
+           String(p.id || '').toLowerCase().includes(searchVal) ||
            (p.barcode && String(p.barcode).toLowerCase().includes(searchVal)) ||
            (p.kategori && String(p.kategori).toLowerCase().includes(searchVal));
   });
-  const itemsToRender = searchVal === '' ? matched.slice(0, 10) : matched;
 
-  itemsToRender.forEach(p => {
-    if (masterCheckbox.checked) {
-      selectedProductIds.add(p.id);
-    } else {
-      selectedProductIds.delete(p.id);
-    }
-  });
+  // Jika master checkbox dicentang, centang SEMUA produk hasil filter
+  if (masterCheckbox.checked) {
+    matched.forEach(p => selectedProductIds.add(p.id));
+  } else {
+    // Jika tidak dicentang, hapus centang produk yang cocok
+    matched.forEach(p => selectedProductIds.delete(p.id));
+  }
 
+  // Perbarui semua checkbox baris yang sedang tampil di layar
   const checkboxes = document.querySelectorAll('.product-select-checkbox');
   checkboxes.forEach(cb => {
     const id = cb.getAttribute('data-id');
@@ -15407,6 +15672,8 @@ function updateBulkActionButtonState() {
   const count = selectedProductIds.size;
   const btnBulk = document.getElementById('btn-bulk-print-labels');
   const countEl = document.getElementById('bulk-select-count');
+  const btnDelete = document.getElementById('btn-bulk-delete-products');
+  const deleteCountEl = document.getElementById('bulk-delete-count');
   
   if (btnBulk && countEl) {
     if (count > 0) {
@@ -15416,17 +15683,75 @@ function updateBulkActionButtonState() {
       btnBulk.style.display = 'none';
     }
   }
+
+  if (btnDelete && deleteCountEl) {
+    if (count > 0) {
+      deleteCountEl.textContent = count;
+      btnDelete.style.display = 'inline-flex';
+    } else {
+      btnDelete.style.display = 'none';
+    }
+  }
   
   const masterCb = document.getElementById('select-all-products');
   if (masterCb) {
     const checkboxes = document.querySelectorAll('.product-select-checkbox');
     if (checkboxes.length > 0) {
       const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      const someChecked = Array.from(checkboxes).some(cb => cb.checked);
       masterCb.checked = allChecked;
+      masterCb.indeterminate = !allChecked && someChecked;
     } else {
       masterCb.checked = false;
+      masterCb.indeterminate = false;
     }
   }
+}
+
+// Fitur Hapus Massal Produk yang Dicentang
+async function deleteSelectedProducts() {
+  const count = selectedProductIds.size;
+  if (count === 0) {
+    alert("Silakan pilih minimal 1 produk yang ingin dihapus!");
+    return;
+  }
+
+  const confirmDelete = confirm(`⚠️ PERINGATAN HAPUS MASSAL PRODUK!\n\nApakah Anda YAKIN ingin menghapus ${count} produk yang dicentang secara permanen?\n\nTindakan ini tidak dapat dibatalkan!`);
+  if (!confirmDelete) return;
+
+  const idsToDelete = Array.from(selectedProductIds);
+  let deletedCount = 0;
+
+  // Hapus dari array produk lokal
+  products = products.filter(p => !selectedProductIds.has(p.id));
+  deletedCount = count;
+
+  // Bersihkan ID terpilih
+  selectedProductIds.clear();
+
+  // Simpan data produk ke storage lokal
+  saveProductsLocally();
+  updateCategoriesList();
+  updateRacksList();
+  renderProductsTable();
+  if (typeof renderPosProducts === 'function') renderPosProducts();
+
+  // Sinkronisasi hapus ke Firebase jika sedang online
+  if (firebaseDb) {
+    updateSyncStatus('syncing', `Menghapus ${deletedCount} produk dari cloud...`);
+    try {
+      const updates = {};
+      idsToDelete.forEach(id => {
+        updates[getStorePath('products/' + id)] = null;
+      });
+      await firebaseDb.ref('/').update(updates);
+      updateSyncStatus('online', 'Database Terhubung');
+    } catch (err) {
+      console.error('Gagal hapus massal produk dari RTDB:', err);
+    }
+  }
+
+  alert(`✅ Berhasil menghapus ${deletedCount} produk secara massal!`);
 }
 
 function openBulkPrintLabelModal() {
@@ -15450,14 +15775,69 @@ function openBulkPrintLabelModal() {
       row.style.borderBottom = '1px solid var(--border-color)';
       row.innerHTML = `
         <span style="font-weight: 600; font-size: 0.85rem; color: var(--text-main);">${p.nama} (${p.id})</span>
-        <input type="number" class="bulk-print-qty-input" data-id="${p.id}" min="1" max="100" value="1" style="width: 70px; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); text-align: center; font-weight: bold; outline: none; font-family: var(--font-main);">
+        <input type="number" class="bulk-print-qty-input" data-id="${p.id}" min="1" max="100" value="1" oninput="updateBulkLabelPreview()" style="width: 70px; padding: 0.35rem 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); text-align: center; font-weight: bold; outline: none; font-family: var(--font-main);">
       `;
       listContainer.appendChild(row);
     }
   });
   
-  document.getElementById('bulk-print-label-type').value = 'shelf';
+  const bulkTypeSelect = document.getElementById('bulk-print-label-type');
+  if (bulkTypeSelect) {
+    bulkTypeSelect.value = 'shelf';
+    bulkTypeSelect.onchange = updateBulkLabelPreview;
+  }
+
+  // Set default jarak / margin mepet hemat kertas
+  const gapInput = document.getElementById('bulk-label-gap');
+  if (gapInput && !gapInput.value) gapInput.value = '0.5';
+  const mtInput = document.getElementById('bulk-label-margin-top');
+  if (mtInput && !mtInput.value) mtInput.value = '0';
+  const mlInput = document.getElementById('bulk-label-margin-left');
+  if (mlInput && !mlInput.value) mlInput.value = '0';
+
+  updateBulkLabelPreview();
   document.getElementById('bulk-print-label-modal').classList.add('active');
+}
+
+function updateBulkLabelPreview() {
+  const previewContainer = document.getElementById('bulk-label-preview-container');
+  if (!previewContainer) return;
+
+  const labelType = document.getElementById('bulk-print-label-type')?.value || 'shelf';
+  const gapVal = parseFloat(document.getElementById('bulk-label-gap')?.value) || 0.5;
+  const mtVal = parseFloat(document.getElementById('bulk-label-margin-top')?.value) || 0;
+  const mlVal = parseFloat(document.getElementById('bulk-label-margin-left')?.value) || 0;
+  
+  previewContainer.style.gap = `${gapVal}mm`;
+  previewContainer.style.paddingTop = `${Math.max(0, mtVal)}mm`;
+  previewContainer.style.paddingLeft = `${Math.max(0, mlVal)}mm`;
+  previewContainer.innerHTML = '';
+
+  const qtyInputs = document.querySelectorAll('.bulk-print-qty-input');
+  let countShown = 0;
+
+  qtyInputs.forEach(input => {
+    const id = input.getAttribute('data-id');
+    const qty = parseInt(input.value) || 0;
+    const p = products.find(prod => prod.id === id);
+    if (p && qty > 0) {
+      for (let i = 0; i < qty; i++) {
+        // Tampilkan maksimal 20 label di modal pratinjau agar tetap ringan dan responsif
+        if (countShown < 20) {
+          const wrapper = document.createElement('div');
+          wrapper.style.transform = 'scale(0.85)';
+          wrapper.style.transformOrigin = 'top left';
+          wrapper.innerHTML = buildLabelHTML(p, labelType);
+          previewContainer.appendChild(wrapper.firstElementChild);
+          countShown++;
+        }
+      }
+    }
+  });
+
+  if (countShown === 0) {
+    previewContainer.innerHTML = '<span style="color:var(--text-muted); font-size:0.85rem; padding:0.5rem;">Tidak ada produk terpilih atau kuantitas 0.</span>';
+  }
 }
 
 function closeBulkPrintLabelModal() {
@@ -15475,8 +15855,23 @@ function printBulkLabels() {
   
   const container = document.createElement('div');
   container.className = 'labels-print-container';
-  const marginLeft = labelType === 'product' ? productLabelSettings.marginLeft : labelSettings.marginLeft;
-  container.style.paddingLeft = `${marginLeft}mm`;
+
+  // Jarak antar barcode (bisa 0 atau minus agar mepet hemat kertas)
+  const gapVal = parseFloat(document.getElementById('bulk-label-gap')?.value);
+  const effectiveGap = !isNaN(gapVal) && gapVal >= 0 ? gapVal : 0;
+  container.style.setProperty('--label-gap', `${effectiveGap}mm`);
+
+  // Jika gap minus, pasang margin negatif pada label
+  const negativeMargin = !isNaN(gapVal) && gapVal < 0 ? `${gapVal}mm` : '0px';
+  container.style.setProperty('--label-margin', negativeMargin);
+
+  const mtVal = parseFloat(document.getElementById('bulk-label-margin-top')?.value) || 0;
+  const mlVal = parseFloat(document.getElementById('bulk-label-margin-left')?.value) || 0;
+
+  container.style.paddingLeft = `${Math.max(0, mlVal)}mm`;
+  container.style.paddingTop = `${Math.max(0, mtVal)}mm`;
+  if (mtVal < 0) container.style.marginTop = `${mtVal}mm`;
+  if (mlVal < 0) container.style.marginLeft = `${mlVal}mm`;
   
   let totalPrinted = 0;
   
@@ -21530,7 +21925,7 @@ function addDeliveryItemRow(defaultData = null) {
       <input type="number" class="delivery-item-price-nota" required min="0" value="${initialHargaNota}" oninput="calculateDeliveryRowSubtotal(this)" placeholder="Di nota" title="Harga yang tertera pada faktur/nota sales" style="width: 100%; padding: 0.4rem 0.5rem; border: 1px solid #f59e0b; background: #fffdfa; border-radius: 6px; font-size: 0.85rem; font-weight: 700;">
     </td>
     <td style="padding: 0.4rem;">
-      <input type="number" class="delivery-item-price-buy" required min="0" value="${initialHargaBeli}" readonly title="Harga Pokok Bersih (DPP) setelah dikurangi PPN" style="width: 100%; padding: 0.4rem 0.5rem; border: 1px solid #cbd5e1; background: #f8fafc; color: #0284c7; border-radius: 6px; font-size: 0.85rem; font-weight: 800;">
+      <input type="number" class="delivery-item-price-buy" required min="0" value="${initialHargaBeli}" readonly title="Harga Modal Akhir (termasuk PPN)" style="width: 100%; padding: 0.4rem 0.5rem; border: 1px solid #cbd5e1; background: #f8fafc; color: #0284c7; border-radius: 6px; font-size: 0.85rem; font-weight: 800;">
     </td>
     <td style="padding: 0.4rem;">
       <input type="number" class="delivery-item-price-sell" required min="0" value="${defaultData ? defaultData.hargaJual : 0}" style="width: 100%; padding: 0.4rem 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem; font-weight: 700;">
@@ -21601,18 +21996,19 @@ function calculateDeliveryRowSubtotal(el) {
   const hasPpn = document.getElementById('delivery-has-ppn')?.checked ?? false;
   const ppnRate = hasPpn ? (Number(document.getElementById('delivery-ppn-percent')?.value) || 0) : 0;
 
-  // Hitung DPP (Modal bersih sebelum PPN): Harga Nota / (1 + tarif)
-  let cleanPriceBuy = priceNota;
+  // Hitung Modal + PPN: Harga dasar di nota ketambahan PPN
+  // Contoh: Harga Nota 1.500 dengan PPN 11% -> 1.500 + (1.500 * 11%) = 1.665
+  let modalPlusPpn = priceNota;
   if (hasPpn && ppnRate > 0) {
-    cleanPriceBuy = Math.round(priceNota / (1 + (ppnRate / 100)));
+    modalPlusPpn = Math.round(priceNota * (1 + (ppnRate / 100)));
   }
 
   if (buyInput) {
-    buyInput.value = cleanPriceBuy;
+    buyInput.value = modalPlusPpn;
   }
 
-  // Subtotal baris menggunakan harga faktur nota sales agar total tagihan sama persis dengan nota
-  const subtotal = qty * priceNota;
+  // Subtotal tagihan menggunakan Modal + PPN agar total faktur sesuai nilai akhir pembayaran
+  const subtotal = qty * modalPlusPpn;
 
   const subtotalCell = tr.querySelector('.delivery-item-subtotal');
   if (subtotalCell) {
@@ -21726,8 +22122,8 @@ function saveSalesDelivery(e) {
     }
 
     const prod = products.find(p => p.id === prodId);
-    // Subtotal tagihan sales didasarkan pada harga nota agar nominal tagihan distributor pas
-    const subtotal = qty * hargaNota;
+    // Subtotal tagihan sales didasarkan pada harga beli akhir (Modal + PPN) agar nominal tagihan distributor pas
+    const subtotal = qty * hargaBeli;
     totalTagihan += subtotal;
     hasValidItem = true;
 
@@ -21736,7 +22132,7 @@ function saveSalesDelivery(e) {
       nama: prod ? prod.nama : 'Produk',
       qty: qty,
       hargaNota: hargaNota,
-      hargaBeli: hargaBeli, // Harga DPP Bersih (Modal)
+      hargaBeli: hargaBeli, // Harga Modal + PPN
       hargaJual: hargaJual,
       expired: expired,
       subtotal: subtotal
@@ -28363,19 +28759,21 @@ async function initDesktopIntegration() {
   }
 }
 
-// ─── LOGIKA KUNCI AKTIVASI PERANGKAT (ANTI-PIRACY) ──────────────────────────
+// ─── LOGIKA KUNCI AKTIVASI PERANGKAT (LISENSI CLOUD SEKALI VALIDASI) ───────────
 async function checkDeviceActivationStatus() {
   if (!window.desktopAPI || !window.desktopAPI.checkDeviceActivation) return true;
   try {
     const res = await window.desktopAPI.checkDeviceActivation();
     const modal = document.getElementById('device-activation-modal');
-    const hwidDisplay = document.getElementById('activation-modal-hwid');
     
     if (res && res.isActivated) {
       if (modal) modal.style.display = 'none';
+      if (res.licenseKey && !localStorage.getItem('kasir_license_key')) {
+        localStorage.setItem('kasir_license_key', res.licenseKey);
+        currentLicenseKey = res.licenseKey;
+      }
       return true;
     } else {
-      if (hwidDisplay) hwidDisplay.textContent = res.hwid || currentHardwareId;
       if (modal) modal.style.display = 'flex';
       return false;
     }
@@ -28385,60 +28783,90 @@ async function checkDeviceActivationStatus() {
   }
 }
 
-function copyActivationModalHwid() {
-  const hwid = document.getElementById('activation-modal-hwid')?.textContent.trim() || currentHardwareId;
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(hwid).then(() => {
-      alert('Hardware ID berhasil disalin ke clipboard:\n' + hwid);
-    }).catch(() => {
-      alert('Hardware ID: ' + hwid);
-    });
-  } else {
-    alert('Hardware ID: ' + hwid);
-  }
-}
-
 async function submitDeviceActivation() {
   const input = document.getElementById('input-device-activation-key');
   const errorMsg = document.getElementById('activation-error-msg');
   const btn = document.getElementById('btn-submit-device-activation');
-  const key = input ? input.value.trim().toUpperCase() : '';
+  const licenseKey = input ? input.value.trim().toUpperCase() : '';
 
-  if (!key) {
-    alert('Silakan masukkan Kunci Aktivasi terlebih dahulu!');
+  if (!licenseKey) {
+    alert('Silakan masukkan Kode Lisensi Toko Anda!');
     if (input) input.focus();
     return;
   }
 
   if (errorMsg) errorMsg.style.display = 'none';
-  if (btn) btn.disabled = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ Memvalidasi ke Server...';
+  }
 
   try {
-    const res = await window.desktopAPI.activateDevice(key);
-    if (res && res.success) {
-      alert('🎉 SELAMAT!\nPerangkat Anda telah berhasil diaktivasi secara resmi.\nAplikasi akan memuat ulang untuk membuka seluruh fitur kasir.');
-      const modal = document.getElementById('device-activation-modal');
-      if (modal) modal.style.display = 'none';
-      window.location.reload();
-    } else {
+    // 1. Cek koneksi internet dan validasi ke Firebase Cloud Database
+    if (typeof firebase === 'undefined' || !fbConfig) {
+      throw new Error('Koneksi internet tidak tersedia atau modul Cloud tidak siap.');
+    }
+
+    if (!firebase.apps || firebase.apps.length === 0) {
+      firebase.initializeApp(fbConfig);
+    }
+    const db = firebase.database();
+    
+    // Periksa kode lisensi di tabel licenses/
+    const licSnap = await db.ref('licenses/' + licenseKey).once('value');
+    const licData = licSnap.val();
+
+    if (!licData) {
       if (errorMsg) {
-        errorMsg.textContent = res ? res.message : 'Kunci aktivasi tidak valid!';
+        errorMsg.textContent = `Kode lisensi "${licenseKey}" tidak terdaftar di sistem! Pastikan kode lisensi benar atau hubungi Admin.`;
         errorMsg.style.display = 'block';
       } else {
-        alert(res ? res.message : 'Kunci aktivasi salah!');
+        alert(`Kode lisensi "${licenseKey}" tidak terdaftar di sistem!`);
       }
+      return;
     }
+
+    // Periksa apakah lisensi sudah expired atau suspended
+    const expDate = new Date(licData.expired_at);
+    const now = new Date();
+    if (licData.status === 'expired' || licData.status === 'suspended' || (licData.expired_at && now.getTime() > expDate.getTime())) {
+      if (errorMsg) {
+        errorMsg.textContent = `Lisensi "${licenseKey}" telah kedaluwarsa atau dinonaktifkan. Silakan hubungi Admin.`;
+        errorMsg.style.display = 'block';
+      } else {
+        alert(`Lisensi "${licenseKey}" telah kedaluwarsa.`);
+      }
+      return;
+    }
+
+    // 2. Simpan lisensi secara permanen di storage Desktop lokal (agar selanjutnya bebas offline)
+    await window.desktopAPI.activateDevice(licenseKey);
+    localStorage.setItem('kasir_license_key', licenseKey);
+    currentLicenseKey = licenseKey;
+
+    alert(`🎉 SELAMAT!\n\nLisensi Toko "${licenseKey}" BERHASIL DIAKTIVASI!\nAplikasi sekarang dapat digunakan sepenuhnya secara OFFLINE tanpa batasan.`);
+    const modal = document.getElementById('device-activation-modal');
+    if (modal) modal.style.display = 'none';
+    window.location.reload();
+
   } catch (err) {
-    alert('Terjadi kesalahan saat aktivasi: ' + err.message);
+    if (errorMsg) {
+      errorMsg.textContent = `Gagal aktivasi: Pastikan komputer terhubung ke internet saat aktivasi pertama kali (${err.message}).`;
+      errorMsg.style.display = 'block';
+    } else {
+      alert(`Gagal aktivasi: Pastikan internet aktif saat aktivasi pertama (${err.message})`);
+    }
   } finally {
-    if (btn) btn.disabled = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🔓 Validasi & Aktifkan Toko';
+    }
   }
 }
 
 function contactDevForActivation() {
-  const hwid = document.getElementById('activation-modal-hwid')?.textContent.trim() || currentHardwareId;
   const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'Toko Saya';
-  const text = `Halo Admin Toko Sahil POS, saya ingin meminta Kunci Aktivasi Perangkat untuk komputer kasir baru saya:%0A%0A• Nama Toko: ${encodeURIComponent(storeName)}%0A• Hardware ID: ${encodeURIComponent(hwid)}%0A%0AMohon dibuatkan Kunci Aktivasinya. Terima kasih!`;
+  const text = `Halo Admin Toko Sahil POS, saya ingin meminta / konfirmasi Kode Lisensi Toko untuk komputer kasir baru saya:%0A%0A• Nama Toko: ${encodeURIComponent(storeName)}%0A%0AMohon bantuannya. Terima kasih!`;
   const url = `https://wa.me/${ADMIN_WA_NUMBER}?text=${text}`;
   window.open(url, '_blank');
 }
