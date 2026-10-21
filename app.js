@@ -29423,7 +29423,15 @@ async function checkOnlineUpdate() {
 
   try {
     // Cek versi release terbaru via API GitHub repo
-    const res = await fetch('https://api.github.com/repos/mohteguhh/POS-Toko-Sahil/releases/latest');
+    const res = await fetch('https://api.github.com/repos/mohteguhh/POS-Toko-Sahil/releases/latest', {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
+
+    if (res.status === 404) {
+      alert('ℹ️ Sistem Pembaruan Online:\n\nBelum ada rilis versi publik (Release) yang dipublikasikan di repositori GitHub.\n\nUntuk saat ini, Anda dapat menggunakan tombol "Pilih File Update (.patch/.zip)" untuk melakukan update offline secara langsung.');
+      return;
+    }
+
     if (!res.ok) {
       throw new Error('Tidak dapat menghubungi server pembaruan (Kode: ' + res.status + ')');
     }
