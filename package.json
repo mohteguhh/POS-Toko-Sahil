@@ -5,7 +5,10 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win --x64"
+    "build": "electron-builder --win --x64",
+    "build:x64": "electron-builder --win --x64",
+    "build:ia32": "electron-builder --win --ia32",
+    "build:all": "electron-builder --win --x64 --ia32"
   },
   "repository": {
     "type": "git",
@@ -17,7 +20,7 @@
     "adm-zip": "^0.6.1"
   },
   "devDependencies": {
-    "electron": "^44.7.2",
+    "electron": "^43.8.3",
     "electron-builder": "^26.15.3",
     "pptxgenjs": "^4.0.1"
   },
@@ -26,7 +29,13 @@
     "productName": "Kasir Toko Sahil",
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
       ],
       "icon": "app-icon.ico"
     },

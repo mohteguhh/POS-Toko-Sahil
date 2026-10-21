@@ -246,10 +246,6 @@
                 <i data-lucide="printer" class="icon-sm"></i>
                 <span>Cetak Laporan</span>
               </button>
-              <button class="btn btn-info btn-sm analytics-btn-action" onclick="saveDailyReportAsJPG()" style="background: #0284c7; border-color: #0284c7; color: #fff;" title="Simpan Laporan Penjualan & Keuangan Langsung ke Gambar JPG">
-                <i data-lucide="image" class="icon-sm"></i>
-                <span>Simpan JPG</span>
-              </button>
               <button class="btn btn-success btn-sm analytics-btn-action" onclick="shareRevenueToWhatsApp()" style="background: #25d366; border-color: #25d366; color: #fff;">
                 <i data-lucide="send" class="icon-sm"></i>
                 <span>Share Penghasilan ke WA</span>
@@ -2306,11 +2302,11 @@
                   <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14"/></svg>
                   <span>Produk Baru</span>
                 </button>
-                <button class="btn btn-primary btn-sm" id="btn-bulk-print-labels" onclick="openBulkPrintLabelModal()" style="display: none; background-color: var(--color-primary); border-color: var(--color-primary); align-items: center; gap: 0.35rem;">
                 <button class="btn btn-danger btn-sm" id="btn-bulk-delete-products" onclick="deleteSelectedProducts()" style="display: none; background-color: #dc2626; border-color: #dc2626; color: white; align-items: center; gap: 0.35rem;" title="Hapus semua produk yang dicentang">
                   <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                   <span>Hapus Produk Terpilih (<span id="bulk-delete-count">0</span>)</span>
                 </button>
+                <button class="btn btn-primary btn-sm" id="btn-bulk-print-labels" onclick="openBulkPrintLabelModal()" style="display: none; background-color: var(--color-primary); border-color: var(--color-primary); align-items: center; gap: 0.35rem;">
                   <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
                   <span>Cetak Label Massal (<span id="bulk-select-count">0</span>)</span>
                 </button>
@@ -3577,7 +3573,7 @@
               </div>
               
               <div class="settings-actions" style="flex-wrap: wrap; gap: 0.5rem;">
-                <button class="btn btn-primary" onclick="initFirebase().then(ok => ok ? alert('✅ Terhubung ke Cloud!') : alert('❌ Gagal terhubung.'))">Hubungkan Cloud</button>
+                <button type="button" class="btn btn-primary" onclick="connectCloudFromSettings()">Hubungkan Cloud</button>
                 <button class="btn btn-secondary" onclick="testFirebaseConnection()">Uji Koneksi</button>
                 <button class="btn btn-accent" onclick="syncAllFromCloud()">🔄 Sinkronkan Data dari Cloud</button>
               </div>
@@ -4168,6 +4164,9 @@
       <div id="receipt-text-content" class="receipt-text-print-container" style="display: none;">
         <div class="text-receipt-wrapper">
           <div class="receipt-text-logo-container" id="rec-text-logo-container"></div>
+          <div class="receipt-text-header-title" id="rec-text-store-name">TOKO SAHIL</div>
+          <div class="receipt-text-header-subtitle" id="rec-text-store-address">Alamat Toko</div>
+          <div class="receipt-text-header-subtitle" id="rec-text-store-phone">Telp: -</div>
           <pre class="receipt-text-body" id="rec-text-body"></pre>
         </div>
       </div>
@@ -4245,9 +4244,14 @@
           </div>
         </div>
       </div>
-      <div class="modal-footer flex-end">
+      <div class="modal-footer flex-end" style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
         <button class="btn btn-secondary" onclick="closePrintLabelModal()">Batal</button>
-        <button class="btn btn-primary" onclick="printLabels()">Cetak Sekarang</button>
+        <button class="btn btn-info" onclick="saveLabelAsPDF('single')" style="display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; background: #4f46e5; color: #fff; border: none;">
+          📄 Simpan PDF
+        </button>
+        <button class="btn btn-primary" onclick="openLabelPrintPreviewWindow('single')" style="font-weight: 700; background: #ea580c; border-color: #ea580c;">
+          🖨️ Cetak Dokumen
+        </button>
       </div>
     </div>
   </div>
@@ -4260,24 +4264,54 @@
         <button class="close-modal-btn" onclick="closeBulkPrintLabelModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="form-group" style="margin-bottom: 1.25rem;">
-          <label for="bulk-print-label-type">Tipe Label</label>
-          <select id="bulk-print-label-type" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); font-weight: 600; outline: none;">
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label for="bulk-print-label-type" style="font-weight: 700;">Tipe Label Cetak</label>
+          <select id="bulk-print-label-type" onchange="updateBulkLabelPreview()" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); font-weight: 600; outline: none;">
             <option value="shelf" selected>Label Rak (Nama & Harga Besar, Tempel di Rak)</option>
             <option value="product">Label Produk (Dengan Barcode, Tempel di Produk)</option>
           </select>
         </div>
-        
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.75rem;">
+          <div class="form-group" style="margin: 0;">
+            <label for="bulk-label-gap" style="font-size: 0.8rem; font-weight: 600;">Jarak Barcode (Bisa Minus) (mm)</label>
+            <input type="number" id="bulk-label-gap" min="-50" max="50" value="0.5" step="0.5" oninput="updateBulkLabelPreview()" style="width: 100%; padding: 0.4rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;" title="Makin kecil angka (bisa minus), makin mepet hemat kertas">
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <label for="bulk-label-margin-top" style="font-size: 0.8rem; font-weight: 600;">Padding Atas (Bisa Minus) (mm)</label>
+            <input type="number" id="bulk-label-margin-top" min="-50" max="50" value="0" step="0.5" oninput="updateBulkLabelPreview()" style="width: 100%; padding: 0.4rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <label for="bulk-label-margin-left" style="font-size: 0.8rem; font-weight: 600;">Padding Kiri (Bisa Minus) (mm)</label>
+            <input type="number" id="bulk-label-margin-left" min="-50" max="50" value="0" step="0.5" oninput="updateBulkLabelPreview()" style="width: 100%; padding: 0.4rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
+          </div>
+        </div>
+
         <div class="form-group">
           <label style="font-weight: 700;">Daftar Produk & Jumlah Lembar Cetak</label>
-          <div id="bulk-print-products-list" style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; max-height: 250px; overflow-y: auto; padding-right: 0.25rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 0.5rem; background-color: var(--bg-surface-elevated);">
+          <div id="bulk-print-products-list" style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.35rem; max-height: 160px; overflow-y: auto; padding-right: 0.25rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 0.5rem; background-color: var(--bg-surface-elevated);">
             <!-- Diisi secara dinamis -->
           </div>
         </div>
+
+        <div class="form-group" style="margin-top: 0.75rem;">
+          <label style="font-weight: 700; display: flex; justify-content: space-between; align-items: center;">
+            <span>Pratinjau Hasil Cetak Massal (Hemat Kertas)</span>
+            <small style="color: var(--text-muted); font-size: 0.75rem;">Mepet rapi hemat kertas</small>
+          </label>
+          <div id="bulk-label-preview-container" style="display: flex; flex-wrap: wrap; gap: 2px; justify-content: flex-start; padding: 0.75rem; background-color: var(--bg-surface-elevated); border: 1.5px dashed var(--border-color); border-radius: 8px; max-height: 190px; overflow: auto;">
+            <!-- Preview dinamis -->
+          </div>
+        </div>
       </div>
-      <div class="modal-footer flex-end" style="margin-top: 1rem;">
+      <div class="modal-footer flex-end" style="margin-top: 1rem; display: flex; gap: 0.4rem; flex-wrap: wrap;">
         <button class="btn btn-secondary" onclick="closeBulkPrintLabelModal()">Batal</button>
-        <button class="btn btn-primary" onclick="printBulkLabels()">Cetak Massal</button>
+        <button class="btn btn-info" onclick="saveLabelAsPDF('bulk')" style="display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; background: #4f46e5; color: #fff; border: none;">
+          📄 Simpan PDF
+        </button>
+        <button class="btn btn-primary" onclick="openLabelPrintPreviewWindow('bulk')" style="font-weight: 700; background: #ea580c; border-color: #ea580c;">
+          🖨️ Cetak Dokumen Massal
+        </button>
       </div>
     </div>
   </div>

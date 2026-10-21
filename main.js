@@ -5,6 +5,11 @@ const os = require('os');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 
+// Optimasi Performa Electron (Pencegahan lag, konsumsi memori rendah, responsif di laptop 32-bit & 64-bit)
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('enable-smooth-scrolling');
+
 let mainWindow;
 
 // 1. Dapatkan Hardware ID Unik Mesin (Motherboard / CPU / Network)

@@ -3845,7 +3845,7 @@ body.print-format-html #receipt-text-content {
     visibility: visible !important;
   }
   body:not(.printing-rack-report):not(.printing-labels):not(.printing-daily-report) #receipt-modal {
-    position: static !important;
+    position: absolute !important;
     left: 0 !important;
     top: 0 !important;
     margin: 0 !important;
@@ -3856,6 +3856,28 @@ body.print-format-html #receipt-text-content {
     -webkit-backdrop-filter: none !important;
     display: block !important;
     padding: 0 !important;
+    border: none !important;
+  }
+
+  /* Hilangkan ruang kosong atas pada struk dan logo agar cetak thermal langsung mepet paling atas kertas */
+  #receipt-modal .receipt-card {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+  #receipt-modal .receipt-header,
+  #receipt-modal .text-receipt-wrapper {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+  #receipt-modal .receipt-logo-container,
+  #receipt-modal .receipt-text-logo-container {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    margin-bottom: 2px !important;
+  }
+  #receipt-modal .receipt-logo-img {
+    margin-top: 0 !important;
+    margin-bottom: 2px !important;
   }
   .receipt-card {
     border: none !important;
@@ -3931,22 +3953,27 @@ body.print-format-html #receipt-text-content {
     transform: translateX(var(--logo-offset-x, 0mm)) !important;
   }
   #receipt-modal .receipt-text-header-title {
-    font-size: var(--print-text-title-size, 1.25em) !important;
-    line-height: 1.25 !important;
-    margin-bottom: 4px !important;
-    font-weight: bold !important;
+    font-size: var(--print-text-title-size, 16pt) !important;
+    line-height: 1.2 !important;
+    margin-top: 0 !important;
+    margin-bottom: 2px !important;
+    font-weight: 900 !important;
     width: 100% !important;
     box-sizing: border-box !important;
     text-align: center !important;
+    letter-spacing: 0.04em !important;
   }
   #receipt-modal .receipt-text-header-subtitle {
-    font-size: 1em !important;
-    line-height: 1.25 !important;
+    font-size: var(--print-text-addr-size, 10pt) !important;
+    line-height: 1.2 !important;
     margin-bottom: 2px !important;
     font-weight: bold !important;
     text-align: center !important;
     width: 100% !important;
     box-sizing: border-box !important;
+  }
+  #receipt-modal #rec-text-store-phone {
+    font-size: var(--print-text-phone-size, 10pt) !important;
   }
   #receipt-modal .receipt-text-body {
     border: none !important;

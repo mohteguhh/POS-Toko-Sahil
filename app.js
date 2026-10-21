@@ -767,6 +767,16 @@ async function saveFirebaseConfig() {
   }
 }
 
+async function connectCloudFromSettings() {
+  const ok = await initFirebase();
+  if (ok) {
+    alert('✅ Terhubung ke Cloud!');
+  } else {
+    alert('❌ Gagal terhubung ke Cloud. Pastikan konfigurasi Firebase valid.');
+  }
+}
+window.connectCloudFromSettings = connectCloudFromSettings;
+
 async function testFirebaseConnection() {
   if (!firebaseDb) {
     const success = await initFirebase();
@@ -3202,8 +3212,8 @@ function loadAppConfig() {
 
 function applyReceiptSettings() {
   // 1. Rebranding Navbar Atas & Footer (Nama Toko & Logo)
-  const storeNameEl = document.getElementById('app-store-name');
-  if (storeNameEl) storeNameEl.textContent = receiptSettings.name;
+  const appStoreNameEl = document.getElementById('app-store-name');
+  if (appStoreNameEl) appStoreNameEl.textContent = receiptSettings.name;
 
   const footerNameEl = document.getElementById('store-footer-name');
   if (footerNameEl) footerNameEl.textContent = receiptSettings.name;
@@ -3386,14 +3396,38 @@ function applyReceiptSettings() {
   }
 
   const textTitleFontSize = receiptSettings.textTitleFontSize !== undefined ? receiptSettings.textTitleFontSize : 16; // in pt
+  const textAddressFontSize = receiptSettings.textAddressFontSize !== undefined ? receiptSettings.textAddressFontSize : 10; // in pt
+  const textPhoneFontSize = receiptSettings.textPhoneFontSize !== undefined ? receiptSettings.textPhoneFontSize : 10; // in pt
   const textFontSize = receiptSettings.textFontSize !== undefined ? receiptSettings.textFontSize : 12; // in pt
-  const textPaddingLeft = receiptSettings.textPaddingLeft !== undefined ? receiptSettings.textPaddingLeft : 1; // in mm
+  const textPaddingLeft = receiptSettings.textPaddingLeft !== undefined ? receiptSettings.textPaddingLeft : 0; // in mm
   const textWidth = receiptSettings.textWidth !== undefined ? receiptSettings.textWidth : 25; // character columns
   
   document.documentElement.style.setProperty('--print-text-title-size', `${textTitleFontSize}pt`);
+  document.documentElement.style.setProperty('--print-text-addr-size', `${textAddressFontSize}pt`);
+  document.documentElement.style.setProperty('--print-text-phone-size', `${textPhoneFontSize}pt`);
   document.documentElement.style.setProperty('--print-text-font-size', `${textFontSize}pt`);
   document.documentElement.style.setProperty('--print-text-padding-left', `${textPaddingLeft}mm`);
   document.documentElement.style.setProperty('--print-text-width', textWidth);
+
+  // Render teks header plain text di modal nota
+  const tNameEl = document.getElementById('rec-text-store-name');
+  if (tNameEl) {
+    tNameEl.textContent = (receiptSettings.name || 'TOKO').toUpperCase();
+    tNameEl.style.display = (receiptSettings.showName && receiptSettings.name) ? 'block' : 'none';
+    tNameEl.style.fontSize = `${textTitleFontSize}pt`;
+  }
+  const tAddrEl = document.getElementById('rec-text-store-address');
+  if (tAddrEl) {
+    tAddrEl.textContent = receiptSettings.address || '';
+    tAddrEl.style.display = (receiptSettings.showAddress && receiptSettings.address) ? 'block' : 'none';
+    tAddrEl.style.fontSize = `${textAddressFontSize}pt`;
+  }
+  const tPhoneEl = document.getElementById('rec-text-store-phone');
+  if (tPhoneEl) {
+    tPhoneEl.textContent = receiptSettings.phone ? ('Telp: ' + receiptSettings.phone) : '';
+    tPhoneEl.style.display = (receiptSettings.showPhone && receiptSettings.phone) ? 'block' : 'none';
+    tPhoneEl.style.fontSize = `${textPhoneFontSize}pt`;
+  }
 }
 
 // Memicu klik input file untuk logo
@@ -5688,6 +5722,33 @@ function printVoucherAnalyticsReport() {
     <body>
       <div class="no-print" style="margin-bottom: 15px; text-align: right;">
         <button onclick="window.print()" style="padding: 8px 16px; background: #d97706; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Laporan_Voucher_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -6277,7 +6338,12 @@ function renderPosCatalogGrid() {
     return;
   }
 
-  list.forEach(p => {
+  // Batasi render maksimal 100 kartu pertama agar rendering katalog super instan & tidak lag
+  const totalMatches = list.length;
+  const itemsToRender = list.slice(0, 100);
+  const fragment = document.createDocumentFragment();
+
+  itemsToRender.forEach(p => {
     const isOutOfStock = p.stok <= 0;
     const isLowStock = p.stok > 0 && p.stok <= 5;
     let stockBadgeClass = '';
@@ -6332,7 +6398,7 @@ function renderPosCatalogGrid() {
 
     card.innerHTML = `
       <div class="pos-grid-img-wrap">
-        <img src="${imgUrl}" alt="${p.nama}" class="pos-grid-img" onclick="event.stopPropagation(); openProductImageLightbox('${imgUrl}', '${escapeJsQuotes(p.nama)}')" onerror="handleImageError(this)">
+        <img src="${imgUrl}" alt="${p.nama}" class="pos-grid-img" loading="lazy" onclick="event.stopPropagation(); openProductImageLightbox('${imgUrl}', '${escapeJsQuotes(p.nama)}')" onerror="handleImageError(this)">
         ${cartBadgeHtml}
         <span class="pos-grid-stock-badge ${stockBadgeClass}">${stockText}</span>
       </div>
@@ -6345,8 +6411,17 @@ function renderPosCatalogGrid() {
         </div>
       </div>
     `;
-    container.appendChild(card);
+    fragment.appendChild(card);
   });
+
+  if (totalMatches > 100) {
+    const notice = document.createElement('div');
+    notice.style.cssText = 'grid-column: 1 / -1; text-align: center; padding: 0.75rem; color: var(--text-muted); font-size: 0.8rem; font-weight: 600;';
+    notice.textContent = `Menampilkan 100 dari ${totalMatches} produk. Gunakan pencarian atau pilih kategori untuk memfilter.`;
+    fragment.appendChild(notice);
+  }
+
+  container.appendChild(fragment);
 }
 
 function reduceProductFromGrid(productId) {
@@ -8792,42 +8867,9 @@ function generatePlainTextReceipt(tx, items) {
   let width = receiptSettings.textWidth || 25; // Default 25 karakter
   document.documentElement.style.setProperty('--print-text-width', width);
   let text = "";
-  
-  // 1. Header: Nama Toko, Alamat & Telp Toko
-  if (receiptSettings.showName && receiptSettings.name) {
-    const nameLines = wrapText(receiptSettings.name.toUpperCase(), width);
-    nameLines.forEach(line => {
-      let indent = 0;
-      if (receiptSettings.nameMarginLR > 0) {
-        indent = Math.min(width - line.length, Math.round(receiptSettings.nameMarginLR / 2));
-      }
-      text += (indent > 0 ? " ".repeat(indent) + line : centerText(line, width)) + "\n";
-    });
-  }
-  
-  if (receiptSettings.showAddress && receiptSettings.address) {
-    const addrLines = wrapText(receiptSettings.address, width);
-    addrLines.forEach(line => {
-      let indent = 0;
-      if (receiptSettings.addressMarginLR > 0) {
-        indent = Math.min(width - line.length, Math.round(receiptSettings.addressMarginLR / 2));
-      }
-      text += (indent > 0 ? " ".repeat(indent) + line : centerText(line, width)) + "\n";
-    });
-  }
-  
-  if (receiptSettings.showPhone && receiptSettings.phone) {
-    const phoneStr = "Telp: " + receiptSettings.phone;
-    const phoneLines = wrapText(phoneStr, width);
-    phoneLines.forEach(line => {
-      let indent = 0;
-      if (receiptSettings.phoneMarginLR > 0) {
-        indent = Math.min(width - line.length, Math.round(receiptSettings.phoneMarginLR / 2));
-      }
-      text += (indent > 0 ? " ".repeat(indent) + line : centerText(line, width)) + "\n";
-    });
-  }
-
+  // Header Nama Toko, Alamat & Telp kini dirender via elemen HTML terpisah
+  // (#rec-text-store-name, #rec-text-store-address, #rec-text-store-phone)
+  // sehingga kasir bebas memperbesar ukuran font judul tanpa batas karakter monospace!
   text += centerText("=".repeat(width), width) + "\n";
   
   // 2. Detail Transaksi
@@ -9195,6 +9237,27 @@ function showReceipt(tx, items) {
       textLogoContainer.style.display = 'none';
     }
   }
+
+  const tStoreName = document.getElementById('rec-text-store-name');
+  if (tStoreName) {
+    tStoreName.textContent = (receiptSettings.name || 'TOKO').toUpperCase();
+    tStoreName.style.display = (receiptSettings.showName && receiptSettings.name) ? 'block' : 'none';
+    tStoreName.style.fontSize = `${receiptSettings.textTitleFontSize || 16}pt`;
+  }
+
+  const tStoreAddr = document.getElementById('rec-text-store-address');
+  if (tStoreAddr) {
+    tStoreAddr.textContent = receiptSettings.address || '';
+    tStoreAddr.style.display = (receiptSettings.showAddress && receiptSettings.address) ? 'block' : 'none';
+    tStoreAddr.style.fontSize = `${receiptSettings.textAddressFontSize || 10}pt`;
+  }
+
+  const tStorePhone = document.getElementById('rec-text-store-phone');
+  if (tStorePhone) {
+    tStorePhone.textContent = receiptSettings.phone ? ('Telp: ' + receiptSettings.phone) : '';
+    tStorePhone.style.display = (receiptSettings.showPhone && receiptSettings.phone) ? 'block' : 'none';
+    tStorePhone.style.fontSize = `${receiptSettings.textPhoneFontSize || 10}pt`;
+  }
   
   const textBody = document.getElementById('rec-text-body');
   if (textBody) {
@@ -9486,6 +9549,33 @@ function printDeliveryNoteForTransaction(tx, items) {
     <body>
       <div class="no-print">
         <button onclick="window.print()" style="padding: 8px 18px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Surat_Jalan_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -15014,7 +15104,37 @@ function printDailyReport() {
             <option value="landscape">📑 Horizontal (Landscape)</option>
           </select>
           <button class="btn btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+          <button type="button" class="btn" onclick="saveReportPaperAsJPG()" style="background: #0284c7; color: #ffffff; padding: 8px 16px; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-size: 13px;">
+            🖼️ Simpan JPG
+          </button>
           <button class="btn btn-close" onclick="window.close()">❌ Tutup</button>
+          <script src="lib/html2canvas.min.js"></script>
+          <script>
+            function saveReportPaperAsJPG() {
+              const target = document.querySelector('.report-paper') || document.body;
+              const btn = event ? event.target.closest('button') : null;
+              if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+              html2canvas(target, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                ignoreElements: function(el) {
+                  return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+                }
+              }).then(canvas => {
+                const a = document.createElement('a');
+                a.href = canvas.toDataURL('image/jpeg', 0.95);
+                a.download = 'Laporan_Penjualan_Stok_' + Date.now() + '.jpg';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+              }).catch(err => {
+                alert('Gagal simpan JPG: ' + err.message);
+                if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+              });
+            }
+          </script>
         </div>
       </div>
 
@@ -23540,6 +23660,33 @@ function printSalesRekapReport() {
     <body>
       <div class="no-print" style="margin-bottom: 15px; text-align: right;">
         <button onclick="window.print()" style="padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Dokumen_Laporan_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -23685,6 +23832,33 @@ function printSingleSalesDeliveryReceipt(deliveryId) {
     <body>
       <div class="no-print" style="margin-bottom: 15px; text-align: right;">
         <button onclick="window.print()" style="padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Dokumen_Laporan_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -23821,6 +23995,33 @@ function printSingleSalesReturnReceipt(returnId) {
     <body>
       <div class="no-print" style="margin-bottom: 15px; text-align: right;">
         <button onclick="window.print()" style="padding: 8px 16px; background: #dc2626; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Laporan_Retur_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -24150,6 +24351,33 @@ function printFilteredDeliveriesReport() {
     <body>
       <div class="no-print" style="margin-bottom: 15px; text-align: right;">
         <button onclick="window.print()" style="padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Dokumen_Laporan_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -24288,6 +24516,33 @@ function printFilteredReturnsReport() {
     <body>
       <div class="no-print" style="margin-bottom: 15px; text-align: right;">
         <button onclick="window.print()" style="padding: 8px 16px; background: #dc2626; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Laporan_Retur_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -25354,6 +25609,33 @@ function printCustomerDebtReport() {
     <body>
       <div class="no-print">
         <button onclick="window.print()" style="padding: 8px 20px; background: #ea580c; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Laporan_Hutang_Piutang_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -26857,6 +27139,33 @@ function printExpensesReport() {
     <body>
       <div class="no-print" style="margin-bottom: 15px; text-align: right;">
         <button onclick="window.print()" style="padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Dokumen_Laporan_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -27210,6 +27519,33 @@ function printProfitLossStatement() {
     <body>
       <div class="no-print">
         <button onclick="window.print()" style="padding: 8px 18px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Laporan_Laba_Rugi_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -27885,6 +28221,33 @@ function printStockOpnameReport() {
     <body>
       <div class="no-print" style="margin-bottom: 15px; text-align: right;">
         <button onclick="window.print()" style="padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Dokumen_Laporan_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -28281,6 +28644,33 @@ function printExpiredTrackerReport() {
     <body>
       <div class="no-print">
         <button onclick="window.print()" style="padding: 8px 20px; background: #ea580c; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Cetak Dokumen</button>
+        <button type="button" onclick="downloadPopupDocJPG()" style="padding: 8px 16px; background: #0284c7; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">🖼️ Simpan JPG</button>
+        <script src="lib/html2canvas.min.js"></script>
+        <script>
+          function downloadPopupDocJPG() {
+            const btn = event ? event.target.closest('button') : null;
+            if (btn) { btn.textContent = '⏳ Memproses...'; btn.disabled = true; }
+            html2canvas(document.body, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              ignoreElements: function(el) {
+                return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+              }
+            }).then(canvas => {
+              const a = document.createElement('a');
+              a.href = canvas.toDataURL('image/jpeg', 0.95);
+              a.download = 'Laporan_Kadaluarsa_' + Date.now() + '.jpg';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              if (btn) { btn.textContent = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+            }).catch(err => {
+              alert('Gagal simpan JPG: ' + err.message);
+              if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+            });
+          }
+        </script>
         <button onclick="window.close()" style="padding: 8px 16px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-left: 8px;">Tutup</button>
       </div>
 
@@ -28755,6 +29145,8 @@ async function initDesktopIntegration() {
       currentHardwareId = await window.desktopAPI.getHardwareId();
       const hwElem = document.getElementById('display-hardware-id');
       if (hwElem) hwElem.textContent = currentHardwareId;
+      const modalHwElem = document.getElementById('activation-modal-hwid');
+      if (modalHwElem) modalHwElem.textContent = currentHardwareId;
       console.log('💻 Mode Desktop Aktif. Hardware ID:', currentHardwareId);
 
       // Cek Status Aktivasi Mesin (Anti-Bajak / Anti-Jual Kembali)
@@ -28853,6 +29245,8 @@ async function initDesktopIntegration() {
   } else {
     const hwElem = document.getElementById('display-hardware-id');
     if (hwElem) hwElem.textContent = 'MODE WEB BROWSER';
+    const modalHwElem = document.getElementById('activation-modal-hwid');
+    if (modalHwElem) modalHwElem.textContent = 'MODE WEB BROWSER';
     const badge = document.getElementById('desktop-mode-badge');
     if (badge) {
       badge.textContent = 'Web Browser (Non-Desktop)';
@@ -28985,6 +29379,20 @@ function copyHardwareId() {
     alert('Hardware ID: ' + currentHardwareId);
   });
 }
+
+function copyActivationModalHwid() {
+  const hwText = document.getElementById('activation-modal-hwid')?.textContent?.trim() || currentHardwareId;
+  if (!navigator.clipboard) {
+    alert('Hardware ID: ' + hwText);
+    return;
+  }
+  navigator.clipboard.writeText(hwText).then(() => {
+    alert('Hardware ID berhasil disalin:\n' + hwText);
+  }).catch(() => {
+    alert('Hardware ID: ' + hwText);
+  });
+}
+window.copyActivationModalHwid = copyActivationModalHwid;
 
 // 1. Jalur Pembaruan Offline (Pilih File .patch/.zip)
 async function applyOfflinePatch() {
@@ -29265,7 +29673,10 @@ async function saveElementAsJPG(element, filename = 'Laporan.jpg') {
       backgroundColor: '#ffffff',
       logging: false,
       scrollX: 0,
-      scrollY: -window.scrollY
+      scrollY: -window.scrollY,
+      ignoreElements: function(el) {
+        return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+      }
     });
 
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
@@ -29289,32 +29700,9 @@ async function saveElementAsJPG(element, filename = 'Laporan.jpg') {
 
 // 1. Simpan Laporan Harian / Analitik ke JPG
 function saveDailyReportAsJPG() {
-  generateDailyReportHtml();
-  const printArea = document.getElementById('daily-report-print-area');
-  if (!printArea) {
-    alert('Laporan belum siap dicetak.');
-    return;
+  if (typeof printDailyReport === 'function') {
+    printDailyReport();
   }
-  
-  // Clone laporan ke container off-screen dengan tema putih bersih
-  const clone = printArea.cloneNode(true);
-  clone.style.width = '800px';
-  clone.style.padding = '25px';
-  clone.style.background = '#ffffff';
-  clone.style.color = '#000000';
-  clone.style.position = 'fixed';
-  clone.style.left = '-9999px';
-  clone.style.top = '0';
-  clone.style.visibility = 'visible';
-  document.body.appendChild(clone);
-
-  const startD = document.getElementById('analytics-start-date')?.value || '';
-  const endD = document.getElementById('analytics-end-date')?.value || '';
-  const fname = `Laporan_Penjualan_${startD}_sd_${endD}_${Date.now()}.jpg`;
-
-  saveElementAsJPG(clone, fname).finally(() => {
-    if (clone.parentNode) clone.parentNode.removeChild(clone);
-  });
 }
 
 // 2. Simpan Laporan Kas Kecil / Pengeluaran ke JPG
@@ -29359,7 +29747,14 @@ function addJpgButtonToPreviewWindow(win, filename, containerSelector = '.report
         }
         btn.textContent = '⏳ Memproses...';
         btn.disabled = true;
-        win.html2canvas(target, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(canvas => {
+        win.html2canvas(target, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          ignoreElements: function(el) {
+            return !!(el.classList && (el.classList.contains('no-print') || el.classList.contains('preview-toolbar')));
+          }
+        }).then(canvas => {
           const a = doc.createElement('a');
           a.href = canvas.toDataURL('image/jpeg', 0.95);
           a.download = filename || ('Laporan_' + Date.now() + '.jpg');
@@ -29381,3 +29776,234 @@ function addJpgButtonToPreviewWindow(win, filename, containerSelector = '.report
   }
 }
 window.addJpgButtonToPreviewWindow = addJpgButtonToPreviewWindow;
+
+
+// =========================================================================
+// FITUR BARU: JENDELA PRATINJAU CETAK LABEL (MASSAL & TUNGGAL) + SIMPAN JPG
+// =========================================================================
+function openLabelPrintPreviewWindow(mode = 'bulk') {
+  let labelType = 'shelf';
+  let qtyList = [];
+  let gapVal = 0.5;
+  let mtVal = 0;
+  let mlVal = 0;
+
+  if (mode === 'single') {
+    const prodId = document.getElementById('print-label-prod-id')?.value;
+    const p = products.find(prod => prod.id === prodId);
+    if (!p) { alert('Produk tidak ditemukan!'); return; }
+    labelType = document.getElementById('print-label-type')?.value || 'shelf';
+    const qty = parseInt(document.getElementById('print-label-qty')?.value) || 1;
+    qtyList.push({ prod: p, qty: qty });
+    mtVal = parseFloat(document.getElementById('modal-label-margin-top')?.value) || 0;
+    mlVal = (labelType === 'product' ? (productLabelSettings.marginLeft || 0) : (labelSettings.marginLeft || 0));
+  } else {
+    labelType = document.getElementById('bulk-print-label-type')?.value || 'shelf';
+    const qtyInputs = document.querySelectorAll('.bulk-print-qty-input');
+    qtyInputs.forEach(input => {
+      const pid = input.getAttribute('data-id');
+      const q = parseInt(input.value) || 0;
+      const p = products.find(prod => prod.id === pid);
+      if (p && q > 0) qtyList.push({ prod: p, qty: q });
+    });
+    const gInp = parseFloat(document.getElementById('bulk-label-gap')?.value);
+    gapVal = !isNaN(gInp) ? gInp : 0.5;
+    mtVal = parseFloat(document.getElementById('bulk-label-margin-top')?.value) || 0;
+    mlVal = parseFloat(document.getElementById('bulk-label-margin-left')?.value) || 0;
+  }
+
+  if (qtyList.length === 0) {
+    alert('Pilih minimal satu produk dengan kuantitas lebih dari 0!');
+    return;
+  }
+
+  const effectiveGap = gapVal >= 0 ? gapVal : 0;
+  const mtMargin = mtVal < 0 ? mtVal : (gapVal < 0 ? gapVal : 0);
+  const mbMargin = gapVal < 0 ? gapVal : 0;
+  const mlMargin = mlVal < 0 ? mlVal : (gapVal < 0 ? gapVal : 0);
+  const mrMargin = gapVal < 0 ? gapVal : 0;
+
+  let labelsHtml = '';
+  qtyList.forEach(item => {
+    for (let i = 0; i < item.qty; i++) {
+      labelsHtml += buildLabelHTML(item.prod, labelType);
+    }
+  });
+
+  const previewWin = window.open('', '_blank', 'width=1000,height=800');
+  if (!previewWin) {
+    alert('Popup diblokir oleh browser. Silakan izinkan popup untuk melihat pratinjau cetak label.');
+    return;
+  }
+
+  const docHtml = `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>Pratinjau_Label_Harga_${Date.now()}</title>
+      <style>
+        @page {
+          size: auto portrait;
+          margin: 0;
+        }
+        body {
+          margin: 0;
+          padding: 0;
+          background: #f8fafc;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+        }
+        .preview-toolbar {
+          position: sticky;
+          top: 0;
+          background: #ffffff;
+          padding: 12px 20px;
+          border-bottom: 1.5px solid #e2e8f0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.06);
+          z-index: 1000;
+        }
+        .preview-toolbar .btn {
+          padding: 8px 18px;
+          font-size: 13px;
+          font-weight: 700;
+          border-radius: 8px;
+          cursor: pointer;
+          border: none;
+          transition: 0.15s;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .btn-print {
+          background: #ea580c;
+          color: white;
+        }
+        .btn-print:hover { background: #c2410c; }
+        .btn-jpg {
+          background: #0284c7;
+          color: white;
+          margin-left: 8px;
+        }
+        .btn-jpg:hover { background: #0369a1; }
+        .btn-close {
+          background: #64748b;
+          color: white;
+          margin-left: 8px;
+        }
+        .btn-close:hover { background: #475569; }
+        .labels-preview-canvas {
+          padding-top: ${Math.max(0, mtVal)}mm;
+          padding-left: ${Math.max(0, mlVal)}mm;
+          display: flex;
+          flex-wrap: wrap;
+          align-content: flex-start !important;
+          align-items: flex-start !important;
+          justify-content: flex-start;
+          gap: ${effectiveGap}mm;
+          background: #ffffff;
+          box-sizing: border-box;
+          height: auto !important;
+          min-height: 0 !important;
+        }
+        .label-item-print {
+          border: 1px dashed #cbd5e1;
+          box-sizing: border-box;
+          page-break-inside: avoid;
+          break-inside: avoid;
+          text-align: center;
+          background: white;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          margin-top: ${mtMargin}mm !important;
+          margin-bottom: ${mbMargin}mm !important;
+          margin-left: ${mlMargin}mm !important;
+          margin-right: ${mrMargin}mm !important;
+        }
+        .label-item-print.product-label {
+          width: ${productLabelSettings.width || 50}mm;
+          height: ${productLabelSettings.height || 30}mm;
+          font-size: 8pt;
+        }
+        .label-item-print.shelf-label {
+          width: ${labelSettings.width || 60}mm;
+          height: ${labelSettings.height || 30}mm;
+          font-size: 10pt;
+          border: 2px solid #000;
+        }
+        .label-store { font-size: 8pt; font-weight: 700; text-transform: uppercase; color: #475569; }
+        .label-name { font-weight: 800; color: #000; margin: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+        .label-price { font-weight: 900; font-size: 14pt; color: #000; }
+        .label-barcode-svg { max-width: 90%; }
+        .label-barcode-text { font-family: monospace; font-size: 8pt; }
+        @media print {
+          .preview-toolbar { display: none !important; }
+          body { background: white !important; }
+          .labels-preview-canvas { padding: 0 !important; }
+        }
+      </style>
+      <script src="lib/html2canvas.min.js"></script>
+    </head>
+    <body>
+      <div class="preview-toolbar">
+        <div>
+          <strong style="font-size: 15px; color: #1e293b;">🏷️ Pratinjau Cetak Label Harga & Barcode</strong>
+          <span style="font-size: 12px; color: #64748b; margin-left: 8px;">(${qtyList.length} jenis produk)</span>
+        </div>
+        <div>
+          <button class="btn btn-print" onclick="window.print()">🖨️ Cetak Dokumen</button>
+          <button class="btn btn-jpg" onclick="downloadLabelsAsJPG()">🖼️ Simpan JPG</button>
+          <button class="btn btn-close" onclick="window.close()">✕ Tutup</button>
+        </div>
+      </div>
+      <div class="labels-preview-canvas" id="labels-canvas">
+        ${labelsHtml}
+      </div>
+      <script>
+        function downloadLabelsAsJPG() {
+          const btn = document.querySelector('.btn-jpg');
+          if (btn) { btn.innerHTML = '⏳ Memproses...'; btn.disabled = true; }
+          const target = document.getElementById('labels-canvas');
+          html2canvas(target, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(canvas => {
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL('image/jpeg', 0.95);
+            a.download = 'Label_Harga_' + Date.now() + '.jpg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            if (btn) { btn.innerHTML = '✅ Berhasil!'; setTimeout(() => { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }, 2000); }
+          }).catch(err => {
+            alert('Gagal simpan JPG: ' + err.message);
+            if (btn) { btn.innerHTML = '🖼️ Simpan JPG'; btn.disabled = false; }
+          });
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
+  previewWin.document.open();
+  previewWin.document.write(docHtml);
+  previewWin.document.close();
+}
+
+function exportBulkLabelsPreviewJPG() {
+  const container = document.getElementById('bulk-label-preview-container');
+  if (!container) return;
+  saveElementAsJPG(container, `Label_Massal_${Date.now()}.jpg`);
+}
+
+function exportSingleLabelPreviewJPG() {
+  const container = document.getElementById('label-preview-container');
+  if (!container) return;
+  saveElementAsJPG(container, `Label_${Date.now()}.jpg`);
+}
+
+window.openLabelPrintPreviewWindow = openLabelPrintPreviewWindow;
+window.exportBulkLabelsPreviewJPG = exportBulkLabelsPreviewJPG;
+window.exportSingleLabelPreviewJPG = exportSingleLabelPreviewJPG;
