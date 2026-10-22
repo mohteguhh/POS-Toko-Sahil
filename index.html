@@ -2104,7 +2104,7 @@
         <div class="admin-layout" id="prod-subpane-catalog">
           
           <!-- Product Edit Popup Modal (Hidden by Default) -->
-          <div class="modal-overlay" id="product-edit-modal">
+          <div class="modal-overlay" id="product-edit-modal" style="display: none;">
             <div class="modal-card" style="max-width: 600px;">
               <div class="modal-header">
                 <h3 id="form-title">Tambah Produk Baru</h3>
@@ -3611,7 +3611,7 @@
 
   <!-- MODAL: PROSES PEMBAYARAN (STEP 2) -->
   <!-- MODAL BUKA/TUTUP SHIFT -->
-  <div class="modal-overlay" id="shift-modal">
+  <div class="modal-overlay" id="shift-modal" style="display: none;">
     <div class="modal-card" style="max-width: 450px;">
       <div class="modal-header">
         <h3 id="shift-modal-title">Buka Shift Kasir</h3>
@@ -3623,7 +3623,7 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="payment-modal">
+  <div class="modal-overlay" id="payment-modal" style="display: none;">
     <div class="modal-card payment-modal-card">
       <div class="modal-header">
         <h2>Selesaikan Pembayaran</h2>
@@ -3695,8 +3695,7 @@
               <span id="cust-search-badge" style="font-size: 0.75rem; color: var(--primary-color); font-weight: 600;">Pilih untuk Voucher, Tabungan &amp; Bon</span>
             </label>
             <div style="position: relative;">
-              <input type="text" id="customer-name-input" list="customer-list" placeholder="🔍 Masukkan ID Anggota / Nama / No HP..." autocomplete="off" oninput="onCustomerSearchInput(this.value)" onfocus="openCustomerDropdown()" onkeydown="handleCustomerInputKeydowns(event)" style="width: 100%; padding: 0.6rem 2.2rem 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); outline: none; font-size: 0.9rem;">
-              <datalist id="customer-list"></datalist>
+              <input type="text" id="customer-name-input" placeholder="🔍 Masukkan ID Anggota / Nama / No HP..." autocomplete="off" oninput="onCustomerSearchInput(this.value)" onkeydown="handleCustomerInputKeydowns(event)" style="width: 100%; padding: 0.6rem 2.2rem 0.6rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); outline: none; font-size: 0.9rem;">
               <button type="button" id="btn-clear-customer" onclick="clearSelectedCustomer()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1.1rem; color: var(--text-muted); cursor: pointer; display: none;">&times;</button>
             </div>
             
@@ -3827,7 +3826,7 @@
   </div>
 
   <!-- MODAL: EDIT TRANSAKSI (MODERN & MINIMALIS) -->
-  <div class="modal-overlay" id="edit-transaction-modal">
+  <div class="modal-overlay" id="edit-transaction-modal" style="display: none;">
     <div class="modal-card edit-tx-modal-card">
       <!-- Header Modern -->
       <div class="edit-tx-header">
@@ -3916,7 +3915,7 @@
                 <span style="font-size: 0.74rem; color: var(--color-primary); font-weight: 600;">Pilih anggota lain / klaim voucher &amp; tabungan</span>
               </label>
               <div style="position: relative;">
-                <input type="text" id="edit-tx-customer-name-input" list="customer-list" placeholder="🔍 Cari ID Anggota / Nama..." autocomplete="off" oninput="onEditTxCustomerSearchInput(this.value)" onfocus="openEditTxCustomerDropdown()" onkeydown="handleEditTxCustomerInputKeydowns(event)" class="edit-tx-input" style="width: 100%; padding: 0.55rem 2.2rem 0.55rem 0.65rem; font-size: 0.88rem;">
+                <input type="text" id="edit-tx-customer-name-input" placeholder="🔍 Cari ID Anggota / Nama..." autocomplete="off" oninput="onEditTxCustomerSearchInput(this.value)" onfocus="openEditTxCustomerDropdown()" onkeydown="handleEditTxCustomerInputKeydowns(event)" class="edit-tx-input" style="width: 100%; padding: 0.55rem 2.2rem 0.55rem 0.65rem; font-size: 0.88rem;">
                 <button type="button" id="btn-edit-tx-clear-customer" onclick="clearEditTxSelectedCustomer()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1.1rem; color: var(--text-muted); cursor: pointer; display: none;">&times;</button>
               </div>
               <!-- Dropdown Pencarian Anggota untuk Edit Transaksi -->
@@ -4016,7 +4015,7 @@
   </div>
 
   <!-- MODAL: PELUNASAN PIUTANG (FITUR BARU) -->
-  <div class="modal-overlay" id="settle-debt-modal">
+  <div class="modal-overlay" id="settle-debt-modal" style="display: none;">
     <div class="modal-card" style="max-width: 400px;">
       <div class="modal-header">
         <h2>Pelunasan Bon / Piutang</h2>
@@ -4044,8 +4043,10 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="receipt-modal">
-    <div class="receipt-card" id="receipt-card-print">
+  <div class="modal-overlay" id="receipt-modal" style="display: none;" onclick="if (event.target === this) closeReceiptModal()">
+    <div class="receipt-card" id="receipt-card-print" style="position: relative;">
+      <!-- Tombol Tutup Silang di Sudut Kanan Atas Nota -->
+      <button type="button" class="no-print" onclick="closeReceiptModal()" title="Tutup Nota (Esc)" style="position: absolute; right: 12px; top: 12px; background: rgba(0,0,0,0.06); border: none; width: 28px; height: 28px; border-radius: 50%; font-size: 1.1rem; line-height: 1; cursor: pointer; color: #64748b; display: flex; align-items: center; justify-content: center; z-index: 10;">&times;</button>
       <!-- HTML Graphic Version -->
       <div id="receipt-html-content">
         <div class="receipt-header">
@@ -4196,7 +4197,7 @@
   </div>
 
   <!-- MODAL: CETAK LABEL HARGA (FITUR BARU) -->
-  <div class="modal-overlay" id="print-label-modal">
+  <div class="modal-overlay" id="print-label-modal" style="display: none;">
     <div class="modal-card" style="max-width: 500px;">
       <div class="modal-header">
         <h2>Cetak Label Harga</h2>
@@ -4249,7 +4250,7 @@
   </div>
 
   <!-- MODAL: CETAK LABEL MASSAL (FITUR BARU) -->
-  <div class="modal-overlay" id="bulk-print-label-modal">
+  <div class="modal-overlay" id="bulk-print-label-modal" style="display: none;">
     <div class="modal-card" style="max-width: 600px; width: 90%;">
       <div class="modal-header">
         <h2>Cetak Label Harga Massal</h2>
@@ -4309,7 +4310,7 @@
   </div>
 
   <!-- MODAL: NOTIFIKASI PERUBAHAN HARGA (KENAIKAN / PENURUNAN) -->
-  <div class="modal-overlay" id="price-change-modal" style="z-index: 100050;">
+  <div class="modal-overlay" id="price-change-modal" style="display: none; z-index: 100050;">
     <div class="modal-card" style="max-width: 480px; width: 92%; border-radius: 20px; box-shadow: 0 20px 45px rgba(0,0,0,0.18); border: none; overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; background: #ffffff;">
       <div style="padding: 1.25rem 1.5rem 0.85rem 1.5rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f1f5f9;">
         <h2 id="price-change-modal-title" style="margin: 0; font-size: 1.22rem; font-weight: 800; color: #f59e0b; display: flex; align-items: center; gap: 0.6rem; letter-spacing: -0.01em;">
@@ -4349,7 +4350,7 @@
   </div>
   
   <!-- MODAL: ANTREAN / JEDA KERANJANG (FITUR BARU) -->
-  <div class="modal-overlay" id="held-carts-modal">
+  <div class="modal-overlay" id="held-carts-modal" style="display: none;">
     <div class="modal-card" style="max-width: 600px;">
       <div class="modal-header">
         <h2 style="display: flex; align-items: center; gap: 0.5rem;">
@@ -5187,7 +5188,7 @@
   </div>
 
   <!-- MODAL: TAGIHAN LANGGANAN CLOUD (FITUR BULANAN RP 100.000) -->
-  <div class="modal-overlay" id="subscription-modal">
+  <div class="modal-overlay" id="subscription-modal" style="display: none;">
     <div class="modal-card" style="max-width: 560px; width: 94%; border-radius: 18px; overflow: hidden; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.35); border: 1px solid rgba(226, 232, 240, 0.8);">
       <!-- Header Mewah Gradient Indigo-Purple -->
       <div class="modal-header" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%); color: #fff; padding: 1.15rem 1.4rem; display: flex; justify-content: space-between; align-items: center; border-bottom: none;">
@@ -5619,7 +5620,7 @@
   </div>
 
   <!-- MODAL EDIT ANGGOTA (CRM) -->
-  <div class="modal-overlay" id="edit-customer-modal">
+  <div class="modal-overlay" id="edit-customer-modal" style="display: none;">
     <div class="modal-card" style="max-width: 520px; width: 92vw; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.25);">
       <div class="modal-header" style="background: var(--bg-surface-elevated); padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -5682,7 +5683,7 @@
   </div>
 
   <!-- MODAL TUKAR POIN PELANGGAN (CRM) -->
-  <div class="modal-overlay" id="redeem-points-modal">
+  <div class="modal-overlay" id="redeem-points-modal" style="display: none;">
     <div class="modal-card" style="max-width: 440px; width: 92vw; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.25);">
       <div class="modal-header" style="background: var(--bg-surface-elevated); padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -6188,7 +6189,7 @@
       </div>
     </div>
   </div>
-  <div class="modal-overlay" id="product-image-lightbox-modal" onclick="closeProductImageLightbox(event)" style="z-index: 10005; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+  <div class="modal-overlay" id="product-image-lightbox-modal" onclick="closeProductImageLightbox(event)" style="display: none; z-index: 10005; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
     <div style="position: relative; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto;" onclick="event.stopPropagation()">
       <button type="button" onclick="closeProductImageLightbox()" style="position: absolute; top: -45px; right: 0; background: rgba(255, 255, 255, 0.2); border: none; color: #fff; width: 38px; height: 38px; border-radius: 50%; font-size: 1.5rem; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255, 255, 255, 0.4)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.2)'">&times;</button>
       <img id="lightbox-img" src="" alt="Pratinjau Gambar Produk" style="max-width: 88vw; max-height: 78vh; object-fit: contain; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); background: #ffffff;">
@@ -7297,7 +7298,7 @@
   <script src="app.js?v=6.3"></script>
 
   <!-- MODAL: DAFTAR DETAIL STATUS KLAIM VOUCHER SPESIFIK -->
-  <div class="modal-overlay" id="voucher-claim-detail-modal" style="z-index: 100060;">
+  <div class="modal-overlay" id="voucher-claim-detail-modal" style="display: none; z-index: 100060;">
     <div class="modal-card" style="max-width: 750px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; border-radius: 20px; overflow: hidden; background: var(--bg-surface); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
       <div style="padding: 1.25rem 1.5rem; background: linear-gradient(135deg, #ea580c, #c2410c); color: #fff; display: flex; justify-content: space-between; align-items: center;">
         <div>
@@ -7368,6 +7369,60 @@
           </button>
         </div>
         <button type="button" class="btn btn-secondary" onclick="closeVoucherClaimDetailModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL KONFIRMASI MODERN (PENGGANTI WINDOW.CONFIRM POP-UP NATIVE) -->
+  <div class="modal-overlay" id="app-confirm-modal" style="display: none; z-index: 1000000; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);">
+    <div class="modal-card" style="max-width: 440px; width: 92%; border-radius: 16px; padding: 1.5rem; background: var(--bg-surface, #ffffff); box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3); border: 1px solid var(--border-color, #e2e8f0); animation: modalFadeIn 0.2s ease;">
+      <div style="display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem;">
+        <div id="app-confirm-icon-box" style="width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: rgba(239, 68, 68, 0.12); color: #ef4444; font-size: 1.5rem;">
+          ⚠️
+        </div>
+        <div style="flex: 1;">
+          <h3 id="app-confirm-title" style="margin: 0 0 0.4rem 0; font-size: 1.15rem; font-weight: 700; color: var(--text-main, #0f172a);">Konfirmasi Tindakan</h3>
+          <p id="app-confirm-message" style="margin: 0; font-size: 0.92rem; color: var(--text-muted, #475569); line-height: 1.55; white-space: pre-line; word-break: break-word;"></p>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 0.65rem; margin-top: 1.25rem;">
+        <button type="button" id="app-confirm-btn-cancel" class="btn btn-secondary" style="padding: 0.6rem 1.2rem; font-weight: 600; border-radius: 8px;">Batal</button>
+        <button type="button" id="app-confirm-btn-ok" class="btn btn-danger" style="padding: 0.6rem 1.35rem; font-weight: 700; border-radius: 8px;">Ya, Lanjutkan</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL ALERT MODERN IN-APP (PENGGANTI WINDOW.ALERT) -->
+  <div class="modal-overlay" id="app-alert-modal" style="display: none; z-index: 1000001; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);">
+    <div class="modal-card" style="max-width: 420px; width: 92%; border-radius: 16px; padding: 1.5rem; background: var(--bg-surface, #ffffff); box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3); border: 1px solid var(--border-color, #e2e8f0); animation: modalFadeIn 0.2s ease;">
+      <div style="display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem;">
+        <div id="app-alert-icon-box" style="width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: rgba(37, 99, 235, 0.12); color: #2563eb; font-size: 1.4rem;">
+          ℹ️
+        </div>
+        <div style="flex: 1;">
+          <h3 id="app-alert-title" style="margin: 0 0 0.4rem 0; font-size: 1.15rem; font-weight: 700; color: var(--text-main, #0f172a);">Pemberitahuan</h3>
+          <p id="app-alert-message" style="margin: 0; font-size: 0.92rem; color: var(--text-muted, #475569); line-height: 1.55; white-space: pre-line; word-break: break-word;"></p>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; margin-top: 1.25rem;">
+        <button type="button" id="app-alert-btn-ok" class="btn btn-primary" style="padding: 0.6rem 1.4rem; font-weight: 700; border-radius: 8px; min-width: 90px;">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL PROMPT MODERN IN-APP (PENGGANTI WINDOW.PROMPT) -->
+  <div class="modal-overlay" id="app-prompt-modal" style="display: none; z-index: 1000002; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);">
+    <div class="modal-card" style="max-width: 440px; width: 92%; border-radius: 16px; padding: 1.5rem; background: var(--bg-surface, #ffffff); box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3); border: 1px solid var(--border-color, #e2e8f0); animation: modalFadeIn 0.2s ease;">
+      <div style="margin-bottom: 1rem;">
+        <h3 id="app-prompt-title" style="margin: 0 0 0.4rem 0; font-size: 1.15rem; font-weight: 700; color: var(--text-main, #0f172a);">Input Data</h3>
+        <p id="app-prompt-message" style="margin: 0 0 0.85rem 0; font-size: 0.92rem; color: var(--text-muted, #475569); line-height: 1.5; white-space: pre-line; word-break: break-word;"></p>
+        <input type="text" id="app-prompt-input" style="width: 100%; padding: 0.65rem 0.85rem; border: 1.5px solid var(--border-color, #cbd5e1); border-radius: 8px; font-size: 0.95rem; outline: none; background: var(--bg-surface, #fff); color: var(--text-main, #0f172a);" autocomplete="off">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 0.65rem; margin-top: 1.25rem;">
+        <button type="button" id="app-prompt-btn-cancel" class="btn btn-secondary" style="padding: 0.6rem 1.2rem; font-weight: 600; border-radius: 8px;">Batal</button>
+        <button type="button" id="app-prompt-btn-ok" class="btn btn-primary" style="padding: 0.6rem 1.35rem; font-weight: 700; border-radius: 8px;">OK</button>
       </div>
     </div>
   </div>
