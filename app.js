@@ -2501,6 +2501,8 @@ if (receiptSettings.textPaddingLeft === undefined) receiptSettings.textPaddingLe
 if (receiptSettings.textWidth === undefined) receiptSettings.textWidth = 25;
 if (receiptSettings.headerPaddingLR === undefined) receiptSettings.headerPaddingLR = 0;
 if (receiptSettings.logoMarginLR === undefined) receiptSettings.logoMarginLR = 0;
+if (receiptSettings.logoMarginTop === undefined) receiptSettings.logoMarginTop = 0;
+if (receiptSettings.feedMarginBottom === undefined) receiptSettings.feedMarginBottom = 0;
 if (receiptSettings.nameMarginLR === undefined) receiptSettings.nameMarginLR = 0;
 if (receiptSettings.addressMarginLR === undefined) receiptSettings.addressMarginLR = 0;
 if (receiptSettings.phoneMarginLR === undefined) receiptSettings.phoneMarginLR = 0;
@@ -3274,6 +3276,26 @@ function loadReceiptSettings() {
     if (lText) lText.textContent = `${val}mm`;
   });
   
+  const logoTopVal = receiptSettings.logoMarginTop !== undefined ? receiptSettings.logoMarginTop : 0;
+  const sLogoTopHtml = document.getElementById('receipt-logo-margin-top');
+  const sLogoTopText = document.getElementById('receipt-logo-margin-top-text');
+  if (sLogoTopHtml) sLogoTopHtml.value = logoTopVal;
+  if (sLogoTopText) sLogoTopText.value = logoTopVal;
+  const lLogoTopHtml = document.getElementById('logo-margin-top-preview-val');
+  const lLogoTopText = document.getElementById('logo-margin-top-preview-text-val');
+  if (lLogoTopHtml) lLogoTopHtml.textContent = `${logoTopVal}mm`;
+  if (lLogoTopText) lLogoTopText.textContent = `${logoTopVal}mm`;
+
+  const feedBottomVal = receiptSettings.feedMarginBottom !== undefined ? receiptSettings.feedMarginBottom : 0;
+  const sFeedHtml = document.getElementById('receipt-feed-margin-bottom');
+  const sFeedText = document.getElementById('receipt-feed-margin-bottom-text');
+  if (sFeedHtml) sFeedHtml.value = feedBottomVal;
+  if (sFeedText) sFeedText.value = feedBottomVal;
+  const lFeedHtml = document.getElementById('feed-margin-bottom-preview-val');
+  const lFeedText = document.getElementById('feed-margin-bottom-preview-text-val');
+  if (lFeedHtml) lFeedHtml.textContent = `${feedBottomVal}mm`;
+  if (lFeedText) lFeedText.textContent = `${feedBottomVal}mm`;
+  
   const paperSizeEl = document.getElementById('receipt-paper-size');
   if (paperSizeEl) {
     paperSizeEl.value = receiptSettings.paperSize || '58mm';
@@ -3514,7 +3536,21 @@ function applyReceiptSettings() {
   
   // Terapkan margin kiri-kanan / offset masing-masing elemen (HTML & Text)
   const logoOffset = receiptSettings.logoMarginLR || 0;
+  const logoTopOffset = receiptSettings.logoMarginTop || 0;
+  const feedBottomOffset = receiptSettings.feedMarginBottom || 0;
   document.documentElement.style.setProperty('--logo-offset-x', `${logoOffset}mm`);
+  document.documentElement.style.setProperty('--receipt-top-offset', `${logoTopOffset}mm`);
+  document.documentElement.style.setProperty('--receipt-top-padding', logoTopOffset > 0 ? `${logoTopOffset}mm` : '0mm');
+  document.documentElement.style.setProperty('--receipt-bottom-offset', `${feedBottomOffset}mm`);
+  document.documentElement.style.setProperty('--receipt-bottom-padding', feedBottomOffset > 0 ? `${feedBottomOffset}mm` : '0mm');
+
+  const recCard = document.getElementById('receipt-card-print');
+  if (recCard) {
+    recCard.style.paddingTop = logoTopOffset > 0 ? `${logoTopOffset}mm` : '0px';
+    recCard.style.marginTop = logoTopOffset < 0 ? `${logoTopOffset}mm` : '0px';
+    recCard.style.paddingBottom = feedBottomOffset > 0 ? `${feedBottomOffset}mm` : '0px';
+    recCard.style.marginBottom = feedBottomOffset < 0 ? `${feedBottomOffset}mm` : '0px';
+  }
 
   const headerItemsMap = [
     { type: 'logo', ids: ['rec-logo-container', 'rec-text-logo-container'] },
@@ -3683,9 +3719,80 @@ function updateReceiptFontSizePreview(val) {
 }
 
 function updateTextTitleFontPreview(val) {
-  document.getElementById('text-title-font-preview-val').textContent = `${val}pt`;
+  const lbl = document.getElementById('text-title-font-preview-val');
+  if (lbl) lbl.textContent = `${val}pt`;
   const textTitleFontSize = parseFloat(val) || 16;
+  receiptSettings.textTitleFontSize = textTitleFontSize;
   document.documentElement.style.setProperty('--print-text-title-size', `${textTitleFontSize}pt`);
+  const tName = document.getElementById('rec-text-store-name');
+  if (tName) tName.style.fontSize = `${textTitleFontSize}pt`;
+}
+
+function updateTextAddressFontPreview(val) {
+  const lbl = document.getElementById('text-address-font-preview-val');
+  if (lbl) lbl.textContent = `${val}pt`;
+  const textAddressFontSize = parseFloat(val) || 10;
+  receiptSettings.textAddressFontSize = textAddressFontSize;
+  document.documentElement.style.setProperty('--print-text-addr-size', `${textAddressFontSize}pt`);
+  const tAddr = document.getElementById('rec-text-store-address');
+  if (tAddr) tAddr.style.fontSize = `${textAddressFontSize}pt`;
+}
+
+function updateTextPhoneFontPreview(val) {
+  const lbl = document.getElementById('text-phone-font-preview-val');
+  if (lbl) lbl.textContent = `${val}pt`;
+  const textPhoneFontSize = parseFloat(val) || 10;
+  receiptSettings.textPhoneFontSize = textPhoneFontSize;
+  document.documentElement.style.setProperty('--print-text-phone-size', `${textPhoneFontSize}pt`);
+  const tPhone = document.getElementById('rec-text-store-phone');
+  if (tPhone) tPhone.style.fontSize = `${textPhoneFontSize}pt`;
+}
+
+function updateLogoTopMarginPreview(val) {
+  const marginVal = parseFloat(val) || 0;
+  receiptSettings.logoMarginTop = marginVal;
+  
+  const sHtml = document.getElementById('receipt-logo-margin-top');
+  const sText = document.getElementById('receipt-logo-margin-top-text');
+  if (sHtml) sHtml.value = marginVal;
+  if (sText) sText.value = marginVal;
+  
+  const lHtml = document.getElementById('logo-margin-top-preview-val');
+  const lText = document.getElementById('logo-margin-top-preview-text-val');
+  if (lHtml) lHtml.textContent = `${marginVal}mm`;
+  if (lText) lText.textContent = `${marginVal}mm`;
+  
+  document.documentElement.style.setProperty('--receipt-top-offset', `${marginVal}mm`);
+  document.documentElement.style.setProperty('--receipt-top-padding', marginVal > 0 ? `${marginVal}mm` : '0mm');
+  const recCard = document.getElementById('receipt-card-print');
+  if (recCard) {
+    recCard.style.paddingTop = marginVal > 0 ? `${marginVal}mm` : '0px';
+    recCard.style.marginTop = marginVal < 0 ? `${marginVal}mm` : '0px';
+    recCard.style.transform = `translateY(${marginVal}mm)`;
+  }
+}
+
+function updateFeedBottomMarginPreview(val) {
+  const marginVal = parseFloat(val) || 0;
+  receiptSettings.feedMarginBottom = marginVal;
+  
+  const sHtml = document.getElementById('receipt-feed-margin-bottom');
+  const sText = document.getElementById('receipt-feed-margin-bottom-text');
+  if (sHtml) sHtml.value = marginVal;
+  if (sText) sText.value = marginVal;
+  
+  const lHtml = document.getElementById('feed-margin-bottom-preview-val');
+  const lText = document.getElementById('feed-margin-bottom-preview-text-val');
+  if (lHtml) lHtml.textContent = `${marginVal}mm`;
+  if (lText) lText.textContent = `${marginVal}mm`;
+  
+  document.documentElement.style.setProperty('--receipt-bottom-offset', `${marginVal}mm`);
+  document.documentElement.style.setProperty('--receipt-bottom-padding', marginVal > 0 ? `${marginVal}mm` : '0mm');
+  const recCard = document.getElementById('receipt-card-print');
+  if (recCard) {
+    recCard.style.paddingBottom = marginVal > 0 ? `${marginVal}mm` : '0px';
+    recCard.style.marginBottom = marginVal < 0 ? `${marginVal}mm` : '0px';
+  }
 }
 
 function updateTextFontPreview(val) {
@@ -3842,6 +3949,22 @@ function saveReceiptSettings() {
       receiptSettings[`${item}MarginLR`] = parseFloat(sText.value) || 0;
     }
   });
+  
+  const sLogoTopHtml = document.getElementById('receipt-logo-margin-top');
+  const sLogoTopText = document.getElementById('receipt-logo-margin-top-text');
+  if (sLogoTopHtml) {
+    receiptSettings.logoMarginTop = parseFloat(sLogoTopHtml.value) || 0;
+  } else if (sLogoTopText) {
+    receiptSettings.logoMarginTop = parseFloat(sLogoTopText.value) || 0;
+  }
+
+  const sFeedHtml = document.getElementById('receipt-feed-margin-bottom');
+  const sFeedText = document.getElementById('receipt-feed-margin-bottom-text');
+  if (sFeedHtml) {
+    receiptSettings.feedMarginBottom = parseFloat(sFeedHtml.value) || 0;
+  } else if (sFeedText) {
+    receiptSettings.feedMarginBottom = parseFloat(sFeedText.value) || 0;
+  }
   
   receiptSettings.showLogo = document.getElementById('chk-show-logo').checked;
   receiptSettings.showName = document.getElementById('chk-show-name').checked;
@@ -9569,7 +9692,8 @@ function updateReceiptButtonsHighlight() {
 
 function printReceiptDirectly() {
   document.body.classList.add('printing-receipt');
-  setTimeout(() => {
+  // Eksekusi print instan tanpa delay render berlebih
+  requestAnimationFrame(() => {
     try {
       window.print();
     } finally {
@@ -30706,3 +30830,7 @@ function exportSingleLabelPreviewJPG() {
 window.openLabelPrintPreviewWindow = openLabelPrintPreviewWindow;
 window.exportBulkLabelsPreviewJPG = exportBulkLabelsPreviewJPG;
 window.exportSingleLabelPreviewJPG = exportSingleLabelPreviewJPG;
+window.updateTextAddressFontPreview = updateTextAddressFontPreview;
+window.updateTextPhoneFontPreview = updateTextPhoneFontPreview;
+window.updateLogoTopMarginPreview = updateLogoTopMarginPreview;
+window.updateFeedBottomMarginPreview = updateFeedBottomMarginPreview;

@@ -3804,6 +3804,7 @@ body.print-format-html #receipt-text-content {
   /* Hilangkan margin kertas printer default agar hasil cetak thermal mepet kiri */
   @page {
     margin: 0 !important;
+    padding: 0 !important;
     size: auto;
   }
 
@@ -3845,11 +3846,15 @@ body.print-format-html #receipt-text-content {
     visibility: visible !important;
   }
   body:not(.printing-rack-report):not(.printing-labels):not(.printing-daily-report) #receipt-modal {
-    position: absolute !important;
+    position: static !important;
     left: 0 !important;
     top: 0 !important;
     margin: 0 !important;
     width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
     background: transparent !important;
     background-color: transparent !important;
     backdrop-filter: none !important;
@@ -3859,39 +3864,59 @@ body.print-format-html #receipt-text-content {
     border: none !important;
   }
 
-  /* Hilangkan ruang kosong atas pada struk dan logo agar cetak thermal langsung mepet paling atas kertas */
+  /* Hilangkan ruang kosong atas dan sesuaikan padding/margin atas-bawah struk thermal secara menyeluruh */
   #receipt-modal .receipt-card {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
+    margin: 0 !important;
+    margin-top: var(--receipt-top-offset, 0mm) !important;
+    margin-bottom: var(--receipt-bottom-offset, 0mm) !important;
+    padding: 0 !important;
+    padding-top: var(--receipt-top-padding, 0mm) !important;
+    padding-bottom: var(--receipt-bottom-padding, 0mm) !important;
+    transform: translateY(var(--receipt-top-offset, 0mm)) !important;
+    position: static !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
   #receipt-modal .receipt-header,
   #receipt-modal .text-receipt-wrapper {
     margin-top: 0 !important;
     padding-top: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
   }
   #receipt-modal .receipt-logo-container,
   #receipt-modal .receipt-text-logo-container {
     margin-top: 0 !important;
     padding-top: 0 !important;
     margin-bottom: 2px !important;
+    height: auto !important;
   }
   #receipt-modal .receipt-logo-img {
     margin-top: 0 !important;
     margin-bottom: 2px !important;
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: crisp-edges !important;
   }
   .receipt-card {
     border: none !important;
     box-shadow: none !important;
     padding: 0 !important;
     margin: 0 !important;
+    margin-top: var(--receipt-top-offset, 0mm) !important;
+    margin-bottom: var(--receipt-bottom-offset, 0mm) !important;
     width: var(--receipt-paper-width, 58mm) !important;
     max-width: var(--receipt-paper-width, 58mm) !important;
+    height: auto !important;
     max-height: none !important;
     overflow: visible !important;
     box-sizing: border-box !important;
     color: #000 !important;
     background: #fff !important;
     text-align: left !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
   }
   /* Paksa teks hitam pekat agar tidak blur saat dicetak */
   #receipt-modal .receipt-card * {
@@ -3913,6 +3938,15 @@ body.print-format-html #receipt-text-content {
   #receipt-modal #receipt-html-content .receipt-footer {
     width: 100% !important;
     box-sizing: border-box !important;
+    margin-top: 0.35rem !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+  }
+  #receipt-modal #receipt-html-content .receipt-header {
+    margin-bottom: 0.25rem !important;
+  }
+  #receipt-modal #receipt-html-content .divider-dashed {
+    margin: 0.35rem 0 !important;
   }
 
   /* Print overrides for text receipt */

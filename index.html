@@ -2814,6 +2814,20 @@
                 </div>
               </div>
               <div class="form-group" style="margin: 0;">
+                <label for="receipt-logo-margin-top">Jarak Struk dari Tepi Atas Kertas (Bisa Minus) (mm)</label>
+                <div class="slider-group">
+                  <input type="range" id="receipt-logo-margin-top" min="-20" max="30" value="0" step="0.5" oninput="updateLogoTopMarginPreview(this.value)" title="Makin minus makin naik mepet ke tepi atas kertas">
+                  <span id="logo-margin-top-preview-val">0mm</span>
+                </div>
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label for="receipt-feed-margin-bottom">Jarak Kertas Bawah / Feed Nota (Bisa Minus) (mm)</label>
+                <div class="slider-group">
+                  <input type="range" id="receipt-feed-margin-bottom" min="-30" max="50" value="0" step="0.5" oninput="updateFeedBottomMarginPreview(this.value)" title="Makin minus makin hemat kertas tanpa jarak kosong bawah">
+                  <span id="feed-margin-bottom-preview-val">0mm</span>
+                </div>
+              </div>
+              <div class="form-group" style="margin: 0;">
                 <label for="receipt-logo-margin">Geser Posisi Logo Toko (Kiri - / Kanan +) (mm)</label>
                 <div class="slider-group">
                   <input type="range" id="receipt-logo-margin" min="-25" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('logo', this.value)">
@@ -2885,6 +2899,20 @@
                 <div class="slider-group">
                   <input type="range" id="receipt-text-width" min="20" max="48" value="25" step="1" oninput="updateTextWidthPreview(this.value)">
                   <span id="text-width-preview-val">25 karakter</span>
+                </div>
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label for="receipt-logo-margin-top-text">Jarak Struk dari Tepi Atas Kertas (Bisa Minus) (mm)</label>
+                <div class="slider-group">
+                  <input type="range" id="receipt-logo-margin-top-text" min="-20" max="30" value="0" step="0.5" oninput="updateLogoTopMarginPreview(this.value)" title="Makin minus makin naik mepet ke tepi atas kertas">
+                  <span id="logo-margin-top-preview-text-val">0mm</span>
+                </div>
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label for="receipt-feed-margin-bottom-text">Jarak Kertas Bawah / Feed Nota (Bisa Minus) (mm)</label>
+                <div class="slider-group">
+                  <input type="range" id="receipt-feed-margin-bottom-text" min="-30" max="50" value="0" step="0.5" oninput="updateFeedBottomMarginPreview(this.value)" title="Makin minus makin hemat kertas tanpa jarak kosong bawah">
+                  <span id="feed-margin-bottom-preview-text-val">0mm</span>
                 </div>
               </div>
               <div class="form-group" style="margin: 0;">
