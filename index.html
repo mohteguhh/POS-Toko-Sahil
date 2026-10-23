@@ -2653,23 +2653,23 @@
                 </div>
               </div>
               <div class="form-group" style="margin: 0;">
-                <label for="receipt-name-margin">Margin Kiri (Geser Kanan) Nama Toko / Judul (mm)</label>
+                <label for="receipt-name-margin">Margin Kiri Geser Nama Toko / Judul (Bisa Minus) (mm)</label>
                 <div class="slider-group">
-                  <input type="range" id="receipt-name-margin" min="0" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('name', this.value)">
+                  <input type="range" id="receipt-name-margin" min="-25" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('name', this.value)">
                   <span id="name-margin-preview-val">0mm</span>
                 </div>
               </div>
               <div class="form-group" style="margin: 0;">
-                <label for="receipt-address-margin">Margin Kiri (Geser Kanan) Alamat Toko (mm)</label>
+                <label for="receipt-address-margin">Margin Kiri Geser Alamat Toko (Bisa Minus) (mm)</label>
                 <div class="slider-group">
-                  <input type="range" id="receipt-address-margin" min="0" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('address', this.value)">
+                  <input type="range" id="receipt-address-margin" min="-25" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('address', this.value)">
                   <span id="address-margin-preview-val">0mm</span>
                 </div>
               </div>
               <div class="form-group" style="margin: 0;">
-                <label for="receipt-phone-margin">Margin Kiri (Geser Kanan) No. Telepon (mm)</label>
+                <label for="receipt-phone-margin">Margin Kiri Geser No. Telepon (Bisa Minus) (mm)</label>
                 <div class="slider-group">
-                  <input type="range" id="receipt-phone-margin" min="0" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('phone', this.value)">
+                  <input type="range" id="receipt-phone-margin" min="-25" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('phone', this.value)">
                   <span id="phone-margin-preview-val">0mm</span>
                 </div>
               </div>
@@ -2741,23 +2741,23 @@
                 </div>
               </div>
               <div class="form-group" style="margin: 0;">
-                <label for="receipt-name-margin-text">Margin Kiri (Geser Kanan) Nama Toko / Judul (mm)</label>
+                <label for="receipt-name-margin-text">Margin Kiri Geser Nama Toko / Judul (Bisa Minus) (mm)</label>
                 <div class="slider-group">
-                  <input type="range" id="receipt-name-margin-text" min="0" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('name', this.value)">
+                  <input type="range" id="receipt-name-margin-text" min="-25" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('name', this.value)">
                   <span id="name-margin-preview-text-val">0mm</span>
                 </div>
               </div>
               <div class="form-group" style="margin: 0;">
-                <label for="receipt-address-margin-text">Margin Kiri (Geser Kanan) Alamat Toko (mm)</label>
+                <label for="receipt-address-margin-text">Margin Kiri Geser Alamat Toko (Bisa Minus) (mm)</label>
                 <div class="slider-group">
-                  <input type="range" id="receipt-address-margin-text" min="0" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('address', this.value)">
+                  <input type="range" id="receipt-address-margin-text" min="-25" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('address', this.value)">
                   <span id="address-margin-preview-text-val">0mm</span>
                 </div>
               </div>
               <div class="form-group" style="margin: 0;">
-                <label for="receipt-phone-margin-text">Margin Kiri (Geser Kanan) No. Telepon (mm)</label>
+                <label for="receipt-phone-margin-text">Margin Kiri Geser No. Telepon (Bisa Minus) (mm)</label>
                 <div class="slider-group">
-                  <input type="range" id="receipt-phone-margin-text" min="0" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('phone', this.value)">
+                  <input type="range" id="receipt-phone-margin-text" min="-25" max="25" value="0" step="0.5" oninput="updateItemMarginPreview('phone', this.value)">
                   <span id="phone-margin-preview-text-val">0mm</span>
                 </div>
               </div>
@@ -4586,7 +4586,10 @@
               <div style="display: flex; align-items: center; gap: 0.4rem; color: #0284c7; font-weight: 800; font-size: 0.88rem; min-width: 140px;">
                 <span>🔍 Cari / Scan Barcode:</span>
               </div>
-              <input type="text" id="delivery-barcode-input" placeholder="Ketik nama produk atau scan barcode barang..." onkeydown="handleDeliveryBarcodeKeyDown(event)" style="flex: 1; min-width: 220px; font-size: 0.92rem; font-weight: 700; padding: 0.45rem 0.75rem; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #ffffff;">
+              <div style="flex: 1; min-width: 220px; position: relative;">
+                <input type="text" id="delivery-barcode-input" placeholder="Ketik nama atau scan barcode produk sales..." autocomplete="off" oninput="filterDeliveryBarcodeSearch()" onkeydown="handleDeliveryBarcodeKeyDown(event)" style="width: 100%; box-sizing: border-box; font-size: 0.92rem; font-weight: 700; padding: 0.45rem 0.75rem; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #ffffff;">
+                <div class="floating-results" id="delivery-floating-results"></div>
+              </div>
               <button type="button" class="btn btn-primary btn-sm" onclick="processDeliveryBarcodeManual()" style="font-weight: 700; padding: 0.45rem 0.85rem; background: #0284c7; border-color: #0284c7;">
                 ➕ Masukkan
               </button>

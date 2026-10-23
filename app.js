@@ -2659,9 +2659,10 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Tutup dropdown melayang saat klik di luar
   document.addEventListener('click', (e) => {
-    if (!e.target.closest('.search-bar')) {
+    if (!e.target.closest('.search-bar') && !e.target.closest('#delivery-barcode-input') && !e.target.closest('#delivery-floating-results')) {
       closeFloatingResults();
       closeKulakFloatingResults();
+      closeDeliveryFloatingResults();
       closeEditTxFloatingResults();
     }
     
@@ -3568,7 +3569,13 @@ function applyReceiptSettings() {
           const img = el.querySelector('img') || el;
           img.style.transform = `translateX(${m}mm)`;
         } else {
-          el.style.paddingLeft = m > 0 ? `${m}mm` : '0px';
+          if (m >= 0) {
+            el.style.paddingLeft = `${m}mm`;
+            el.style.marginLeft = '0px';
+          } else {
+            el.style.paddingLeft = '0px';
+            el.style.marginLeft = `${m}mm`;
+          }
         }
         el.style.boxSizing = 'border-box';
       }
@@ -3849,7 +3856,13 @@ function updateItemMarginPreview(type, val) {
         const img = el.querySelector('img') || el;
         img.style.transform = `translateX(${marginVal}mm)`;
       } else {
-        el.style.paddingLeft = marginVal > 0 ? `${marginVal}mm` : '0px';
+        if (marginVal >= 0) {
+          el.style.paddingLeft = `${marginVal}mm`;
+          el.style.marginLeft = '0px';
+        } else {
+          el.style.paddingLeft = '0px';
+          el.style.marginLeft = `${marginVal}mm`;
+        }
       }
       el.style.boxSizing = 'border-box';
     }
@@ -7941,6 +7954,17 @@ function checkPromoBanner() {
     window.promoCarouselInterval = setInterval(() => {
       nextPromoSlide();
     }, 4000);
+  }
+}
+
+// Helper untuk menambahkan produk ke cart dari ID (digunakan pada carousel promo)
+async function addToCartById(productId) {
+  if (Array.isArray(products)) {
+    const p = products.find(x => x.id === productId || String(x.id) === String(productId));
+    if (p && typeof addToCart === 'function') {
+      addToCart(p);
+      return;
+    }
   }
 }
 
@@ -22352,6 +22376,7 @@ function onDeliveryPayStatusChanged() {
 }
 
 function closeSalesDeliveryModal() {
+  closeDeliveryFloatingResults();
   const modal = document.getElementById('sales-delivery-modal');
   if (modal) {
     modal.classList.remove('active');
@@ -22360,6 +22385,11 @@ function closeSalesDeliveryModal() {
 }
 
 function onDeliverySalesChanged() {
+  closeDeliveryFloatingResults();
+  const barcodeInput = document.getElementById('delivery-barcode-input');
+  if (barcodeInput && barcodeInput.value.trim()) {
+    filterDeliveryBarcodeSearch();
+  }
   // Ketika sales diubah, perbarui daftar opsi barang di baris nota
   const salesId = document.getElementById('delivery-sales-select').value;
   const s = salesList.find(x => x.id === salesId);
@@ -22583,9 +22613,170 @@ function addScannedProductToDelivery(barcodeOrCode) {
   return true;
 }
 
+let deliveryFilteredProducts = [];
+let selectedDeliveryFloatIndex = -1;
+
+function filterDeliveryBarcodeSearch() {
+  const input = document.getElementById('delivery-barcode-input');
+  if (!input) return;
+  const val = input.value.toLowerCase().trim();
+  const dropdown = document.getElementById('delivery-floating-results');
+  if (!dropdown) return;
+
+  if (val === '') {
+    closeDeliveryFloatingResults();
+    return;
+  }
+
+  // Ambil daftar produk yang diizinkan untuk sales yang dipilih
+  const salesId = document.getElementById('delivery-sales-select')?.value;
+  const s = salesList.find(x => x.id === salesId);
+  const filterProductIds = (s && Array.isArray(s.productIds)) ? s.productIds : null;
+
+  let pool = products;
+  if (filterProductIds && filterProductIds.length > 0) {
+    pool = products.filter(p => filterProductIds.includes(p.id));
+  } else if (salesId) {
+    // Sales dipilih tetapi belum memiliki katalog produk terdaftar
+    pool = [];
+  }
+
+  // Cek exact barcode match langsung (hanya jika ada di pool sales terkait)
+  const barcodeMatch = pool.find(p => {
+    if (p.barcode && String(p.barcode).trim().toLowerCase() === val) return true;
+    if (Array.isArray(p.units) && p.units.some(u => u.barcode && String(u.barcode).trim().toLowerCase() === val)) return true;
+    if (p.has_unit_box && p.barcode_box && String(p.barcode_box).trim().toLowerCase() === val) return true;
+    return false;
+  });
+
+  if (barcodeMatch) {
+    addScannedProductToDelivery(barcodeMatch.id);
+    input.value = '';
+    closeDeliveryFloatingResults();
+    return;
+  }
+
+  let matched = pool.filter(p => {
+    return String(p.nama || '').toLowerCase().includes(val) || 
+           String(p.id || '').toLowerCase().includes(val) ||
+           (p.barcode && String(p.barcode).toLowerCase().includes(val));
+  });
+
+  matched.sort((a, b) => {
+    const aNameMatch = String(a.nama || '').toLowerCase().includes(val);
+    const bNameMatch = String(b.nama || '').toLowerCase().includes(val);
+    if (aNameMatch && !bNameMatch) return -1;
+    if (!aNameMatch && bNameMatch) return 1;
+    return 0;
+  });
+
+  deliveryFilteredProducts = matched.slice(0, 15);
+
+  if (deliveryFilteredProducts.length === 0) {
+    if (!salesId) {
+      dropdown.innerHTML = '<div style="padding: 0.75rem 1rem; color: var(--text-muted); font-size: 0.85rem;">Pilih sales terlebih dahulu untuk melihat katalog produk sales...</div>';
+    } else if (filterProductIds && filterProductIds.length === 0) {
+      dropdown.innerHTML = '<div style="padding: 0.75rem 1rem; color: var(--text-muted); font-size: 0.85rem;">Belum ada produk yang didaftarkan ke sales ini...</div>';
+    } else {
+      dropdown.innerHTML = '<div style="padding: 0.75rem 1rem; color: var(--text-muted); font-size: 0.85rem;">Produk tidak ditemukan pada katalog sales ini...</div>';
+    }
+    dropdown.classList.add('active');
+    selectedDeliveryFloatIndex = -1;
+    return;
+  }
+
+  selectedDeliveryFloatIndex = 0;
+  renderDeliveryFloatingDropdown();
+}
+
+function renderDeliveryFloatingDropdown() {
+  const dropdown = document.getElementById('delivery-floating-results');
+  if (!dropdown) return;
+  dropdown.innerHTML = '';
+  dropdown.classList.add('active');
+
+  deliveryFilteredProducts.forEach((p, index) => {
+    const isSelected = index === selectedDeliveryFloatIndex;
+    const div = document.createElement('div');
+    div.className = `floating-item ${isSelected ? 'selected' : ''}`;
+    div.onclick = () => {
+      addScannedProductToDelivery(p.id);
+      const input = document.getElementById('delivery-barcode-input');
+      if (input) {
+        input.value = '';
+        input.focus();
+      }
+      closeDeliveryFloatingResults();
+    };
+
+    const imgUrl = p.gambar || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=100';
+    const rackBadgeHtml = p.rak 
+      ? `<span style="display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(79, 70, 229, 0.09); color: var(--color-primary); padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">📍 ${p.rak}</span>`
+      : '';
+
+    div.innerHTML = `
+      <img src="${imgUrl}" alt="${p.nama}" class="floating-item-img" onerror="handleImageError(this)">
+      <div class="floating-item-info">
+        <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+          <span class="floating-item-name">${p.nama} (${p.id})</span>
+          ${rackBadgeHtml}
+        </div>
+        <div class="floating-item-meta">
+          <span class="floating-item-price">Beli: Rp ${formatRupiah(p.harga_beli)} | Jual: Rp ${formatRupiah(p.harga_jual)}</span>
+          <span class="floating-item-stock">Stok: ${p.stok}</span>
+        </div>
+      </div>
+    `;
+    dropdown.appendChild(div);
+  });
+
+  const selectedEl = dropdown.querySelector('.floating-item.selected');
+  if (selectedEl) {
+    selectedEl.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function closeDeliveryFloatingResults() {
+  const dropdown = document.getElementById('delivery-floating-results');
+  if (dropdown) dropdown.classList.remove('active');
+  deliveryFilteredProducts = [];
+  selectedDeliveryFloatIndex = -1;
+}
+
 function handleDeliveryBarcodeKeyDown(e) {
+  const dropdown = document.getElementById('delivery-floating-results');
+  const isDropdownOpen = dropdown && dropdown.classList.contains('active') && deliveryFilteredProducts.length > 0;
+
+  if (e.key === 'ArrowDown' && isDropdownOpen) {
+    e.preventDefault();
+    selectedDeliveryFloatIndex = (selectedDeliveryFloatIndex + 1) % deliveryFilteredProducts.length;
+    renderDeliveryFloatingDropdown();
+    return;
+  }
+  if (e.key === 'ArrowUp' && isDropdownOpen) {
+    e.preventDefault();
+    selectedDeliveryFloatIndex = (selectedDeliveryFloatIndex - 1 + deliveryFilteredProducts.length) % deliveryFilteredProducts.length;
+    renderDeliveryFloatingDropdown();
+    return;
+  }
+  if (e.key === 'Escape') {
+    closeDeliveryFloatingResults();
+    return;
+  }
+
   if (e.key === 'Enter') {
     e.preventDefault();
+    if (isDropdownOpen && selectedDeliveryFloatIndex > -1 && selectedDeliveryFloatIndex < deliveryFilteredProducts.length) {
+      const selectedProd = deliveryFilteredProducts[selectedDeliveryFloatIndex];
+      addScannedProductToDelivery(selectedProd.id);
+      const input = document.getElementById('delivery-barcode-input');
+      if (input) {
+        input.value = '';
+        input.focus();
+      }
+      closeDeliveryFloatingResults();
+      return;
+    }
     processDeliveryBarcodeManual();
   }
 }
@@ -22596,6 +22787,7 @@ function processDeliveryBarcodeManual() {
   const val = input.value.trim();
   if (!val) return;
 
+  closeDeliveryFloatingResults();
   const success = addScannedProductToDelivery(val);
   if (success) {
     input.value = '';
