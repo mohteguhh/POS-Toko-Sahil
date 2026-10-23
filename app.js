@@ -4168,43 +4168,51 @@ function switchTab(tabName) {
   // Aksi tab
   if (tabName === 'pos') {
     closeFloatingResults();
-    document.getElementById('search-input').value = '';
+    const sInput = document.getElementById('search-input');
+    if (sInput) sInput.value = '';
     renderCart();
     if (typeof applyPosGridConfig === 'function') applyPosGridConfig();
     focusSearchInput();
   } else if (tabName === 'products') {
     lastScannedProductId = null;
-    document.getElementById('product-list-search').value = '';
+    const pSearch = document.getElementById('product-list-search');
+    if (pSearch) pSearch.value = '';
     renderProductsTable();
     resetProductForm();
     focusProductListSearch();
   } else if (tabName === 'analytics') {
     initAnalyticsFilter();
-    updateAnalytics();
-    if (weeklyTrendData.length === 0) {
-      loadWeeklyTrendInBackground();
-    }
+    // Render analitik di frame berikutnya agar transisi tab instan tanpa lag
+    requestAnimationFrame(() => {
+      updateAnalytics();
+      if (weeklyTrendData.length === 0) {
+        loadWeeklyTrendInBackground();
+      }
+    });
   } else if (tabName === 'kulak') {
     closeKulakForm();
     if (typeof renderSalesTable === 'function') renderSalesTable();
     if (typeof updateSalesDropdowns === 'function') updateSalesDropdowns();
     focusKulakSearch();
   } else if (tabName === 'transactions') {
-    document.getElementById('transaction-list-search').value = '';
+    const txSearch = document.getElementById('transaction-list-search');
+    if (txSearch) txSearch.value = '';
     renderTransactionsTable();
     closeEditTransactionModal();
+  } else if (tabName === 'customers') {
+    if (typeof renderCustomersTable === 'function') renderCustomersTable();
   }
 
-  // Batasi lucide.createIcons hanya pada pane yang aktif agar tidak memindai ribuan elemen seluruh aplikasi
+  // Batasi lucide.createIcons hanya pada pane yang aktif dan jalankan asynchronous/non-blocking
   if (tabName !== 'settings' && typeof lucide !== 'undefined' && lucide.createIcons) {
-    try {
-      const targetPane = document.getElementById(tabName);
-      if (targetPane) {
-        lucide.createIcons({ root: targetPane });
-      } else {
-        lucide.createIcons();
-      }
-    } catch(e) {}
+    requestAnimationFrame(() => {
+      try {
+        const paneEl = document.getElementById(`pane-${tabName}`);
+        if (paneEl) {
+          lucide.createIcons({ root: paneEl });
+        }
+      } catch(e) {}
+    });
   }
 }
 
@@ -9029,42 +9037,44 @@ async function processCheckout() {
     return;
   }
 
-  checkPromoBanner();
-  renderTransactionsTable();
-  updateAnalytics();
-
-  // Bersihkan cache analitik lokal agar data analitik terbaru langsung diperbarui
-  try {
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('kasir_analytics_cache_')) {
-        localStorage.removeItem(key);
-      }
-    });
-  } catch (e) {}
-
   // Sync ke weeklyTrendData agar grafik 7 hari tetap akurat secara real-time
   if (weeklyTrendData.length > 0) {
     weeklyTrendData.push(transaction);
   }
-  
-  // 3. Tutup modal pembayaran & Kosongkan keranjang
+
+  // 3. Tutup modal pembayaran & Kosongkan keranjang — SECEPATNYA agar tidak ada jeda ke kasir
   const pModal = document.getElementById('payment-modal');
   if (pModal) { pModal.classList.remove('active'); pModal.style.display = 'none'; }
   const lastCart = [...cart];
   lastTransactionChange = change;
   cart = [];
   renderCart();
-  
+
   // Reset input diskon
   document.getElementById('discount-input').value = 0;
-  
-  // 4. Tampilkan struk
+
+  // 4. Tampilkan struk — diprioritaskan tampil dulu sebelum pekerjaan berat lainnya
   showReceipt(transaction, lastCart);
-  
-  // 5. Kirim langsung ke Firebase Realtime Database
-  if (firebaseDb) {
-    updateSyncStatus('syncing', 'Mengunggah transaksi...');
+
+  // 5. Pekerjaan berat (render tabel, analitik, banner, Firebase) dijalankan di background
+  //    agar struk langsung muncul tanpa jeda
+  setTimeout(() => {
+    // Bersihkan cache analitik lokal agar data analitik terbaru langsung diperbarui
     try {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('kasir_analytics_cache_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (e) {}
+
+    checkPromoBanner();
+    renderTransactionsTable();
+    updateAnalytics();
+
+    // Kirim ke Firebase Realtime Database (non-blocking, di background)
+    if (firebaseDb) {
+      updateSyncStatus('syncing', 'Mengunggah transaksi...');
       const cleanTx = JSON.parse(JSON.stringify(transaction));
       const cloudUpdates = {};
       cloudUpdates[getStorePath('transactions/' + cleanTx.id)] = cleanTx;
@@ -9089,17 +9099,20 @@ async function processCheckout() {
         });
       }
 
-      await firebaseDb.ref('/').update(cloudUpdates);
-      console.log('✅ Transaksi & stok berhasil masuk RTDB:', cleanTx.id, cleanTx.waktu);
-      updateSyncStatus('online', 'Database Terhubung');
-    } catch (syncErr) {
-      console.error('❌ GAGAL simpan transaksi ke RTDB:', syncErr.message);
-      updateSyncStatus('offline', 'Gagal: ' + syncErr.message);
+      firebaseDb.ref('/').update(cloudUpdates)
+        .then(() => {
+          console.log('✅ Transaksi & stok berhasil masuk RTDB:', cleanTx.id, cleanTx.waktu);
+          updateSyncStatus('online', 'Database Terhubung');
+        })
+        .catch(syncErr => {
+          console.error('❌ GAGAL simpan transaksi ke RTDB:', syncErr.message);
+          updateSyncStatus('offline', 'Gagal: ' + syncErr.message);
+        });
+    } else {
+      console.warn('⚠️ Firebase tidak terhubung. Transaksi hanya tersimpan lokal.');
+      updateSyncStatus('offline', 'Firebase tidak terhubung');
     }
-  } else {
-    console.warn('⚠️ Firebase tidak terhubung. Transaksi hanya tersimpan lokal.');
-    updateSyncStatus('offline', 'Firebase tidak terhubung');
-  }
+  }, 0);
 
   } catch (err) {
     console.error('[Checkout] Error tidak terduga:', err);
@@ -11478,6 +11491,7 @@ function toggleBuyGetFields() {
 }
 
 function openProductModal() {
+  resetProductForm();
   populateCategorySelect();
   populateRackSelect();
   const modal = document.getElementById('product-edit-modal');
@@ -11487,7 +11501,7 @@ function openProductModal() {
   }
 }
 
-async function closeProductModal() {
+function closeProductModal() {
   const modal = document.getElementById('product-edit-modal');
   if (modal) {
     modal.classList.remove('active');
@@ -11497,7 +11511,7 @@ async function closeProductModal() {
   if (activeTab === 'products') focusProductListSearch();
 }
 
-async function editProduct(index) {
+function editProduct(index) {
   const p = products[index];
   
   document.getElementById('edit-index').value = index;
@@ -11531,10 +11545,16 @@ async function editProduct(index) {
   document.getElementById('form-title').textContent = "Edit Produk";
   document.getElementById('btn-save-product').textContent = "Perbarui Produk";
   
-  openProductModal();
+  populateCategorySelect(p.kategori || 'Umum');
+  populateRackSelect(p.rak || '');
+  const modal = document.getElementById('product-edit-modal');
+  if (modal) {
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+  }
 }
 
-async function generateNextProductId() {
+function generateNextProductId() {
   if (products.length === 0) {
     return "P001"; // Format standar berawalan P
   }
@@ -11563,7 +11583,7 @@ async function generateNextProductId() {
   return prefix + nextNumStr;
 }
 
-async function resetProductForm() {
+function resetProductForm() {
   document.getElementById('edit-index').value = "-1";
   
   const nextId = generateNextProductId();
@@ -21903,7 +21923,16 @@ function closeSalesModal() {
   }
 }
 
+let currentSalesSelectedIds = new Set();
+
 function renderSalesProductSelection(selectedIds = []) {
+  currentSalesSelectedIds = new Set(selectedIds.map(String));
+  const searchInput = document.getElementById('sales-product-search');
+  if (searchInput) searchInput.value = '';
+  renderSalesProductListDom('');
+}
+
+function renderSalesProductListDom(query = '') {
   const container = document.getElementById('sales-products-checkbox-container');
   if (!container) return;
 
@@ -21914,10 +21943,44 @@ function renderSalesProductSelection(selectedIds = []) {
     return;
   }
 
-  // Urutkan produk berdasarkan nama
-  const sorted = [...products].sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
-  sorted.forEach(p => {
-    const isChecked = selectedIds.includes(p.id);
+  const q = (query || '').toLowerCase().trim();
+
+  // Jika tidak ada pencarian diketik:
+  // Hanya tampilkan produk yang SUDAH dipilih (jika ada).
+  // Jika belum ada yang dipilih (misal saat tambah sales baru), tampilkan panduan agar ringan dan tidak lag.
+  let itemsToRender = [];
+  if (!q) {
+    if (currentSalesSelectedIds.size > 0) {
+      itemsToRender = products.filter(p => currentSalesSelectedIds.has(String(p.id)));
+    } else {
+      container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.82rem; padding: 1rem; text-align: center; line-height: 1.5;">🔍 Ketik nama barang pada kolom pencarian di atas untuk menampilkan dan memilih produk.</div>';
+      updateSelectedSalesCount();
+      return;
+    }
+  } else {
+    // Cari produk yang sesuai dengan teks yang diketik (nama, barcode, atau kategori)
+    const matched = products.filter(p => {
+      return (p.nama && p.nama.toLowerCase().includes(q)) ||
+             (p.barcode && String(p.barcode).toLowerCase().includes(q)) ||
+             (p.kategori && p.kategori.toLowerCase().includes(q)) ||
+             (p.id && String(p.id).toLowerCase().includes(q));
+    });
+
+    // Batasi maksimal 50 hasil agar DOM tetap super cepat dan mulus
+    itemsToRender = matched.slice(0, 50);
+
+    if (itemsToRender.length === 0) {
+      container.innerHTML = `<div style="color: var(--text-muted); font-size: 0.82rem; padding: 1rem; text-align: center;">Tidak ada produk yang cocok dengan "<b>${escapeHtml(q)}</b>"</div>`;
+      updateSelectedSalesCount();
+      return;
+    }
+  }
+
+  // Urutkan produk yang tampil
+  itemsToRender.sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
+
+  itemsToRender.forEach(p => {
+    const isChecked = currentSalesSelectedIds.has(String(p.id));
     const label = document.createElement('label');
     label.className = 'sales-prod-item-row';
     label.style.display = 'flex';
@@ -21955,6 +22018,13 @@ function renderSalesProductSelection(selectedIds = []) {
 }
 
 function toggleSalesProdRowStyle(cb) {
+  const pId = String(cb.value);
+  if (cb.checked) {
+    currentSalesSelectedIds.add(pId);
+  } else {
+    currentSalesSelectedIds.delete(pId);
+  }
+
   const row = cb.closest('.sales-prod-item-row');
   if (row) {
     row.style.background = cb.checked ? 'rgba(37, 99, 235, 0.06)' : 'var(--bg-surface)';
@@ -21965,22 +22035,22 @@ function toggleSalesProdRowStyle(cb) {
 
 function filterSalesProductSelection() {
   const searchInput = document.getElementById('sales-product-search');
-  const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
-  const rows = document.querySelectorAll('#sales-products-checkbox-container .sales-prod-item-row');
-
-  rows.forEach(row => {
-    const text = row.textContent.toLowerCase();
-    row.style.display = text.includes(query) ? 'flex' : 'none';
-  });
+  const query = searchInput ? searchInput.value : '';
+  renderSalesProductListDom(query);
 }
 
 function selectAllSalesProducts(shouldSelect) {
   const checkboxes = document.querySelectorAll('#sales-products-checkbox-container .chk-sales-prod');
   checkboxes.forEach(cb => {
-    // Hanya pilih checkbox yang barisnya sedang terlihat jika ada filter pencarian
+    cb.checked = shouldSelect;
+    const pId = String(cb.value);
+    if (shouldSelect) {
+      currentSalesSelectedIds.add(pId);
+    } else {
+      currentSalesSelectedIds.delete(pId);
+    }
     const row = cb.closest('.sales-prod-item-row');
-    if (row && row.style.display !== 'none') {
-      cb.checked = shouldSelect;
+    if (row) {
       row.style.background = shouldSelect ? 'rgba(37, 99, 235, 0.06)' : 'var(--bg-surface)';
       row.style.border = shouldSelect ? '1px solid rgba(37, 99, 235, 0.25)' : '1px solid var(--border-color)';
     }
@@ -21989,10 +22059,9 @@ function selectAllSalesProducts(shouldSelect) {
 }
 
 async function updateSelectedSalesCount() {
-  const checked = document.querySelectorAll('#sales-products-checkbox-container .chk-sales-prod:checked');
   const countSpan = document.getElementById('sales-selected-products-count');
   if (countSpan) {
-    countSpan.textContent = `${checked.length} produk dipilih`;
+    countSpan.textContent = `${currentSalesSelectedIds.size} produk dipilih`;
   }
 }
 
@@ -22014,11 +22083,8 @@ async function saveSales(e) {
     return;
   }
 
-  // Kumpulkan product IDs yang dicentang
-  const selectedProductIds = [];
-  document.querySelectorAll('#sales-products-checkbox-container .chk-sales-prod:checked').forEach(cb => {
-    selectedProductIds.push(cb.value);
-  });
+  // Kumpulkan product IDs yang dipilih (dari set state agar aman meskipun tidak sedang dirender di DOM)
+  const selectedProductIds = Array.from(currentSalesSelectedIds);
 
   if (editId) {
     // Mode Edit
