@@ -651,8 +651,8 @@
               <div class="cart-header">
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                   <h2>Keranjang</h2>
-                  <button class="btn btn-secondary btn-sm" onclick="openHeldCartsModal()" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; position: relative;">
-                    Antrean <span id="held-carts-badge" style="display: none; position: absolute; top: -5px; right: -5px; background: var(--danger-color); color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; align-items: center; justify-content: center;">0</span>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-open-held-carts" onclick="openHeldCartsModal()" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; position: relative;">
+                    Antrean <span id="held-carts-badge" style="display: none; position: absolute; top: -5px; right: -5px; background: var(--danger-color); color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; align-items: center; justify-content: center; pointer-events: none;">0</span>
                   </button>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
@@ -2103,188 +2103,6 @@
 
         <div class="admin-layout" id="prod-subpane-catalog">
           
-          <!-- Product Edit Popup Modal (Hidden by Default) -->
-          <div class="modal-overlay" id="product-edit-modal" style="display: none;">
-            <div class="modal-card" style="max-width: 600px;">
-              <div class="modal-header">
-                <h3 id="form-title">Tambah Produk Baru</h3>
-                <button type="button" class="close-modal-btn" onclick="closeProductModal()">&times;</button>
-              </div>
-              <form id="product-form" onsubmit="saveProduct(event)" onkeydown="if(event.key==='Enter' && event.target.tagName !== 'BUTTON'){event.preventDefault();}" style="display: flex; flex-direction: column; max-height: calc(90vh - 120px);">
-                <div class="modal-body" style="overflow-y: auto; padding-right: 10px;">
-                  <input type="hidden" id="edit-index" value="-1">
-                  
-                  <div class="form-group">
-                    <label for="prod-id">ID Produk (contoh: P001)*</label>
-                    <input type="text" id="prod-id" required placeholder="P001">
-                  </div>
-                  <div class="form-group">
-                    <label for="prod-name">Nama Produk*</label>
-                    <input type="text" id="prod-name" required placeholder="Kopi Susu Aren">
-                  </div>
-                  <div class="form-group">
-                    <label for="prod-category">Kategori</label>
-                    <div style="display: flex; gap: 0.35rem; align-items: center;">
-                      <select id="prod-category" class="form-control" style="flex: 1; padding: 0.6rem 0.75rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main); font-size: 0.95rem;">
-                        <option value="Umum">Umum</option>
-                      </select>
-                      <button type="button" class="btn btn-secondary" onclick="promptAddNewCategory()" title="Tambah Kategori Baru" style="padding: 0.6rem 0.75rem; font-weight: 700; font-size: 1.1rem; line-height: 1; border-radius: var(--border-radius-sm);">
-                        +
-                      </button>
-                      <button type="button" class="btn btn-secondary" onclick="promptDeleteCategory()" title="Hapus Kategori yang Dipilih" style="padding: 0.6rem 0.75rem; border-radius: var(--border-radius-sm); color: var(--color-danger, #ef4444); display: flex; align-items: center; justify-content: center;">
-                        <svg viewBox="0 0 24 24" style="width: 17px; height: 17px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                  <div class="form-grid-2">
-                    <div class="form-group">
-                      <label for="prod-price-buy">Harga Beli (Rp)*</label>
-                      <input type="number" id="prod-price-buy" required min="0" placeholder="10000" oninput="updateAllMultiUnitHints()">
-                    </div>
-                    <div class="form-group">
-                      <label for="prod-price-sell">Harga Jual (Rp)*</label>
-                      <input type="number" id="prod-price-sell" required min="0" placeholder="15000" oninput="updateAllMultiUnitHints()">
-                    </div>
-                  </div>
-                  <div class="form-grid-3" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
-                    <div class="form-group">
-                      <label for="prod-stock">Stok Awal*</label>
-                      <input type="number" id="prod-stock" required min="0" placeholder="50">
-                    </div>
-                    <div class="form-group">
-                      <label for="prod-barcode">Barcode (Opsional)</label>
-                      <input type="text" id="prod-barcode" placeholder="Scan Barcode">
-                    </div>
-                    <div class="form-group">
-                      <label for="prod-rack">Lokasi Rak</label>
-                      <div style="display: flex; gap: 0.35rem; align-items: center;">
-                        <select id="prod-rack" class="form-control" style="flex: 1; padding: 0.6rem 0.5rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main); font-size: 0.95rem;">
-                          <option value="">-- Tanpa Rak --</option>
-                        </select>
-                        <button type="button" class="btn btn-secondary" onclick="promptAddNewRack()" title="Tambah Rak Baru" style="padding: 0.6rem 0.75rem; font-weight: 700; font-size: 1.1rem; line-height: 1; border-radius: var(--border-radius-sm);">
-                          <i data-lucide="plus" style="width: 15px; height: 15px;"></i>
-                        </button>
-                        <button type="button" class="btn btn-secondary" onclick="promptDeleteRack()" title="Hapus Rak yang Dipilih" style="padding: 0.6rem 0.75rem; border-radius: var(--border-radius-sm); color: var(--color-danger, #ef4444); display: flex; align-items: center; justify-content: center;">
-                          <i data-lucide="trash-2" style="width: 15px; height: 15px;"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-group" style="margin-top: 0.5rem;">
-                    <label for="prod-expiry" style="display: flex; align-items: center; gap: 0.5rem; color: #d97706;">
-                      <i data-lucide="calendar" class="icon-sm"></i>
-                      Tanggal Kadaluarsa (Expired Date)
-                    </label>
-                    <input type="date" id="prod-expiry" title="Boleh dikosongkan jika produk tidak memiliki masa kadaluarsa">
-                  </div>
-                  
-                  <!-- FITUR KEMASAN MULTI-SATUAN BERTINGKAT (Pcs / Renteng / Pack / Dus) -->
-                  <div class="form-group" style="margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-body, #f8fafc); border: 1px dashed var(--border-color, #cbd5e1); border-radius: var(--border-radius-md, 8px);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
-                      <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700; cursor: pointer; user-select: none; margin: 0;">
-                        <input type="checkbox" id="chk-prod-enable-box" onchange="toggleMultiUnitFields()" style="width: 17px; height: 17px; cursor: pointer; accent-color: var(--primary);">
-                        <span>Aktifkan Multi-Satuan Bertingkat (Renteng, Pack, Dus, dll)</span>
-                      </label>
-                      <button type="button" class="btn btn-secondary btn-sm" id="btn-add-unit-tier" onclick="addMultiUnitRow()" style="display: none; padding: 0.25rem 0.6rem; font-size: 0.78rem; font-weight: 700;">
-                        + Tambah Satuan Lain
-                      </button>
-                    </div>
-                    <select id="prod-has-box" style="display: none;">
-                      <option value="no">Tidak</option>
-                      <option value="yes">Ya</option>
-                    </select>
-
-                    <div id="prod-box-fields" style="display: none; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem;">
-                      <div id="multi-units-container" style="display: flex; flex-direction: column; gap: 0.5rem;">
-                        <!-- Baris satuan bertingkat diisi dinamis oleh JS -->
-                      </div>
-                      <small style="color: var(--text-muted); font-size: 0.75rem;">
-                        💡 <i>Setiap satuan memiliki barcode tersendiri dan rasio isi pcs. Saat kasir scan barcode satuan ini, stok produk dasar otomatis terpotong sesuai rasio isi.</i>
-                      </small>
-                    </div>
-                  </div>
-                  
-                  <!-- ATURAN HARGA GROSIR / KHUSUS (JUMLAH BANYAK) -->
-                  <div class="form-group" style="margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-body, #f8fafc); border: 1px dashed #3b82f6; border-radius: var(--border-radius-md, 8px);">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: #2563eb; cursor: pointer; user-select: none;">
-                      <input type="checkbox" id="chk-prod-enable-grosir" onchange="toggleGrosirFields()" style="width: 17px; height: 17px; cursor: pointer; accent-color: #2563eb;">
-                      <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                      <span>Aturan Harga Khusus / Grosir (Otomatis di Kasir)</span>
-                    </label>
-                    <div id="prod-grosir-fields" style="display: none; margin-top: 0.6rem;">
-                      <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">
-                        Contoh: Beli 12 pcs dapat harga khusus Rp 10.000 (jika eceran satuan @Rp 2.000).
-                      </div>
-                      <div class="form-grid-2">
-                        <div class="form-group">
-                          <label for="prod-grosir-qty">Min. Pembelian (Pcs)</label>
-                          <input type="number" id="prod-grosir-qty" min="0" placeholder="Contoh: 12">
-                        </div>
-                        <div class="form-group">
-                          <label for="prod-grosir-price">Harga Paket Grosir (Rp)</label>
-                          <input type="number" id="prod-grosir-price" min="0" placeholder="Contoh: 10000">
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <!-- ATURAN PROMO BELI X GRATIS Y (BUY X GET Y FREE) -->
-                  <div class="form-group" style="margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-body, #f8fafc); border: 1px dashed #10b981; border-radius: var(--border-radius-md, 8px);">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: #059669; cursor: pointer; user-select: none;">
-                      <input type="checkbox" id="chk-prod-enable-buy-get" onchange="toggleBuyGetFields()" style="width: 17px; height: 17px; cursor: pointer; accent-color: #059669;">
-                      <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8v12"/><path d="M19 12v3"/><path d="M5 12v3"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
-                      <span>Aturan Promo Beli X Gratis Y (Buy X Get Y Free)</span>
-                    </label>
-                    <div id="prod-buyget-fields" style="display: none; margin-top: 0.6rem;">
-                      <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">
-                        Contoh: Beli 2 Gratis 1 (Pelanggan bawa 3 barang, otomatis 1 barang dihitung gratis Rp 0).
-                      </div>
-                      <div class="form-grid-2">
-                        <div class="form-group">
-                          <label for="prod-promo-buy-x">Beli (Pcs)</label>
-                          <input type="number" id="prod-promo-buy-x" min="0" placeholder="Contoh: 2">
-                        </div>
-                        <div class="form-group">
-                          <label for="prod-promo-get-y">Gratis (Pcs)</label>
-                          <input type="number" id="prod-promo-get-y" min="0" placeholder="Contoh: 1">
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div class="form-grid-2" id="promo-fields-container">
-                    <div class="form-group">
-                      <label for="prod-promo-price">Harga Diskon Satuan (Opsional)</label>
-                      <input type="number" id="prod-promo-price" min="0" placeholder="Contoh: 8000">
-                    </div>
-                    <div class="form-group">
-                      <label for="prod-promo-quota">Kuota Promo</label>
-                      <input type="number" id="prod-promo-quota" min="0" placeholder="Contoh: 5">
-                    </div>
-                  </div>
-                  <div class="form-group" style="margin-top: 0.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                      <label for="prod-image" style="margin: 0; font-weight: 700;">URL Gambar Produk (Opsional)</label>
-                      <span style="font-size: 0.73rem; color: var(--text-muted);">Mendukung Google Drive, Imgur, Cloudinary, Web URL</span>
-                    </div>
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
-                      <input type="text" id="prod-image" placeholder="https://contoh.com/gambar.jpg atau link Google Drive" oninput="previewProductImage(this.value)" style="flex: 1;">
-                      <button type="button" class="btn btn-secondary btn-sm" onclick="previewProductImage(document.getElementById('prod-image').value)" style="padding: 0.55rem 0.75rem; font-weight: 600;">Lihat</button>
-                    </div>
-                    <div id="prod-image-preview-container" style="display: none; margin-top: 0.6rem; text-align: center; background: #f8fafc; border: 1px dashed var(--border-color); border-radius: 8px; padding: 0.6rem;">
-                      <img id="prod-image-preview" src="" alt="Pratinjau Produk" onerror="handleImageError(this)" style="max-height: 140px; max-width: 100%; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); object-fit: contain;">
-                      <div id="prod-image-preview-tip" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.3rem;"></div>
-                    </div>
-                  </div>
-                </div>
-                <div class="modal-footer flex-end">
-                  <button type="button" class="btn btn-secondary" onclick="closeProductModal()">Batal</button>
-                  <button type="submit" class="btn btn-accent" id="btn-save-product">Simpan Produk</button>
-                </div>
-              </form>
-            </div>
-          </div>
-          
           <!-- Product List Table with Search Filter -->
           <div class="card table-card" style="grid-column: 1 / -1;">
             <div class="table-header" style="flex-wrap: wrap; gap: 1rem;">
@@ -2374,9 +2192,9 @@
                     <th>Harga Jual</th>
                     <th>Stok</th>
                     <th>Barcode</th>
-                    <th>Rak</th>
-                    <th>Kadaluarsa</th>
-                    <th>Aksi</th>
+                    <th style="width: 85px; max-width: 90px; white-space: nowrap;">Rak</th>
+                    <th style="width: 105px; max-width: 110px; white-space: nowrap;">Kadaluarsa</th>
+                    <th style="width: 115px; min-width: 115px; text-align: center; white-space: nowrap;">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="products-table-body">
@@ -6291,6 +6109,15 @@
     </div>
 
     <div class="m3-sheet-grid">
+      <!-- Item Antrean Keranjang Belanja -->
+      <button type="button" class="m3-sheet-item" onclick="closeMobileMoreSheet(); openHeldCartsModal();">
+        <div class="m3-sheet-icon" style="background:#ffedd5; color:#ea580c; position: relative;">
+          <svg viewBox="0 0 24 24"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5v2l4 9v4"/></svg>
+          <span id="m3-held-carts-badge" style="display: none; position: absolute; top: -3px; right: -3px; background: #ef4444; color: #fff; border-radius: 50%; width: 16px; height: 16px; font-size: 9px; align-items: center; justify-content: center; font-weight: 800;">0</span>
+        </div>
+        <span>Antrean Kasir</span>
+      </button>
+
       <!-- Item Sales & Kulak -->
       <button type="button" class="m3-sheet-item" onclick="switchTabFromSheet('kulak')">
         <div class="m3-sheet-icon" style="background:#eff6ff; color:#2563eb;">
@@ -6678,7 +6505,7 @@
     </div>
   </div>
 
-  <!-- MODAL KUNCI AKTIVASI PERANGKAT (ANTI-PIRACY HARDWARE LOCK) -->
+  <!-- MODAL INPUT LISENSI TOKO (DEMO & LISENSI RESMI) -->
   <div id="device-activation-modal" style="display: none; position: fixed; inset: 0; z-index: 999999; background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 1.5rem;">
     <div style="background: #ffffff; width: 100%; max-width: 480px; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35); overflow: hidden; border: 1px solid #cbd5e1; animation: modalFadeIn 0.3s ease;">
       <!-- Header -->
@@ -6686,50 +6513,37 @@
         <div style="width: 56px; height: 56px; background: rgba(255, 255, 255, 0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.75rem;">
           <svg viewBox="0 0 24 24" style="width: 28px; height: 28px; stroke: #ffffff; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
-        <h2 style="font-size: 1.25rem; font-weight: 800; margin: 0 0 0.25rem 0; letter-spacing: -0.02em;">Aktivasi Perangkat Diperlukan</h2>
-        <p style="font-size: 0.82rem; margin: 0; opacity: 0.9;">Aplikasi Kasir POS Sahil belum teraktivasi di komputer ini.</p>
+        <h2 style="font-size: 1.25rem; font-weight: 800; margin: 0 0 0.25rem 0; letter-spacing: -0.02em;">Aktivasi Lisensi Toko</h2>
+        <p style="font-size: 0.82rem; margin: 0; opacity: 0.9;">Selamat datang di Aplikasi Kasir Toko Sahil POS Desktop.</p>
       </div>
 
       <!-- Body -->
       <div style="padding: 1.5rem;">
-        <div style="font-size: 0.85rem; color: #475569; margin-bottom: 1rem; line-height: 1.5;">
-          Aplikasi ini diproteksi oleh <b>Hardware Binding</b>. Untuk membuka akses kasir pada komputer ini, silakan salin <b>Hardware ID</b> di bawah ini dan kirimkan ke Pengembang Resmi untuk mendapatkan <b>Kunci Aktivasi Resmi</b>.
-        </div>
-
-        <!-- Box Hardware ID -->
-        <div style="background: #f8fafc; border: 1px dashed #94a3b8; border-radius: 10px; padding: 0.85rem; margin-bottom: 1.25rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-            <span style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase;">Hardware ID Komputer Ini:</span>
-            <button type="button" onclick="copyActivationModalHwid()" style="background: #e2e8f0; border: none; padding: 0.2rem 0.6rem; border-radius: 6px; font-size: 0.75rem; font-weight: 700; color: #1e293b; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;">
-              📋 Salin ID
-            </button>
-          </div>
-          <div id="activation-modal-hwid" style="font-family: monospace; font-size: 1.1rem; font-weight: 800; color: #ea580c; letter-spacing: 0.05em; word-break: break-all;">
-            MEMUAT...
-          </div>
+        <div style="font-size: 0.85rem; color: #475569; margin-bottom: 1.25rem; line-height: 1.5;">
+          Silakan masukkan <b>Kode Lisensi Toko</b> Anda atau gunakan lisensi <b>DEMO</b> untuk langsung mencoba fitur kasir secara gratis tanpa kunci aktivasi.
         </div>
 
         <!-- Form Input Kunci Aktivasi -->
         <div style="margin-bottom: 1.25rem;">
-          <label for="input-device-activation-key" style="display: block; font-size: 0.82rem; font-weight: 700; color: #1e293b; margin-bottom: 0.35rem;">Masukkan Kunci Aktivasi:</label>
-          <input type="text" id="input-device-activation-key" placeholder="Contoh: AKT-XXXX-XXXX-XXXX" style="width: 100%; padding: 0.65rem 0.85rem; font-size: 0.95rem; font-family: monospace; font-weight: 700; text-transform: uppercase; border: 2px solid #cbd5e1; border-radius: 8px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#ea580c'" onblur="this.style.borderColor='#cbd5e1'">
-          <small id="activation-error-msg" style="display: none; color: #dc2626; font-size: 0.78rem; font-weight: 600; margin-top: 0.35rem;">Kunci aktivasi salah atau tidak sesuai untuk komputer ini!</small>
+          <label for="input-device-activation-key" style="display: block; font-size: 0.82rem; font-weight: 700; color: #1e293b; margin-bottom: 0.35rem;">Kode Lisensi Toko:</label>
+          <input type="text" id="input-device-activation-key" placeholder="Contoh: DEMO" style="width: 100%; padding: 0.7rem 0.85rem; font-size: 1rem; font-family: monospace; font-weight: 700; text-transform: uppercase; border: 2px solid #cbd5e1; border-radius: 8px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#ea580c'" onblur="this.style.borderColor='#cbd5e1'" value="DEMO">
+          <small id="activation-error-msg" style="display: none; color: #dc2626; font-size: 0.78rem; font-weight: 600; margin-top: 0.35rem;">Kode lisensi tidak valid atau belum terdaftar!</small>
         </div>
 
         <!-- Tombol Aksi -->
         <div style="display: flex; flex-direction: column; gap: 0.6rem;">
           <button type="button" onclick="submitDeviceActivation()" id="btn-submit-device-activation" style="width: 100%; background: #ea580c; color: #ffffff; border: none; padding: 0.75rem; border-radius: 10px; font-size: 0.92rem; font-weight: 700; cursor: pointer; transition: background 0.2s; box-shadow: 0 4px 6px -1px rgba(234, 88, 12, 0.25);">
-            🔓 Aktivasi Sekarang
+            🔓 Masuk & Aktifkan Aplikasi
           </button>
           <button type="button" onclick="contactDevForActivation()" style="width: 100%; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 0.65rem; border-radius: 10px; font-size: 0.85rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.4rem;">
-            💬 Hubungi Pengembang via WhatsApp
+            💬 Beli Lisensi Resmi / Hubungi Admin
           </button>
         </div>
       </div>
     </div>
   </div>
 
-        <!-- ═══════════════════════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════════════════════
              MODAL: TABUNGAN ANGGOTA (PREMIUM PRIVATE BANKING EDITION)
         ═══════════════════════════════════════════════════════════ -->
         <div id="savings-account-modal" class="modal-overlay" style="display: none; z-index: 2950; backdrop-filter: blur(8px); background: rgba(15, 23, 42, 0.65);">
@@ -7401,6 +7215,190 @@
     </div>
   </div>
 
+
+  <!-- Product Edit Popup Modal (Hidden by Default) -->
+          <div class="modal-overlay" id="product-edit-modal" style="display: none;">
+            <div class="modal-card" style="max-width: 600px;">
+              <div class="modal-header">
+                <h3 id="form-title">Tambah Produk Baru</h3>
+                <button type="button" class="close-modal-btn" onclick="closeProductModal()">&times;</button>
+              </div>
+              <form id="product-form" onsubmit="saveProduct(event)" onkeydown="if(event.key==='Enter' && event.target.tagName !== 'BUTTON'){event.preventDefault();}" style="display: flex; flex-direction: column; max-height: calc(90vh - 120px);">
+                <div class="modal-body" style="overflow-y: auto; padding-right: 10px;">
+                  <input type="hidden" id="edit-index" value="-1">
+                  
+                  <div class="form-group">
+                    <label for="prod-id">ID Produk (contoh: P001)*</label>
+                    <input type="text" id="prod-id" required placeholder="P001">
+                  </div>
+                  <div class="form-group">
+                    <label for="prod-name">Nama Produk*</label>
+                    <input type="text" id="prod-name" required placeholder="Kopi Susu Aren">
+                  </div>
+                  <div class="form-group">
+                    <label for="prod-category">Kategori</label>
+                    <div style="display: flex; gap: 0.35rem; align-items: center;">
+                      <select id="prod-category" class="form-control" style="flex: 1; padding: 0.6rem 0.75rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main); font-size: 0.95rem;">
+                        <option value="Umum">Umum</option>
+                      </select>
+                      <button type="button" class="btn btn-secondary" onclick="promptAddNewCategory()" title="Tambah Kategori Baru" style="padding: 0.6rem 0.75rem; font-weight: 700; font-size: 1.1rem; line-height: 1; border-radius: var(--border-radius-sm);">
+                        +
+                      </button>
+                      <button type="button" class="btn btn-secondary" onclick="promptDeleteCategory()" title="Hapus Kategori yang Dipilih" style="padding: 0.6rem 0.75rem; border-radius: var(--border-radius-sm); color: var(--color-danger, #ef4444); display: flex; align-items: center; justify-content: center;">
+                        <svg viewBox="0 0 24 24" style="width: 17px; height: 17px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="form-grid-2">
+                    <div class="form-group">
+                      <label for="prod-price-buy">Harga Beli (Rp)*</label>
+                      <input type="number" id="prod-price-buy" required min="0" placeholder="10000" oninput="updateAllMultiUnitHints()">
+                    </div>
+                    <div class="form-group">
+                      <label for="prod-price-sell">Harga Jual (Rp)*</label>
+                      <input type="number" id="prod-price-sell" required min="0" placeholder="15000" oninput="updateAllMultiUnitHints()">
+                    </div>
+                  </div>
+                  <div class="form-grid-3" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                      <label for="prod-stock">Stok Awal*</label>
+                      <input type="number" id="prod-stock" required min="0" placeholder="50">
+                    </div>
+                    <div class="form-group">
+                      <label for="prod-barcode">Barcode (Opsional)</label>
+                      <input type="text" id="prod-barcode" placeholder="Scan Barcode">
+                    </div>
+                    <div class="form-group">
+                      <label for="prod-rack">Lokasi Rak</label>
+                      <div style="display: flex; gap: 0.35rem; align-items: center;">
+                        <select id="prod-rack" class="form-control" style="flex: 1; padding: 0.6rem 0.5rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main); font-size: 0.95rem;">
+                          <option value="">-- Tanpa Rak --</option>
+                        </select>
+                        <button type="button" class="btn btn-secondary" onclick="promptAddNewRack()" title="Tambah Rak Baru" style="padding: 0.6rem 0.75rem; font-weight: 700; font-size: 1.1rem; line-height: 1; border-radius: var(--border-radius-sm);">
+                          <i data-lucide="plus" style="width: 15px; height: 15px;"></i>
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="promptDeleteRack()" title="Hapus Rak yang Dipilih" style="padding: 0.6rem 0.75rem; border-radius: var(--border-radius-sm); color: var(--color-danger, #ef4444); display: flex; align-items: center; justify-content: center;">
+                          <i data-lucide="trash-2" style="width: 15px; height: 15px;"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group" style="margin-top: 0.5rem;">
+                    <label for="prod-expiry" style="display: flex; align-items: center; gap: 0.5rem; color: #d97706;">
+                      <i data-lucide="calendar" class="icon-sm"></i>
+                      Tanggal Kadaluarsa (Expired Date)
+                    </label>
+                    <input type="date" id="prod-expiry" title="Boleh dikosongkan jika produk tidak memiliki masa kadaluarsa">
+                  </div>
+                  
+                  <!-- FITUR KEMASAN MULTI-SATUAN BERTINGKAT (Pcs / Renteng / Pack / Dus) -->
+                  <div class="form-group" style="margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-body, #f8fafc); border: 1px dashed var(--border-color, #cbd5e1); border-radius: var(--border-radius-md, 8px);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+                      <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700; cursor: pointer; user-select: none; margin: 0;">
+                        <input type="checkbox" id="chk-prod-enable-box" onchange="toggleMultiUnitFields()" style="width: 17px; height: 17px; cursor: pointer; accent-color: var(--primary);">
+                        <span>Aktifkan Multi-Satuan Bertingkat (Renteng, Pack, Dus, dll)</span>
+                      </label>
+                      <button type="button" class="btn btn-secondary btn-sm" id="btn-add-unit-tier" onclick="addMultiUnitRow()" style="display: none; padding: 0.25rem 0.6rem; font-size: 0.78rem; font-weight: 700;">
+                        + Tambah Satuan Lain
+                      </button>
+                    </div>
+                    <select id="prod-has-box" style="display: none;">
+                      <option value="no">Tidak</option>
+                      <option value="yes">Ya</option>
+                    </select>
+
+                    <div id="prod-box-fields" style="display: none; flex-direction: column; gap: 0.6rem; margin-top: 0.5rem;">
+                      <div id="multi-units-container" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <!-- Baris satuan bertingkat diisi dinamis oleh JS -->
+                      </div>
+                      <small style="color: var(--text-muted); font-size: 0.75rem;">
+                        💡 <i>Setiap satuan memiliki barcode tersendiri dan rasio isi pcs. Saat kasir scan barcode satuan ini, stok produk dasar otomatis terpotong sesuai rasio isi.</i>
+                      </small>
+                    </div>
+                  </div>
+                  
+                  <!-- ATURAN HARGA GROSIR / KHUSUS (JUMLAH BANYAK) -->
+                  <div class="form-group" style="margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-body, #f8fafc); border: 1px dashed #3b82f6; border-radius: var(--border-radius-md, 8px);">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: #2563eb; cursor: pointer; user-select: none;">
+                      <input type="checkbox" id="chk-prod-enable-grosir" onchange="toggleGrosirFields()" style="width: 17px; height: 17px; cursor: pointer; accent-color: #2563eb;">
+                      <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                      <span>Aturan Harga Khusus / Grosir (Otomatis di Kasir)</span>
+                    </label>
+                    <div id="prod-grosir-fields" style="display: none; margin-top: 0.6rem;">
+                      <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                        Contoh: Beli 12 pcs dapat harga khusus Rp 10.000 (jika eceran satuan @Rp 2.000).
+                      </div>
+                      <div class="form-grid-2">
+                        <div class="form-group">
+                          <label for="prod-grosir-qty">Min. Pembelian (Pcs)</label>
+                          <input type="number" id="prod-grosir-qty" min="0" placeholder="Contoh: 12">
+                        </div>
+                        <div class="form-group">
+                          <label for="prod-grosir-price">Harga Paket Grosir (Rp)</label>
+                          <input type="number" id="prod-grosir-price" min="0" placeholder="Contoh: 10000">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- ATURAN PROMO BELI X GRATIS Y (BUY X GET Y FREE) -->
+                  <div class="form-group" style="margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-body, #f8fafc); border: 1px dashed #10b981; border-radius: var(--border-radius-md, 8px);">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: #059669; cursor: pointer; user-select: none;">
+                      <input type="checkbox" id="chk-prod-enable-buy-get" onchange="toggleBuyGetFields()" style="width: 17px; height: 17px; cursor: pointer; accent-color: #059669;">
+                      <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M12 8v12"/><path d="M19 12v3"/><path d="M5 12v3"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
+                      <span>Aturan Promo Beli X Gratis Y (Buy X Get Y Free)</span>
+                    </label>
+                    <div id="prod-buyget-fields" style="display: none; margin-top: 0.6rem;">
+                      <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                        Contoh: Beli 2 Gratis 1 (Pelanggan bawa 3 barang, otomatis 1 barang dihitung gratis Rp 0).
+                      </div>
+                      <div class="form-grid-2">
+                        <div class="form-group">
+                          <label for="prod-promo-buy-x">Beli (Pcs)</label>
+                          <input type="number" id="prod-promo-buy-x" min="0" placeholder="Contoh: 2">
+                        </div>
+                        <div class="form-group">
+                          <label for="prod-promo-get-y">Gratis (Pcs)</label>
+                          <input type="number" id="prod-promo-get-y" min="0" placeholder="Contoh: 1">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="form-grid-2" id="promo-fields-container">
+                    <div class="form-group">
+                      <label for="prod-promo-price">Harga Diskon Satuan (Opsional)</label>
+                      <input type="number" id="prod-promo-price" min="0" placeholder="Contoh: 8000">
+                    </div>
+                    <div class="form-group">
+                      <label for="prod-promo-quota">Kuota Promo</label>
+                      <input type="number" id="prod-promo-quota" min="0" placeholder="Contoh: 5">
+                    </div>
+                  </div>
+                  <div class="form-group" style="margin-top: 0.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                      <label for="prod-image" style="margin: 0; font-weight: 700;">URL Gambar Produk (Opsional)</label>
+                      <span style="font-size: 0.73rem; color: var(--text-muted);">Mendukung Google Drive, Imgur, Cloudinary, Web URL</span>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                      <input type="text" id="prod-image" placeholder="https://contoh.com/gambar.jpg atau link Google Drive" oninput="previewProductImage(this.value)" style="flex: 1;">
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="previewProductImage(document.getElementById('prod-image').value)" style="padding: 0.55rem 0.75rem; font-weight: 600;">Lihat</button>
+                    </div>
+                    <div id="prod-image-preview-container" style="display: none; margin-top: 0.6rem; text-align: center; background: #f8fafc; border: 1px dashed var(--border-color); border-radius: 8px; padding: 0.6rem;">
+                      <img id="prod-image-preview" src="" alt="Pratinjau Produk" onerror="handleImageError(this)" style="max-height: 140px; max-width: 100%; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); object-fit: contain;">
+                      <div id="prod-image-preview-tip" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.3rem;"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="modal-footer flex-end">
+                  <button type="button" class="btn btn-secondary" onclick="closeProductModal()">Batal</button>
+                  <button type="submit" class="btn btn-accent" id="btn-save-product">Simpan Produk</button>
+                </div>
+              </form>
+            </div>
+          </div>
+          
+          
 
   <!-- MODAL KONFIRMASI MODERN (PENGGANTI WINDOW.CONFIRM POP-UP NATIVE) -->
   <div class="modal-overlay" id="app-confirm-modal" style="display: none; z-index: 1000000; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);">

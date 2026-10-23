@@ -4,7 +4,7 @@
 
 /* --- Design Tokens & CSS Variables (Modern SaaS Edition) --- */
 :root {
-  --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Segoe UI Symbol', 'Segoe UI Emoji', Arial, Tahoma, sans-serif;
   
   /* Modern SaaS Color Palette */
   --bg-app: #f8fafc;                /* Ultra crisp slate-50 */
@@ -3190,23 +3190,23 @@ tr:hover td {
     color: #94a3b8;
     font-family: monospace;
   }
-  #products-table td:nth-child(11) { /* Tombol Aksi */
+  #products-table td:nth-child(12) { /* Tombol Aksi (Kolom 12) */
     grid-column: 4;
     grid-row: 3;
     display: flex !important;
     justify-content: flex-end;
   }
-  #products-table td:nth-child(11) > div {
+  #products-table td:nth-child(12) > div {
     display: flex;
     gap: 0.25rem;
   }
-  #products-table td:nth-child(11) .action-icon-btn {
+  #products-table td:nth-child(12) .action-icon-btn {
     width: 28px;
     height: 28px;
     padding: 0;
     border-radius: 6px;
   }
-  #products-table td:nth-child(11) .action-icon-btn svg {
+  #products-table td:nth-child(12) .action-icon-btn svg {
     width: 14px;
     height: 14px;
   }
@@ -3214,7 +3214,8 @@ tr:hover td {
   /* Sembunyikan kolom sekunder (Harga Beli, Barcode panjang, Kadaluarsa) di ringkasan kartu mobile */
   #products-table td:nth-child(6),
   #products-table td:nth-child(9),
-  #products-table td:nth-child(10) {
+  #products-table td:nth-child(10),
+  #products-table td:nth-child(11) {
     display: none !important;
   }
 

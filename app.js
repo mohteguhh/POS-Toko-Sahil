@@ -4238,8 +4238,21 @@ function switchTabFromSheet(tabName) {
   switchTab(tabName);
 }
 
-// Fokuskan kursor ke input kasir (Instan tanpa jeda)
-function focusSearchInput() {
+// Helper untuk mendeteksi apakah perangkat saat ini adalah mode mobile / touch
+function isMobileMode() {
+  const isSmallScreen = window.innerWidth <= 768;
+  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '');
+  return isSmallScreen || (isTouchDevice && isMobileUA);
+}
+
+// Fokuskan kursor ke input kasir (Instan tanpa jeda, otomatis di desktop, hanya manual di mode mobile)
+function focusSearchInput(forceFocus = false) {
+  // Jika perangkat berada dalam mode mobile/HP dan tidak dipaksa secara manual, jangan fokus otomatis agar keyboard virtual tidak terus muncul menutupi layar
+  if (!forceFocus && isMobileMode()) {
+    return;
+  }
+
   requestAnimationFrame(() => {
     const input = document.getElementById('search-input');
     if (input && activeTab === 'pos') {
@@ -10835,9 +10848,9 @@ function renderProductsTable(highlightProductId = null) {
       const expDate = new Date(p.tanggal_kadaluarsa);
       const diffDays = Math.ceil((expDate - new Date()) / (1000 * 60 * 60 * 24));
       if (diffDays < 0) {
-        expBadge = `<span style="color:var(--color-danger); font-weight:700;">${p.tanggal_kadaluarsa} (KADALUARSA)</span>`;
+        expBadge = `<span style="color:var(--color-danger); font-weight:700; font-size:0.75rem; white-space:nowrap;" title="Kadaluarsa">${p.tanggal_kadaluarsa}<br><small style="font-size:0.7rem;">(KADALUARSA)</small></span>`;
       } else if (diffDays <= 30) {
-        expBadge = `<span style="color:#b45309; font-weight:700;">${p.tanggal_kadaluarsa} (${diffDays} hari lagi)</span>`;
+        expBadge = `<span style="color:#b45309; font-weight:700; font-size:0.75rem; white-space:nowrap;">${p.tanggal_kadaluarsa}<br><small style="font-size:0.7rem;">(${diffDays} hr lagi)</small></span>`;
       }
     }
     
@@ -10847,8 +10860,8 @@ function renderProductsTable(highlightProductId = null) {
     }
     
     let rackDisplay = p.rak 
-      ? `<span style="font-weight:600; color:var(--color-primary); background:rgba(79,70,229,0.08); padding:0.15rem 0.45rem; border-radius:4px; font-size:0.82rem; white-space:nowrap; display:inline-flex; align-items:center; gap:0.25rem;"><i data-lucide="map-pin" style="width:12px; height:12px;"></i> ${p.rak}</span>`
-      : `<span style="color:var(--text-muted); font-size:0.8rem;">-</span>`;
+      ? `<span style="font-weight:600; color:var(--color-primary); background:rgba(79,70,229,0.08); padding:0.1rem 0.35rem; border-radius:4px; font-size:0.75rem; white-space:nowrap; display:inline-flex; align-items:center; gap:0.2rem;" title="${p.rak}">📍 ${p.rak}</span>`
+      : `<span style="color:var(--text-muted); font-size:0.75rem;">-</span>`;
     
     let hargaJualDisplay = `Rp ${formatRupiah(p.harga_jual)}`;
     if ((parseInt(p.isi_box) || 0) > 1 && (parseFloat(p.harga_box) || 0) > 0) {
@@ -10877,8 +10890,8 @@ function renderProductsTable(highlightProductId = null) {
       <td>${barcodeDisplay}</td>
       <td>${rackDisplay}</td>
       <td>${expBadge}</td>
-      <td>
-        <div style="display: flex; gap: 0.35rem;">
+      <td style="width: 115px; min-width: 115px; text-align: center; white-space: nowrap;">
+        <div style="display: inline-flex; gap: 0.35rem; justify-content: center; align-items: center;">
           <button class="action-icon-btn btn-edit" onclick="editProduct(${originalIndex})" title="Edit">
             <i data-lucide="edit-3" class="icon-sm"></i>
           </button>
@@ -21386,6 +21399,11 @@ async function updateHeldCartsUI() {
     badge.textContent = heldCarts.length;
     badge.style.display = heldCarts.length > 0 ? 'flex' : 'none';
   }
+  const m3Badge = document.getElementById('m3-held-carts-badge');
+  if (m3Badge) {
+    m3Badge.textContent = heldCarts.length;
+    m3Badge.style.display = heldCarts.length > 0 ? 'flex' : 'none';
+  }
 }
 
 // Tutup menu sidebar hamburger jika mengklik di luar area menu
@@ -21401,42 +21419,51 @@ document.addEventListener('click', function(event) {
 
 async function openHeldCartsModal() {
   const tbody = document.getElementById('held-carts-tbody');
-  tbody.innerHTML = '';
+  if (tbody) tbody.innerHTML = '';
   
-  if (heldCarts.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 2rem;">Tidak ada antrean keranjang.</td></tr>`;
-  } else {
-    heldCarts.forEach((h, index) => {
-      const dateObj = new Date(h.time);
-      const timeStr = dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-      
-      let totalItems = h.items.reduce((sum, i) => sum + i.qty, 0);
-      let totalHarga = h.items.reduce((sum, i) => sum + (i.harga * i.qty), 0);
-      
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color);"><strong>${h.name}</strong><br><small style="color: var(--text-muted)">${timeStr}</small></td>
-        <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color);">${totalItems} item</td>
-        <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color);">Rp ${formatRupiah(totalHarga)}</td>
-        <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color); text-align: right;">
-          <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-            <button class="btn btn-primary btn-sm" onclick="restoreHeldCart(${index})" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Lanjutkan</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteHeldCart(${index})" style="padding: 0.25rem 0.5rem; display: flex; align-items: center; justify-content: center;">
-              <svg viewBox="0 0 24 24" class="icon-sm" style="margin:0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-            </button>
-          </div>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
+  if (tbody) {
+    if (!Array.isArray(heldCarts) || heldCarts.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 2rem;">Tidak ada antrean keranjang.</td></tr>`;
+    } else {
+      heldCarts.forEach((h, index) => {
+        const dateObj = new Date(h.time || Date.now());
+        const timeStr = dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        
+        let totalItems = (h.items || []).reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
+        let totalHarga = (h.items || []).reduce((sum, i) => sum + ((Number(i.harga) || 0) * (Number(i.qty) || 0)), 0);
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color);"><strong>${escapeHtml(h.name || 'Antrean')}</strong><br><small style="color: var(--text-muted)">${timeStr}</small></td>
+          <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color);">${totalItems} item</td>
+          <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color);">Rp ${formatRupiah(totalHarga)}</td>
+          <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color); text-align: right;">
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+              <button class="btn btn-primary btn-sm" onclick="restoreHeldCart(${index})" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Lanjutkan</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteHeldCart(${index})" style="padding: 0.25rem 0.5rem; display: flex; align-items: center; justify-content: center;">
+                <svg viewBox="0 0 24 24" class="icon-sm" style="margin:0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
   }
   
-  document.getElementById('held-carts-modal').classList.add('active');
+  const hcModal = document.getElementById('held-carts-modal');
+  if (hcModal) {
+    hcModal.style.display = 'flex';
+    hcModal.classList.add('active');
+  }
 }
 
 async function closeHeldCartsModal() {
   const hcModal = document.getElementById('held-carts-modal');
-  if (hcModal) { hcModal.classList.remove('active'); hcModal.style.display = 'none'; }
+  if (hcModal) {
+    hcModal.classList.remove('active');
+    hcModal.style.display = 'none';
+  }
 }
 
 async function restoreHeldCart(index) {
@@ -29769,7 +29796,7 @@ async function submitDeviceActivation() {
   const licenseKey = input ? input.value.trim().toUpperCase() : '';
 
   if (!licenseKey) {
-    alert('Silakan masukkan Kode Lisensi Toko Anda!');
+    alert('Silakan masukkan Kode Lisensi Toko Anda (atau ketik DEMO)!');
     if (input) input.focus();
     return;
   }
@@ -29777,68 +29804,74 @@ async function submitDeviceActivation() {
   if (errorMsg) errorMsg.style.display = 'none';
   if (btn) {
     btn.disabled = true;
-    btn.textContent = '⏳ Memvalidasi ke Server...';
+    btn.textContent = '⏳ Memvalidasi Lisensi...';
   }
 
   try {
-    // 1. Cek koneksi internet dan validasi ke Firebase Cloud Database
-    if (typeof firebase === 'undefined' || !fbConfig) {
-      throw new Error('Koneksi internet tidak tersedia atau modul Cloud tidak siap.');
-    }
-
-    if (!firebase.apps || firebase.apps.length === 0) {
-      firebase.initializeApp(fbConfig);
-    }
-    const db = firebase.database();
-    
-    // Periksa kode lisensi di tabel licenses/
-    const licSnap = await db.ref('licenses/' + licenseKey).once('value');
-    const licData = licSnap.val();
-
-    if (!licData) {
-      if (errorMsg) {
-        errorMsg.textContent = `Kode lisensi "${licenseKey}" tidak terdaftar di sistem! Pastikan kode lisensi benar atau hubungi Admin.`;
-        errorMsg.style.display = 'block';
-      } else {
-        alert(`Kode lisensi "${licenseKey}" tidak terdaftar di sistem!`);
+    // KASUS KHUSUS: Lisensi DEMO (Langsung jalan 100% tanpa internet / tanpa aktivasi rumit)
+    if (licenseKey === 'DEMO') {
+      if (window.desktopAPI && window.desktopAPI.activateDevice) {
+        await window.desktopAPI.activateDevice('DEMO');
       }
+      localStorage.setItem('kasir_license_key', 'DEMO');
+      currentLicenseKey = 'DEMO';
+
+      alert('🎉 SELAMAT DATANG!\n\nMode DEMO Berhasil Diaktifkan!\nAnda dapat mencoba dan menggunakan semua fitur aplikasi Kasir Toko Sahil secara leluasa.');
+      const modal = document.getElementById('device-activation-modal');
+      if (modal) modal.style.display = 'none';
+      window.location.reload();
       return;
     }
 
-    // Periksa apakah lisensi sudah expired atau suspended
-    const expDate = new Date(licData.expired_at);
-    const now = new Date();
-    if (licData.status === 'expired' || licData.status === 'suspended' || (licData.expired_at && now.getTime() > expDate.getTime())) {
-      if (errorMsg) {
-        errorMsg.textContent = `Lisensi "${licenseKey}" telah kedaluwarsa atau dinonaktifkan. Silakan hubungi Admin.`;
-        errorMsg.style.display = 'block';
-      } else {
-        alert(`Lisensi "${licenseKey}" telah kedaluwarsa.`);
+    // Untuk lisensi custom / berbayar: Cek ke Cloud Firebase jika ada koneksi
+    if (typeof firebase !== 'undefined' && fbConfig) {
+      try {
+        if (!firebase.apps || firebase.apps.length === 0) {
+          firebase.initializeApp(fbConfig);
+        }
+        const db = firebase.database();
+        const licSnap = await db.ref('licenses/' + licenseKey).once('value');
+        const licData = licSnap.val();
+
+        if (licData) {
+          const expDate = new Date(licData.expired_at);
+          const now = new Date();
+          if (licData.status === 'expired' || licData.status === 'suspended' || (licData.expired_at && now.getTime() > expDate.getTime())) {
+            if (errorMsg) {
+              errorMsg.textContent = `Lisensi "${licenseKey}" telah kedaluwarsa atau dinonaktifkan.`;
+              errorMsg.style.display = 'block';
+            }
+            return;
+          }
+        }
+      } catch (cloudErr) {
+        console.warn('Gagal cek cloud, melanjutkan aktivasi offline lokal:', cloudErr);
       }
-      return;
     }
 
-    // 2. Simpan lisensi secara permanen di storage Desktop lokal (agar selanjutnya bebas offline)
-    await window.desktopAPI.activateDevice(licenseKey);
+    // Simpan lisensi ke storage desktop lokal
+    if (window.desktopAPI && window.desktopAPI.activateDevice) {
+      await window.desktopAPI.activateDevice(licenseKey);
+    }
     localStorage.setItem('kasir_license_key', licenseKey);
     currentLicenseKey = licenseKey;
 
-    alert(`🎉 SELAMAT!\n\nLisensi Toko "${licenseKey}" BERHASIL DIAKTIVASI!\nAplikasi sekarang dapat digunakan sepenuhnya secara OFFLINE tanpa batasan.`);
+    alert(`🎉 SELAMAT!\n\nLisensi Toko "${licenseKey}" BERHASIL DIAKTIVASI!\nAplikasi siap digunakan sepenuhnya secara OFFLINE maupun ONLINE.`);
     const modal = document.getElementById('device-activation-modal');
     if (modal) modal.style.display = 'none';
     window.location.reload();
 
   } catch (err) {
     if (errorMsg) {
-      errorMsg.textContent = `Gagal aktivasi: Pastikan komputer terhubung ke internet saat aktivasi pertama kali (${err.message}).`;
+      errorMsg.textContent = `Gagal aktivasi: ${err.message}`;
       errorMsg.style.display = 'block';
     } else {
-      alert(`Gagal aktivasi: Pastikan internet aktif saat aktivasi pertama (${err.message})`);
+      alert(`Gagal aktivasi: ${err.message}`);
     }
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = '🔓 Validasi & Aktifkan Toko';
+      btn.textContent = '🔓 Masuk & Aktifkan Aplikasi';
     }
   }
 }

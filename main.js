@@ -9,6 +9,9 @@ const AdmZip = require('adm-zip');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('enable-smooth-scrolling');
+// Kompatibilitas Windows 7: bypass certificate errors untuk link gambar HTTPS & Google Drive
+app.commandLine.appendSwitch('ignore-certificate-errors');
+app.commandLine.appendSwitch('allow-insecure-localhost');
 
 let mainWindow;
 
@@ -201,7 +204,19 @@ function createWindow() {
   mainWindow.loadFile(entryFile);
 }
 
+// Tangani SSL Certificate Error (terutama di Windows 7 karena root CA sudah kedaluwarsa)
+app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+  event.preventDefault();
+  callback(true);
+});
+
 app.whenReady().then(async () => {
+  const { session } = require('electron');
+  if (session && session.defaultSession) {
+    session.defaultSession.setCertificateVerifyProc((request, callback) => {
+      callback(0); // 0 = Certificate is trusted (bypass expired SSL root on Win7)
+    });
+  }
   // Pastikan di lingkungan Electron desktop tidak ada Service Worker / CacheStorage
   // dari file:/// yang menyebabkan layar blank putih karena gagal resolve Response object.
   try {
