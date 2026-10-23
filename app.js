@@ -2802,6 +2802,24 @@ function loadData() {
     if (cachedSales) salesList = JSON.parse(cachedSales);
     const cachedDeliveries = localStorage.getItem('kasir_sales_deliveries');
     if (cachedDeliveries) salesDeliveries = JSON.parse(cachedDeliveries);
+
+    // Sinkronisasi sumber dana nota ke item riwayat bayar jika nota diset dana_lain
+    if (Array.isArray(salesDeliveries)) {
+      let changed = false;
+      salesDeliveries.forEach(d => {
+        if (d.sumberDana && d.sumberDana !== 'saldo_penjualan' && Array.isArray(d.riwayatBayar)) {
+          d.riwayatBayar.forEach(b => {
+            if (b.sumberDana !== d.sumberDana) {
+              b.sumberDana = d.sumberDana;
+              changed = true;
+            }
+          });
+        }
+      });
+      if (changed) {
+        saveSalesDeliveriesLocally();
+      }
+    }
     const cachedReturns = localStorage.getItem('kasir_sales_returns');
     if (cachedReturns) salesReturns = JSON.parse(cachedReturns);
 
@@ -4842,9 +4860,13 @@ function getCurrentCashierAvailableCash() {
   // 4. Pembayaran nota sales hari ini yang dipotong dari saldo penjualan kasir
   if (Array.isArray(salesDeliveries)) {
     salesDeliveries.forEach(d => {
+      // Jika nota itu sendiri diset sumber dana bukan saldo kasir, jangan kurangi kas
+      if (d.sumberDana && d.sumberDana !== 'saldo_penjualan') return;
+
       if (Array.isArray(d.riwayatBayar)) {
         d.riwayatBayar.forEach(b => {
-          if (b.tanggal && parseTxDateStr(b.tanggal) === todayStr && b.sumberDana === 'saldo_penjualan') {
+          const itemSource = b.sumberDana || d.sumberDana || 'saldo_penjualan';
+          if (b.tanggal && parseTxDateStr(b.tanggal) === todayStr && itemSource === 'saldo_penjualan') {
             cashOut += (Number(b.nominal) || 0);
           }
         });
@@ -5183,6 +5205,9 @@ function updateAnalytics() {
   let totalSalesPaidFromCash = 0;
   if (Array.isArray(salesDeliveries)) {
     salesDeliveries.forEach(d => {
+      // Jika nota kulak diset dana lain/kas toko, maka pembayaran tidak memotong kas penjualan
+      if (d.sumberDana && d.sumberDana !== 'saldo_penjualan') return;
+
       if (Array.isArray(d.riwayatBayar)) {
         d.riwayatBayar.forEach(b => {
           if (!b.tanggal) return;
@@ -5200,7 +5225,8 @@ function updateAnalytics() {
           } else {
             match = true;
           }
-          if (match && b.sumberDana === 'saldo_penjualan') {
+          const itemSource = b.sumberDana || d.sumberDana || 'saldo_penjualan';
+          if (match && itemSource === 'saldo_penjualan') {
             totalSalesPaidFromCash += (Number(b.nominal) || 0);
           }
         });
@@ -15228,6 +15254,9 @@ function printDailyReport() {
   const salesPaidNotes = [];
   if (Array.isArray(salesDeliveries)) {
     salesDeliveries.forEach(d => {
+      // Jika nota kulak diset dana lain/kas toko, maka pembayaran tidak memotong kas penjualan
+      if (d.sumberDana && d.sumberDana !== 'saldo_penjualan') return;
+
       if (Array.isArray(d.riwayatBayar)) {
         d.riwayatBayar.forEach(b => {
           if (!b.tanggal) return;
@@ -15245,7 +15274,8 @@ function printDailyReport() {
           } else {
             match = true;
           }
-          if (match && b.sumberDana === 'saldo_penjualan') {
+          const itemSource = b.sumberDana || d.sumberDana || 'saldo_penjualan';
+          if (match && itemSource === 'saldo_penjualan') {
             const nom = Number(b.nominal) || 0;
             totalSalesPaidFromCash += nom;
             salesPaidNotes.push(`Nota ${d.noNota || ''} (${d.salesName || 'Sales'}): Rp ${formatRupiah(nom)}`);
@@ -22316,6 +22346,10 @@ function openAddSalesDeliveryModal() {
   const paidInput = document.getElementById('delivery-paid-amount');
   if (paidInput) paidInput.value = 0;
 
+  // Set default sumber dana: gunakan dana lain / kas luar toko (bukan saldo kasir)
+  const fundSelect = document.getElementById('delivery-fund-source');
+  if (fundSelect) fundSelect.value = 'dana_lain';
+
   // Set default jatuh tempo (misal 14 hari ke depan)
   const dueGroup = document.getElementById('delivery-tempo-due-group');
   const paidGroup = document.getElementById('delivery-tempo-paid-group');
@@ -22394,7 +22428,7 @@ function editSalesDelivery(deliveryId) {
   if (paidInput) paidInput.value = d.totalDibayar || 0;
 
   const fundSelect = document.getElementById('delivery-fund-source');
-  if (fundSelect) fundSelect.value = d.sumberDana || 'saldo_penjualan';
+  if (fundSelect) fundSelect.value = d.sumberDana || 'dana_lain';
 
   // Render checklist retur
   renderDeliveryReturnCheckboxes(d.salesId || '');
@@ -23254,14 +23288,43 @@ function saveSalesDelivery(e) {
     jatuhTempo: payStatus === 'Tempo' ? dueDate : null,
     totalDibayar: paidAmount,
     sisaTagihan: sisaTagihan,
-    sumberDana: (document.getElementById('delivery-fund-source')?.value) || 'saldo_penjualan',
-    riwayatBayar: existingDelivery ? (existingDelivery.riwayatBayar || []) : (paidAmount > 0 ? [
+    sumberDana: (document.getElementById('delivery-fund-source')?.value) || 'dana_lain',
+    riwayatBayar: existingDelivery ? (() => {
+      const oldRiwayat = Array.isArray(existingDelivery.riwayatBayar) ? [...existingDelivery.riwayatBayar] : [];
+      const newFundSource = (document.getElementById('delivery-fund-source')?.value) || 'dana_lain';
+      const oldFundSource = existingDelivery.sumberDana || 'dana_lain';
+
+      // Jika sumber dana diubah saat edit nota:
+      if (oldFundSource !== newFundSource) {
+        // Update seluruh riwayat pembayaran nota ini ke sumber dana yang baru
+        return oldRiwayat.map(b => {
+          let updatedCatatan = b.catatan || '';
+          if (newFundSource === 'dana_lain') {
+            updatedCatatan = updatedCatatan.replace(/\[Potong Saldo Kasir\]/g, '[Dana Luar Toko]');
+            if (!updatedCatatan.includes('[Dana Luar Toko]')) {
+              updatedCatatan += ' [Dana Luar Toko]';
+            }
+          } else {
+            updatedCatatan = updatedCatatan.replace(/\[Dana Luar(?: Toko)?\]/g, '[Potong Saldo Kasir]');
+            if (!updatedCatatan.includes('[Potong Saldo Kasir]')) {
+              updatedCatatan += ' [Potong Saldo Kasir]';
+            }
+          }
+          return {
+            ...b,
+            sumberDana: newFundSource,
+            catatan: updatedCatatan
+          };
+        });
+      }
+      return oldRiwayat;
+    })() : (paidAmount > 0 ? [
       {
         tanggal: tanggal,
         nominal: paidAmount,
-        sumberDana: (document.getElementById('delivery-fund-source')?.value) || 'saldo_penjualan',
+        sumberDana: (document.getElementById('delivery-fund-source')?.value) || 'dana_lain',
         catatan: (payStatus === 'Lunas' ? 'Pembayaran lunas langsung' : 'DP / Uang muka saat barang datang') + 
-                 ((document.getElementById('delivery-fund-source')?.value === 'dana_lain') ? ' [Dana Luar]' : ' [Potong Saldo Kasir]')
+                 ((document.getElementById('delivery-fund-source')?.value === 'saldo_penjualan') ? ' [Potong Saldo Kasir]' : ' [Dana Luar Toko]')
       }
     ] : []),
     createdAt: existingDelivery ? existingDelivery.createdAt : new Date().toISOString(),
@@ -23357,17 +23420,17 @@ function renderSalesDeliveriesTable() {
 
     let paymentBadge = '';
     if (isLunas) {
-      paymentBadge = `<span style="background: rgba(16, 185, 129, 0.15); color: #059669; padding: 0.25rem 0.55rem; border-radius: 999px; font-weight: 700; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.25rem;">✅ Lunas</span>`;
+      paymentBadge = `<span style="background: rgba(16, 185, 129, 0.15); color: #059669; padding: 0.2rem 0.45rem; border-radius: 999px; font-weight: 700; font-size: 0.75rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.2rem;">✅ Lunas</span>`;
     } else {
       const isOverdue = d.jatuhTempo && (d.jatuhTempo < todayStr);
       paymentBadge = `
-        <div style="display: flex; flex-direction: column; gap: 0.2rem;">
-          <span style="background: rgba(245, 158, 11, 0.15); color: #b45309; padding: 0.2rem 0.5rem; border-radius: 6px; font-weight: 700; font-size: 0.78rem;">
-            ⏳ Tempo (Sisa: ${formatRupiah(sisa)})
+        <div style="display: flex; flex-direction: column; gap: 0.15rem; line-height: 1.2;">
+          <span style="background: rgba(245, 158, 11, 0.15); color: #b45309; padding: 0.15rem 0.4rem; border-radius: 5px; font-weight: 700; font-size: 0.72rem; white-space: nowrap;">
+            ⏳ Sisa: ${formatRupiah(sisa)}
           </span>
           ${d.jatuhTempo ? `
-            <span style="font-size: 0.75rem; font-weight: 600; ${isOverdue ? 'color: #dc2626;' : 'color: var(--text-muted);'}">
-              ${isOverdue ? '⚠️ Lewat Tempo: ' : 'Jatuh Tempo: '}${d.jatuhTempo}
+            <span style="font-size: 0.7rem; font-weight: 600; white-space: nowrap; ${isOverdue ? 'color: #dc2626;' : 'color: var(--text-muted);'}">
+              ${isOverdue ? 'Lewat: ' : 'Tempo: '}${d.jatuhTempo}
             </span>
           ` : ''}
         </div>
@@ -23377,7 +23440,7 @@ function renderSalesDeliveriesTable() {
     // Diskon & Potongan Retur Badge
     let discountHtml = '';
     if (d.diskon) {
-      discountHtml += `<div>Diskon: <span style="color: #dc2626;">-${formatRupiah(d.diskon)}</span></div>`;
+      discountHtml += `<div>Disc: <span style="color: #dc2626;">-${formatRupiah(d.diskon)}</span></div>`;
     }
     if (d.returDeduction) {
       discountHtml += `<div>Retur: <span style="color: #dc2626; font-weight: 700;">-${formatRupiah(d.returDeduction)}</span></div>`;
@@ -23388,42 +23451,41 @@ function renderSalesDeliveriesTable() {
     let imageCellHtml = '<span style="color: var(--text-muted);">-</span>';
     if (d.imageUrl) {
       imageCellHtml = `
-        <button type="button" class="btn btn-sm btn-secondary" onclick="viewReceiptImage('${escapeJsQuotes(d.imageUrl)}', 'Nota ${escapeJsQuotes(d.noNota)}')" title="Lihat Foto Nota" style="padding: 0.25rem 0.5rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.25rem;">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="viewReceiptImage('${escapeJsQuotes(d.imageUrl)}', 'Nota ${escapeJsQuotes(d.noNota)}')" title="Lihat Foto Nota" style="padding: 0.2rem 0.35rem; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.2rem;">
           <span>📸</span>
-          <span>Foto</span>
         </button>
       `;
     }
 
     tr.innerHTML = `
-      <td>${d.tanggal || '-'}</td>
-      <td style="font-weight: 700; color: var(--color-primary); font-family: monospace;">${d.noNota || '-'}</td>
-      <td><strong>${d.salesName || '-'}</strong></td>
-      <td style="font-size: 0.85rem; max-width: 230px;">${itemSummary}</td>
-      <td style="font-family: monospace;">${formatRupiah(d.totalTagihan || 0)}</td>
-      <td style="font-size: 0.82rem; font-family: monospace;">${discountHtml}</td>
-      <td style="font-family: monospace; font-weight: 800; color: #059669;">${formatRupiah(d.grandTotal || 0)}</td>
-      <td>${paymentBadge}</td>
-      <td style="font-size: 0.85rem;">${d.bonus ? `<span style="background: rgba(16, 185, 129, 0.12); color: #059669; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600;">🎁 ${d.bonus}</span>` : '<span style="color: var(--text-muted);">-</span>'}</td>
+      <td style="font-size: 0.82rem; white-space: nowrap;">${d.tanggal || '-'}</td>
+      <td style="font-weight: 700; color: var(--color-primary); font-family: monospace; white-space: nowrap;">${d.noNota || '-'}</td>
+      <td style="font-size: 0.85rem;"><strong>${d.salesName || '-'}</strong></td>
+      <td style="font-size: 0.82rem; max-width: 200px;">${itemSummary}</td>
+      <td style="font-family: monospace; font-size: 0.82rem; white-space: nowrap;">${formatRupiah(d.totalTagihan || 0)}</td>
+      <td style="font-size: 0.78rem; font-family: monospace; white-space: nowrap; text-align: center;">${discountHtml}</td>
+      <td style="font-family: monospace; font-weight: 800; color: #059669; font-size: 0.85rem; white-space: nowrap;">${formatRupiah(d.grandTotal || 0)}</td>
+      <td style="text-align: center;">${paymentBadge}</td>
+      <td style="font-size: 0.78rem; text-align: center; max-width: 110px;">${d.bonus ? `<span style="background: rgba(16, 185, 129, 0.12); color: #059669; padding: 0.15rem 0.35rem; border-radius: 4px; font-weight: 600; display: inline-block; word-break: break-word;">🎁 ${d.bonus}</span>` : '<span style="color: var(--text-muted);">-</span>'}</td>
       <td style="text-align: center;">${imageCellHtml}</td>
-      <td style="text-align: center;">
-        <div style="display: flex; gap: 0.35rem; justify-content: center; align-items: center;">
-          <button type="button" class="btn btn-sm btn-success" onclick="shareSalesDeliveryToWhatsApp('${d.id}')" title="Kirim Rincian Pembelian Nota ke WhatsApp Sales" style="padding: 0.25rem 0.45rem; display: inline-flex; align-items: center; justify-content: center; background: #25d366; border-color: #25d366; color: #fff;">
-            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      <td style="text-align: center; white-space: nowrap;">
+        <div style="display: flex; gap: 0.3rem; justify-content: center; align-items: center;">
+          <button type="button" class="btn btn-sm btn-success" onclick="shareSalesDeliveryToWhatsApp('${d.id}')" title="Kirim Rincian ke WA Sales" style="padding: 0.25rem 0.4rem; display: inline-flex; align-items: center; justify-content: center; background: #25d366; border-color: #25d366; color: #fff;">
+            <svg viewBox="0 0 24 24" style="width: 13px; height: 13px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
           </button>
-          <button type="button" class="btn btn-sm btn-secondary" onclick="printSingleSalesDeliveryReceipt('${d.id}')" title="Cetak Bukti Nota Penerimaan" style="padding: 0.25rem 0.45rem; display: inline-flex; align-items: center; justify-content: center;">
-            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="printSingleSalesDeliveryReceipt('${d.id}')" title="Cetak Bukti Nota" style="padding: 0.25rem 0.4rem; display: inline-flex; align-items: center; justify-content: center;">
+            <svg viewBox="0 0 24 24" style="width: 13px; height: 13px;" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
           </button>
-          <button type="button" class="btn btn-sm btn-secondary" onclick="editSalesDelivery('${d.id}')" title="Edit Nota Penerimaan Barang" style="padding: 0.25rem 0.45rem; display: inline-flex; align-items: center; justify-content: center; color: var(--color-primary); background: rgba(234,88,12,0.1); border-color: rgba(234,88,12,0.25);">
-            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="editSalesDelivery('${d.id}')" title="Edit Nota" style="padding: 0.25rem 0.4rem; display: inline-flex; align-items: center; justify-content: center; color: var(--color-primary); background: rgba(234,88,12,0.1); border-color: rgba(234,88,12,0.25);">
+            <svg viewBox="0 0 24 24" style="width: 13px; height: 13px;" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
           ${!isLunas ? `
-            <button type="button" class="btn btn-sm btn-primary" onclick="openSalesPayModal('${d.id}')" title="Bayar / Lunasi Tagihan" style="padding: 0.25rem 0.55rem; font-size: 0.78rem; font-weight: 700; background: #2563eb; color: #fff;">
+            <button type="button" class="btn btn-sm btn-primary" onclick="openSalesPayModal('${d.id}')" title="Bayar / Lunasi Tagihan" style="padding: 0.22rem 0.45rem; font-size: 0.74rem; font-weight: 700; background: #2563eb; color: #fff;">
               💵 Bayar
             </button>
           ` : ''}
-          <button type="button" class="btn btn-sm btn-danger" onclick="deleteSalesDelivery('${d.id}')" title="Hapus Nota" style="padding: 0.25rem 0.45rem; display: inline-flex; align-items: center; justify-content: center;">
-            <svg viewBox="0 0 24 24" style="width: 14px; height: 14px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+          <button type="button" class="btn btn-sm btn-danger" onclick="deleteSalesDelivery('${d.id}')" title="Hapus Nota" style="padding: 0.25rem 0.4rem; display: inline-flex; align-items: center; justify-content: center;">
+            <svg viewBox="0 0 24 24" style="width: 13px; height: 13px;" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
           </button>
         </div>
       </td>
@@ -23454,6 +23516,10 @@ function openSalesPayModal(deliveryId) {
   document.getElementById('pay-amount-input').max = sisa;
   document.getElementById('pay-date-input').value = getLocalISODate();
   document.getElementById('pay-notes-input').value = `Pelunasan nota ke ${d.salesName}`;
+  const paySourceSelect = document.getElementById('pay-source-input');
+  if (paySourceSelect) {
+    paySourceSelect.value = (d.sumberDana === 'saldo_penjualan') ? 'saldo_penjualan' : 'dana_lain';
+  }
 
   document.getElementById('sales-pay-modal').style.display = 'flex';
 }
@@ -27009,6 +27075,9 @@ function openManualDebtModal(editTxId) {
   const tanggalEl = document.getElementById('manual-debt-tanggal');
   if (tanggalEl) tanggalEl.value = today;
 
+  const fundSourceEl = document.getElementById('manual-debt-fund-source');
+  if (fundSourceEl) fundSourceEl.value = 'dana_lain';
+
   if (editTxId) {
     const tx = transactions.find(t => t.id === editTxId);
     if (tx) {
@@ -27023,6 +27092,8 @@ function openManualDebtModal(editTxId) {
       const dpPaid = (tx.total || 0) - (tx.sisa_piutang || 0);
       const dpEl = document.getElementById('manual-debt-dp');
       if (dpEl && dpPaid > 0) dpEl.value = formatRupiah(dpPaid);
+      const fsEl = document.getElementById('manual-debt-fund-source');
+      if (fsEl) fsEl.value = tx.sumber_dana || 'dana_lain';
 
       // Cari customer terkait dan set member-id
       if (tx.nama_pelanggan) {
@@ -27431,9 +27502,9 @@ function openExpenseModal(type = 'keluar', editId = null) {
     if (sourceHelpEl) sourceHelpEl.textContent = 'Pilih apakah pengeluaran ini diambil dari laci kasir (memotong saldo kasir) atau dana lain.';
 
     sourceInput.innerHTML = `
-      <option value="laci_kasir">Ambil dari Laci Kasir (Memotong Saldo Kasir Shift Ini)</option>
+      <option value="dana_luar" selected>Dana Luar / Kas Pribadi Owner (Tidak Memotong Laci Kasir)</option>
       <option value="transfer_bank">Transfer Bank / Non-Tunai</option>
-      <option value="dana_luar">Dana Luar / Kas Pribadi Owner (Tidak Memotong Laci Kasir)</option>
+      <option value="laci_kasir">Ambil dari Laci Kasir (Memotong Saldo Kasir Shift Ini)</option>
     `;
   }
 
@@ -27450,7 +27521,7 @@ function openExpenseModal(type = 'keluar', editId = null) {
         catInput.appendChild(customOpt);
       }
       catInput.value = item.kategori || activeCategoryList[0].value;
-      sourceInput.value = item.sumberDana || 'laci_kasir';
+      sourceInput.value = item.sumberDana || ((type === 'masuk') ? 'laci_kasir' : 'dana_luar');
       notesInput.value = item.keterangan || '';
       photoInput.value = item.fotoNota || '';
     }
@@ -27458,7 +27529,7 @@ function openExpenseModal(type = 'keluar', editId = null) {
     amountInput.value = '';
     notesInput.value = '';
     photoInput.value = '';
-    sourceInput.value = 'laci_kasir';
+    sourceInput.value = (type === 'masuk') ? 'laci_kasir' : 'dana_luar';
   }
 
   modal.style.display = 'flex';

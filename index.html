@@ -1022,17 +1022,17 @@
                 <table id="sales-deliveries-table">
                   <thead>
                     <tr>
-                      <th>Tanggal Masuk</th>
-                      <th>No. Nota</th>
-                      <th>Nama Sales</th>
-                      <th>Daftar Barang Datang</th>
-                      <th>Total Tagihan</th>
-                      <th>Diskon &amp; Retur</th>
-                      <th>Total Bersih</th>
-                      <th>Status Pembayaran</th>
-                      <th>Bonus / Hadiah</th>
-                      <th style="text-align: center;">Foto Nota</th>
-                      <th style="text-align: center;">Aksi</th>
+                      <th style="min-width: 90px;">Tanggal Masuk</th>
+                      <th style="min-width: 95px;">No. Nota</th>
+                      <th style="min-width: 110px;">Nama Sales</th>
+                      <th style="min-width: 170px;">Daftar Barang Datang</th>
+                      <th style="min-width: 95px;">Total Tagihan</th>
+                      <th style="min-width: 90px; max-width: 110px; text-align: center;">Diskon &amp; Retur</th>
+                      <th style="min-width: 95px;">Total Bersih</th>
+                      <th style="min-width: 90px; max-width: 120px; text-align: center;">Status Bayar</th>
+                      <th style="min-width: 80px; max-width: 110px; text-align: center;">Bonus/Hadiah</th>
+                      <th style="width: 55px; text-align: center;">Foto</th>
+                      <th style="min-width: 130px; text-align: center;">Aksi</th>
                     </tr>
                   </thead>
                   <tbody id="sales-deliveries-body">
@@ -4705,8 +4705,8 @@
                   <span>Sumber Dana Pembayaran*</span>
                 </label>
                 <select id="delivery-fund-source" style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-weight: 600; font-size: 0.88rem;">
+                  <option value="dana_lain" selected>Gunakan Dana Lain / Kas Luar Toko</option>
                   <option value="saldo_penjualan">Potong dari Saldo Penjualan Kasir</option>
-                  <option value="dana_lain">Gunakan Dana Lain / Kas Luar Toko</option>
                 </select>
               </div>
             </div>
@@ -4809,8 +4809,8 @@
               <span>Sumber Dana Pembayaran*</span>
             </label>
             <select id="pay-source-input" style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-weight: 600;">
+              <option value="dana_lain" selected>Gunakan Dana Lain / Kas Luar Toko</option>
               <option value="saldo_penjualan">Potong dari Saldo Penjualan Kasir</option>
-              <option value="dana_lain">Gunakan Dana Lain / Kas Luar Toko</option>
             </select>
             <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.2rem;">Pilih apakah pengeluaran pembayaran tagihan ini memotong uang laci kasir saat ini atau dana pemilik/luar.</small>
           </div>
@@ -4851,18 +4851,18 @@
             Pilih Sumber Dana Pencairan: *
           </label>
           <div style="display: flex; flex-direction: column; gap: 0.65rem;">
-            <label style="display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.75rem; border: 1.5px solid #cbd5e1; border-radius: 8px; cursor: pointer; background: #fff;" id="label-fund-laci">
-              <input type="radio" name="modal_approve_fund_source" value="laci_kasir" checked style="margin-top: 3px;">
-              <div>
-                <strong style="color: #0f172a; display: block; font-size: 0.92rem;">💵 Potong dari Laci Kasir (Shift Aktif)</strong>
-                <span style="font-size: 0.78rem; color: #64748b;">Uang kas fisik laci kasir akan dipotong langsung, tercatat di pengeluaran operasional shift saat ini.</span>
-              </div>
-            </label>
             <label style="display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.75rem; border: 1.5px solid #cbd5e1; border-radius: 8px; cursor: pointer; background: #fff;" id="label-fund-lain">
-              <input type="radio" name="modal_approve_fund_source" value="dana_lain" style="margin-top: 3px;">
+              <input type="radio" name="modal_approve_fund_source" value="dana_lain" checked style="margin-top: 3px;">
               <div>
                 <strong style="color: #0f172a; display: block; font-size: 0.92rem;">🏦 Dari Dana Lain / Kas Toko / Rekening Bank</strong>
                 <span style="font-size: 0.78rem; color: #64748b;">Pencairan via transfer bank, kas utama toko, atau saldo pemilik tanpa mengurangi uang fisik laci kasir saat ini.</span>
+              </div>
+            </label>
+            <label style="display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.75rem; border: 1.5px solid #cbd5e1; border-radius: 8px; cursor: pointer; background: #fff;" id="label-fund-laci">
+              <input type="radio" name="modal_approve_fund_source" value="laci_kasir" style="margin-top: 3px;">
+              <div>
+                <strong style="color: #0f172a; display: block; font-size: 0.92rem;">💵 Potong dari Laci Kasir (Shift Aktif)</strong>
+                <span style="font-size: 0.78rem; color: #64748b;">Uang kas fisik laci kasir akan dipotong langsung, tercatat di pengeluaran operasional shift saat ini.</span>
               </div>
             </label>
           </div>
@@ -6279,8 +6279,8 @@
               <span>Sumber Pengeluaran Uang Hutang / Kasbon*</span>
             </label>
             <select id="manual-debt-fund-source" class="form-control" style="border-radius:8px; font-weight:600;">
+              <option value="dana_lain" selected>Gunakan Dana Lain / Kas Luar Pemilik Toko</option>
               <option value="saldo_penjualan">Potong dari Saldo Penjualan Kasir (Laci Kasir)</option>
-              <option value="dana_lain">Gunakan Dana Lain / Kas Luar Pemilik Toko</option>
             </select>
             <small style="color:#64748b;font-size:0.75rem;">Tentukan apakah uang yang dipinjamkan langsung memotong saldo kasir atau dari sumber lain.</small>
           </div>
@@ -6418,9 +6418,9 @@
           <div class="form-group" style="margin-bottom: 0.85rem;">
             <label for="expense-fund-source" id="expense-fund-source-label" style="font-size: 0.82rem; font-weight: 700;">Sumber Dana / Rekening Asal*</label>
             <select id="expense-fund-source" class="form-control" style="padding: 0.5rem; border-radius: 8px; font-weight: 600;">
-              <option value="laci_kasir">Ambil dari Laci Kasir (Memotong Saldo Kasir Shift Ini)</option>
+              <option value="dana_luar" selected>Dana Luar / Kas Pribadi Owner (Tidak Memotong Laci Kasir)</option>
               <option value="transfer_bank">Transfer Bank / Non-Tunai</option>
-              <option value="dana_luar">Dana Luar / Kas Pribadi Owner (Tidak Memotong Laci)</option>
+              <option value="laci_kasir">Ambil dari Laci Kasir (Memotong Saldo Kasir Shift Ini)</option>
             </select>
             <small id="expense-fund-source-help" style="font-size: 0.73rem; color: var(--text-muted);">Pilih apakah pengeluaran ini diambil dari laci kasir atau dari dana luar.</small>
           </div>
