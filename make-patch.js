@@ -14,7 +14,9 @@ const filesToInclude = [
   'manifest.json',
   'sw.js',
   'app-icon.ico',
-  'app-icon.png'
+  'default-product.jpg',
+  'portal.html',
+  'price-checker.html'
 ];
 
 const foldersToInclude = [

@@ -439,6 +439,8 @@ function normalizeImageUrl(url) {
   return cleanUrl;
 }
 
+const DEFAULT_PRODUCT_PLACEHOLDER = 'default-product.jpg';
+
 function handleImageError(img) {
   if (!img) return;
   // Coba fallback kedua jika gambar dari Google Drive gagal load via lh3 (misal file permission private)
@@ -453,7 +455,7 @@ function handleImageError(img) {
   }
 
   img.onerror = null; // Mencegah loop tak terbatas
-  img.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="%23cbd5e1" stroke-width="2"><rect width="100" height="100" fill="%23f8fafc"/><circle cx="50" cy="45" r="15"/><path d="M20,80 C20,60 80,60 80,80"/></svg>';
+  img.src = DEFAULT_PRODUCT_PLACEHOLDER;
   img.style.cursor = 'default';
   img.onclick = null;
 }
@@ -1092,10 +1094,12 @@ function setupDatabaseListeners() {
     console.log(`🧾 RTDB transaksi aktif (${currentLicenseKey}): ${mergedTxs.length}`);
     transactions = mergedTxs;
     saveTransactionsLocally();
-    if (typeof renderTransactionsTable === 'function') renderTransactionsTable();
-    if (typeof renderCustomerDebtBook === 'function') renderCustomerDebtBook();
-    if (typeof initAnalyticsFilter === 'function') initAnalyticsFilter();
-    if (typeof updateAnalytics === 'function') updateAnalytics();
+    if (activeTab === 'transactions' && typeof renderTransactionsTable === 'function') renderTransactionsTable();
+    if (activeTab === 'customers' && typeof renderCustomerDebtBook === 'function') renderCustomerDebtBook();
+    if (activeTab === 'analytics') {
+      if (typeof initAnalyticsFilter === 'function') initAnalyticsFilter();
+      if (typeof updateAnalytics === 'function') updateAnalytics();
+    }
   };
   txRef.on('value', txCallback, err => console.error('❌ RTDB Transactions Error:', err.message));
   fbUnsubscribes.push(() => txRef.off('value', txCallback));
@@ -2704,6 +2708,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
     lucide.createIcons();
   }
+
+  // Pastikan saat aplikasi dibuka dan berada di tab POS, kursor langsung fokus ke input pencarian
+  setTimeout(() => {
+    if (typeof activeTab === 'undefined' || activeTab === 'pos') {
+      focusSearchInput(true);
+    }
+  }, 250);
 });
 
 // Timer Jam
@@ -3363,6 +3374,11 @@ function saveAppConfig() {
     appConfig.enableWaReceipt = chkWaReceipt.checked;
   }
 
+  const imgbbInput = document.getElementById('setting-imgbb-api-key');
+  if (imgbbInput) {
+    appConfig.imgbbApiKey = imgbbInput.value.trim();
+  }
+
   const chkPointsMode = document.getElementById('chk-loyalty-points-mode');
   if (chkPointsMode) {
     appConfig.enableLoyaltyPointsMode = chkPointsMode.checked;
@@ -3473,6 +3489,9 @@ function loadAppConfig() {
 
   const chkAutoBackup = document.getElementById('chk-auto-daily-backup');
   if (chkAutoBackup) chkAutoBackup.checked = appConfig.enableDailyAutoBackup !== false;
+
+  const imgbbInput = document.getElementById('setting-imgbb-api-key');
+  if (imgbbInput) imgbbInput.value = appConfig.imgbbApiKey || '';
 
   checkPromoBanner();
 }
@@ -4190,7 +4209,7 @@ function switchTab(tabName) {
     if (sInput) sInput.value = '';
     renderCart();
     if (typeof applyPosGridConfig === 'function') applyPosGridConfig();
-    focusSearchInput();
+    focusSearchInput(true);
   } else if (tabName === 'products') {
     lastScannedProductId = null;
     const pSearch = document.getElementById('product-list-search');
@@ -4280,28 +4299,34 @@ function switchTabFromSheet(tabName) {
 // Helper untuk mendeteksi apakah perangkat saat ini adalah mode mobile / touch
 function isMobileMode() {
   const isSmallScreen = window.innerWidth <= 768;
-  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '');
+  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   return isSmallScreen || (isTouchDevice && isMobileUA);
 }
 
 // Fokuskan kursor ke input kasir (Instan tanpa jeda, otomatis di desktop, hanya manual di mode mobile)
 function focusSearchInput(forceFocus = false) {
-  // Jika perangkat berada dalam mode mobile/HP dan tidak dipaksa secara manual, jangan fokus otomatis agar keyboard virtual tidak terus muncul menutupi layar
+  // Jika perangkat berada dalam mode smartphone/layar kecil dan tidak dipaksa, hindari keyboard virtual menutupi layar
   if (!forceFocus && isMobileMode()) {
     return;
   }
 
-  requestAnimationFrame(() => {
+  const doFocus = () => {
     const input = document.getElementById('search-input');
-    if (input && activeTab === 'pos') {
+    if (input && (typeof activeTab === 'undefined' || activeTab === 'pos')) {
       const activeModal = document.querySelector('.modal.active, .modal-overlay.active');
       if (!activeModal) {
         input.focus();
         input.select();
       }
     }
+  };
+
+  requestAnimationFrame(() => {
+    doFocus();
   });
+  // Cadangan timeout untuk memastikan fokus masuk setelah DOM reflow / transisi selesai
+  setTimeout(doFocus, 50);
 }
 
 // --- MOBILE CHECKOUT PANEL ---
@@ -6779,7 +6804,7 @@ function renderPosCatalogGrid() {
       stockText = `Sisa ${p.stok}`;
     }
 
-    const imgUrl = p.gambar || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=200';
+    const imgUrl = p.gambar || DEFAULT_PRODUCT_PLACEHOLDER;
 
     // Cek apakah produk ini ada di keranjang belanja
     const cartItem = cart.find(it => it.id === p.id && !it.isBox);
@@ -6997,7 +7022,7 @@ function renderFloatingDropdown() {
       }
     };
     
-    const imgUrl = p.gambar || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=100';
+    const imgUrl = p.gambar || DEFAULT_PRODUCT_PLACEHOLDER;
     
     let priceText = `<span class="badge-buy-price">Beli: Rp ${formatRupiah(p.harga_beli || 0)}</span><span class="badge-sell-price">Jual: Rp ${formatRupiah(p.harga_jual)}</span>`;
     let boxBtnHtml = '';
@@ -9095,8 +9120,12 @@ async function processCheckout() {
     } catch (e) {}
 
     checkPromoBanner();
-    renderTransactionsTable();
-    updateAnalytics();
+    if (activeTab === 'transactions') {
+      renderTransactionsTable();
+    }
+    if (activeTab === 'analytics') {
+      updateAnalytics();
+    }
 
     // Kirim ke Firebase Realtime Database (non-blocking, di background)
     if (firebaseDb) {
@@ -9768,22 +9797,22 @@ function updateReceiptButtonsHighlight() {
 
 function printReceiptDirectly() {
   document.body.classList.add('printing-receipt');
-  // Eksekusi print instan tanpa delay render berlebih
-  requestAnimationFrame(() => {
+  
+  // Pastikan receipt-modal tampil rapi sebelum memicu dialog print
+  const recModal = document.getElementById('receipt-modal');
+  if (recModal) {
+    recModal.style.display = 'flex';
+    recModal.classList.add('active');
+  }
+
+  // Berikan jeda frame agar browser selesai me-render layout sebelum dialog cetak dibuka
+  setTimeout(() => {
     try {
       window.print();
-    } finally {
-      // Pastikan class pencetakan segera dilepas dan fokus kembali ke tombol modal
-      setTimeout(() => {
-        document.body.classList.remove('printing-receipt');
-        const recModal = document.getElementById('receipt-modal');
-        if (recModal && (recModal.classList.contains('active') || recModal.style.display === 'flex')) {
-          const btnSkip = document.getElementById('btn-skip-receipt');
-          if (btnSkip) btnSkip.focus();
-        }
-      }, 300);
+    } catch (e) {
+      console.error('Gagal memanggil cetak struk:', e);
     }
-  }, 50);
+  }, 100);
 }
 
 function closeReceiptModal() {
@@ -9794,7 +9823,7 @@ function closeReceiptModal() {
     recModal.style.display = 'none';
   }
   if (typeof activeTab !== 'undefined' && activeTab === 'pos') {
-    focusSearchInput();
+    focusSearchInput(true);
   }
 }
 
@@ -10350,7 +10379,7 @@ function renderKulakFloatingDropdown() {
       openKulakForm(p);
     };
     
-    const imgUrl = p.gambar || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=100';
+    const imgUrl = p.gambar || DEFAULT_PRODUCT_PLACEHOLDER;
     
     const rackBadgeHtml = p.rak 
       ? `<span style="display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(79, 70, 229, 0.09); color: var(--color-primary); padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">📍 ${p.rak}</span>`
@@ -10413,7 +10442,7 @@ function openKulakForm(p) {
   document.getElementById('kulak-prod-id').textContent = `ID: ${p.id} | Barcode: ${p.barcode || '-'}`;
   document.getElementById('kulak-prod-current-stock').textContent = `Stok Saat Ini: ${p.stok} pcs`;
   
-  const imgUrl = p.gambar || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=100';
+  const imgUrl = p.gambar || DEFAULT_PRODUCT_PLACEHOLDER;
   document.getElementById('kulak-prod-img').src = imgUrl;
   
   // Reset mode ke tambah stok default
@@ -10903,7 +10932,7 @@ function renderProductsTable(highlightProductId = null) {
       }, 100);
     }
     
-    const imgUrl = normalizeImageUrl(p.gambar) || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=100';
+    const imgUrl = normalizeImageUrl(p.gambar) || DEFAULT_PRODUCT_PLACEHOLDER;
     
     // Tampilkan label kadaluarsa merah jika lewat tanggal, atau orange jika kurang dari 30 hari
     let expBadge = p.tanggal_kadaluarsa || '-';
@@ -14343,7 +14372,7 @@ function renderEditTxFloatingDropdown() {
       }
     };
     
-    const imgUrl = p.gambar || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=100';
+    const imgUrl = p.gambar || DEFAULT_PRODUCT_PLACEHOLDER;
     
     let priceText = `Rp ${formatRupiah(p.harga_jual)}`;
     if (p.grosir_qty > 0 && p.grosir_harga > 0) {
@@ -15601,6 +15630,7 @@ function printDailyReport() {
           }
         }
       </style>
+      <style id="print-page-style">@page { size: auto portrait; margin: 8mm; }</style>
     </head>
     <body>
       <div class="preview-toolbar">
@@ -22273,6 +22303,160 @@ function shareEmptyStockToSalesWhatsApp(salesId) {
   openSalesWaModal(salesId);
 }
 
+// ============================================================================
+// UPLOAD GAMBAR OTOMATIS KE CLOUD (MULTI-PROVIDER DENGAN FALLBACK)
+// ============================================================================
+const DEFAULT_IMGBB_API_KEY = '2c6f7c55c2cf2ce1c8f7157148b7a80e';
+
+async function uploadImageToImgBB(file) {
+  if (!file) throw new Error('File gambar tidak ditemukan!');
+  
+  if (!file.type.startsWith('image/')) {
+    throw new Error('File yang dipilih harus berupa gambar (JPG, PNG, WebP, dll)!');
+  }
+
+  // Gunakan API Key ImgBB (dari pengaturan atau bawaan resmi)
+  const userApiKey = (appConfig && appConfig.imgbbApiKey) ? appConfig.imgbbApiKey.trim() : DEFAULT_IMGBB_API_KEY;
+
+  if (userApiKey) {
+    try {
+      // Kompres secukupnya sebelum upload
+      const base64Data = await compressImageToBase64(file, 1600, 0.85);
+      const formData = new FormData();
+      formData.append('key', userApiKey);
+      formData.append('image', base64Data);
+
+      const response = await fetch('https://api.imgbb.com/1/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const resJson = await response.json();
+      if (resJson && resJson.success && resJson.data) {
+        // PERHATIAN: Domain i.ibb.co diblokir oleh beberapa provider Internet di Indonesia (DNS/Kominfo).
+        // Oleh karena itu, kita utamakan url_viewer (https://ibb.co/xxxx) atau direct URL
+        const imgUrl = resJson.data.display_url || resJson.data.url || resJson.data.url_viewer;
+        return imgUrl;
+      }
+    } catch (e) {
+      console.warn('Upload via ImgBB gagal, mencoba fallback Base64 langsung...', e);
+    }
+  }
+
+  // Fallback Permanen: Kompres gambar menjadi Base64 ringkas (< 150KB)
+  // Dapat dibuka 100% di semua perangkat & browser offline maupun online tanpa terpengaruh blokir internet/ISP
+  const compressedBase64 = await compressImageToDataUrl(file, 900, 0.75);
+  return compressedBase64;
+}
+
+// Helper untuk menghasilkan Data URL Base64 yang siap disimpan langsung
+function compressImageToDataUrl(file, maxDimension = 800, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.onerror = () => reject(new Error('Gagal memproses gambar lokal.'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Gagal membaca file dari perangkat.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Helper untuk kompresi gambar klien (cepat & hemat kuota)
+function compressImageToBase64(file, maxDimension = 1600, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Ambil string base64 tanpa prefix data:image/...;base64,
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const base64Clean = dataUrl.replace(/^data:image\/[a-z]+;base64,/, '');
+        resolve(base64Clean);
+      };
+      img.onerror = () => reject(new Error('Gagal memproses gambar lokal.'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Gagal membaca file dari perangkat.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Handler event file picker otomatis
+async function handleImageFileUpload(inputEl, targetInputId, previewCallback, labelBtnId) {
+  if (!inputEl || !inputEl.files || inputEl.files.length === 0) return;
+  const file = inputEl.files[0];
+
+  const labelEl = labelBtnId ? document.getElementById(labelBtnId) : null;
+  const originalLabel = labelEl ? labelEl.textContent : '';
+
+  try {
+    if (labelEl) labelEl.textContent = '⏳ Mengunggah...';
+
+    const uploadedUrl = await uploadImageToImgBB(file);
+
+    const targetInput = document.getElementById(targetInputId);
+    if (targetInput) {
+      targetInput.value = uploadedUrl;
+    }
+
+    if (typeof previewCallback === 'function') {
+      previewCallback(uploadedUrl);
+    }
+
+    alert('✅ Foto berhasil diunggah ke cloud!\nLink URL otomatis terpasang.');
+  } catch (err) {
+    console.error('Error uploading image:', err);
+    alert('⚠️ Gagal mengunggah foto:\n' + (err.message || err));
+  } finally {
+    if (labelEl) labelEl.textContent = originalLabel;
+    inputEl.value = ''; // Reset input agar bisa pilih file yang sama kembali
+  }
+}
+
 // Preview Gambar Produk Baru / Edit
 function previewProductImage(url) {
   const container = document.getElementById('prod-image-preview-container');
@@ -22809,7 +22993,7 @@ function renderDeliveryFloatingDropdown() {
       closeDeliveryFloatingResults();
     };
 
-    const imgUrl = p.gambar || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=100';
+    const imgUrl = p.gambar || DEFAULT_PRODUCT_PLACEHOLDER;
     const rackBadgeHtml = p.rak 
       ? `<span style="display: inline-flex; align-items: center; gap: 0.2rem; background: rgba(79, 70, 229, 0.09); color: var(--color-primary); padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">📍 ${p.rak}</span>`
       : '';
@@ -23635,52 +23819,12 @@ function previewReturnImage(url) {
 function viewReceiptImage(url, title = 'Foto Nota') {
   if (!url) return;
   const directUrl = normalizeImageUrl(url);
-  // Buka tab baru atau tampilkan lightbox
-  const win = window.open('', '_blank');
-  if (win) {
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${title}</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body {
-            margin: 0;
-            padding: 20px;
-            background: #0f172a;
-            color: #f8fafc;
-            font-family: system-ui, -apple-system, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 90vh;
-          }
-          img {
-            max-width: 95vw;
-            max-height: 85vh;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            background: #fff;
-            object-fit: contain;
-          }
-          .title {
-            margin-bottom: 15px;
-            font-size: 1.1rem;
-            font-weight: 700;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="title">📄 ${title}</div>
-        <img src="${directUrl}" alt="${title}" onerror="this.onerror=null; this.src='https://drive.google.com/uc?export=view&id=' + (this.src.includes('/d/') ? this.src.split('/d/')[1] : '');">
-        <a href="${url}" target="_blank" style="background: #2563eb; color: #fff; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; font-size: 0.9rem; margin-top: 1rem;">Buka Gambar Asli</a>
-      </body>
-      </html>
-    `);
+  
+  // Gunakan modal lightbox internal aplikasi (tidak terpengaruh blokir browser/jaringan)
+  if (typeof openProductImageLightbox === 'function') {
+    openProductImageLightbox(directUrl, title);
   } else {
-    window.open(url, '_blank');
+    window.open(directUrl, '_blank');
   }
 }
 
