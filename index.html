@@ -1183,8 +1183,32 @@
 
                 <div class="form-grid-2">
                   <div class="form-group">
+                    <label for="kulak-unit-type" style="font-weight: 600;">Opsi Input Barang</label>
+                    <select id="kulak-unit-type" onchange="onKulakUnitTypeChanged()" style="width: 100%; padding: 0.55rem 0.75rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-weight: 600;">
+                      <option value="pcs" data-ratio="1">Satuan (Pcs/Ecer)</option>
+                      <option value="split_total" data-ratio="1">Borongan / Total Nota (Dibagi Jumlah Pcs)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label style="font-weight: 600; display: block; margin-bottom: 0.35rem;">PPN Pembelian</label>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.45rem; background: var(--bg-surface); padding: 0.35rem 0.75rem; border-radius: 8px; border: 1.5px solid var(--border-color); height: 42px; box-sizing: border-box;">
+                      <div style="display: flex; align-items: center; gap: 0.35rem;">
+                        <span style="font-weight: 800; font-size: 0.85rem; color: var(--text-main);">PPN</span>
+                        <input type="number" id="kulak-ppn-percent" value="11" min="0" max="100" step="0.5" oninput="calculateKulakModalDpp()" style="width: 50px; padding: 0.2rem 0.35rem; border: 1.5px solid var(--border-color); border-radius: 6px; font-weight: 800; font-size: 0.85rem; text-align: center;">
+                        <span style="font-size: 0.85rem; font-weight: 800; color: var(--text-main);">%</span>
+                      </div>
+                      <label style="display: flex; align-items: center; gap: 0.35rem; margin: 0; cursor: pointer;" title="Centang jika belanja mandiri ini dikenakan PPN">
+                        <input type="checkbox" id="kulak-has-ppn" onchange="calculateKulakModalDpp()" style="accent-color: #ea580c; width: 18px; height: 18px; cursor: pointer;">
+                        <span style="font-size: 0.78rem; font-weight: 700; color: #ea580c;">Aktif</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="form-group">
                     <label for="kulak-qty-add" id="kulak-qty-label" style="font-weight: 600;">Stok Tambahan Masuk*</label>
-                    <input type="number" id="kulak-qty-add" required min="0" placeholder="Misal: 24" oninput="calculateKulakFinalStockPreview()" style="font-size: 1.05rem; font-weight: 600;">
+                    <input type="number" id="kulak-qty-add" required min="0" placeholder="Misal: 24" oninput="calculateKulakFinalStockPreview(); calculateKulakModalDpp();" style="font-size: 1.05rem; font-weight: 600;">
                     <div class="stock-preview-box" id="kulak-preview-box">
                       <svg viewBox="0 0 24 24" class="icon-sm" style="color: var(--color-primary); flex-shrink: 0;" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
                       <span id="kulak-final-stock-preview">Stok akhir: 0 pcs</span>
@@ -1195,14 +1219,18 @@
                     <input type="date" id="kulak-date-expiry">
                   </div>
                 </div>
-                <div class="form-grid-2">
+                <div class="form-grid-3" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
                   <div class="form-group">
-                    <label for="kulak-price-buy">Harga Beli Baru (Rp)*</label>
-                    <input type="number" id="kulak-price-buy" required min="0" placeholder="10000">
+                    <label for="kulak-price-nota" id="kulak-price-nota-label" style="font-weight: 600;">Harga di Nota (Rp)*</label>
+                    <input type="number" id="kulak-price-nota" required min="0" placeholder="10000" oninput="calculateKulakModalDpp()" style="font-weight: 700;">
                   </div>
                   <div class="form-group">
-                    <label for="kulak-price-sell">Harga Jual Baru (Rp)*</label>
-                    <input type="number" id="kulak-price-sell" required min="0" placeholder="15000">
+                    <label for="kulak-price-buy" id="kulak-price-buy-label" style="font-weight: 600;">Harga Beli*</label>
+                    <input type="number" id="kulak-price-buy" required min="0" placeholder="10000" readonly style="font-weight: 800; background: #f8fafc; color: #0284c7; border: 1.5px solid #cbd5e1;">
+                  </div>
+                  <div class="form-group">
+                    <label for="kulak-price-sell" style="font-weight: 600;">Harga Jual Baru (Rp)*</label>
+                    <input type="number" id="kulak-price-sell" required min="0" placeholder="15000" style="font-weight: 700;">
                   </div>
                 </div>
                 
@@ -2120,6 +2148,10 @@
                   <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                   <span>Hapus Produk Terpilih (<span id="bulk-delete-count">0</span>)</span>
                 </button>
+                <button class="btn btn-warning btn-sm" id="btn-bulk-discontinue-products" onclick="discontinueSelectedProducts()" style="display: none; background-color: #d97706; border-color: #d97706; color: white; align-items: center; gap: 0.35rem;" title="Tandai produk terpilih sebagai Tidak Kulak Lagi / Discontinue">
+                  <i data-lucide="archive" class="icon-sm"></i>
+                  <span>Stop Kulak (<span id="bulk-discontinue-count">0</span>)</span>
+                </button>
                 <button class="btn btn-primary btn-sm" id="btn-bulk-print-labels" onclick="openBulkPrintLabelModal()" style="display: none; background-color: var(--color-primary); border-color: var(--color-primary); align-items: center; gap: 0.35rem;">
                   <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2m-10 0v4h8v-4"/></svg>
                   <span>Cetak Label Massal (<span id="bulk-select-count">0</span>)</span>
@@ -2146,23 +2178,29 @@
             
             <!-- SEARCH FILTER FOR INVENTORY LIST -->
             <div class="table-search-wrapper" style="margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-              <div class="search-bar" style="flex: 1; min-width: 200px;">
+              <div class="search-bar" style="flex: 1 1 240px; min-width: 200px; display: flex; align-items: center; gap: 0.35rem;">
                 <svg viewBox="0 0 24 24" class="icon-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                 <input type="text" id="product-list-search" placeholder="Cari nama barang atau barcode di tabel..." oninput="filterProductListTable()">
-                <button class="btn-scan-camera" onclick="openCameraScanner('produk')" title="Scan Barcode dengan Kamera">
-                  <svg viewBox="0 0 24 24" class="icon" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 12h8M12 8v8"/></svg>
+                <button type="button" class="btn-scan-camera" onclick="openCameraScanner('produk')" title="Scan Barcode dengan Kamera" style="padding: 0.55rem 0.75rem; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); cursor: pointer; flex-shrink: 0; box-shadow: var(--shadow-xs);">
+                  <svg viewBox="0 0 24 24" style="width: 17px; height: 17px; display: block;" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 12h8M12 8v8"/></svg>
                 </button>
               </div>
+              <!-- FILTER STATUS KULAK / AKTIF -->
+              <select id="product-list-status-filter" onchange="filterProductListTable()" style="flex: 0 1 auto; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-weight: 600; font-size: 0.85rem;">
+                <option value="All">Semua Status</option>
+                <option value="active">Aktif (Masih Dijual)</option>
+                <option value="discontinued">Stop Kulak (Discontinue)</option>
+              </select>
               <!-- FILTER KATEGORI PRODUK -->
-              <select id="product-list-category-filter" onchange="filterProductListTable()" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; min-width: 140px;">
+              <select id="product-list-category-filter" onchange="filterProductListTable()" style="flex: 0 1 auto; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-size: 0.85rem;">
                 <option value="All">Semua Kategori</option>
               </select>
               <!-- FILTER LOKASI RAK -->
-              <select id="product-list-rack-filter" onchange="filterProductListTable()" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; min-width: 140px;">
+              <select id="product-list-rack-filter" onchange="filterProductListTable()" style="flex: 0 1 auto; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-size: 0.85rem;">
                 <option value="All">Semua Rak</option>
               </select>
               <!-- SORTIR PRODUK -->
-              <select id="product-list-sort" onchange="filterProductListTable()" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none;">
+              <select id="product-list-sort" onchange="filterProductListTable()" style="flex: 0 1 auto; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-size: 0.85rem;">
                 <option value="newest">Urutan: Terbaru</option>
                 <option value="rack_asc">Nama Rak (A-Z)</option>
                 <option value="rack_desc">Nama Rak (Z-A)</option>
@@ -2827,6 +2865,10 @@
                 <input type="checkbox" id="setting-label-show-price" style="width: 1.25rem; height: 1.25rem; accent-color: var(--primary-color);" checked>
                 Tampilkan Harga di Label Rak
               </label>
+              <label style="display: flex; align-items: center; gap: 0.75rem; font-size: 0.95rem; font-weight: 500; cursor: pointer;">
+                <input type="checkbox" id="setting-label-show-rack" style="width: 1.25rem; height: 1.25rem; accent-color: var(--primary-color);" checked>
+                Tampilkan Lokasi Rak di Label
+              </label>
             </div>
 
             <!-- PENGATURAN FONT NAMA PRODUK -->
@@ -3304,7 +3346,7 @@
                       </div>
                     </div>
                     <span id="desktop-mode-badge" style="font-size: 0.75rem; font-weight: 700; background: #e0f2fe; color: #0369a1; padding: 0.25rem 0.65rem; border-radius: 999px;">
-                      Versi Desktop 1.0.0
+                      Release v1.0.1
                     </span>
                   </div>
 
@@ -4080,7 +4122,7 @@
           <input type="number" id="print-label-qty" min="1" max="100" value="1" oninput="updateLabelPreview()" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-family: var(--font-main); font-weight: 600; outline: none;">
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
           <div class="form-group" style="margin: 0;">
             <label for="modal-label-margin-top" style="font-size: 0.85rem; font-weight: 600;">Batas Atas (mm)</label>
             <input type="number" id="modal-label-margin-top" min="0" max="50" value="0" step="0.5" oninput="onModalLabelMarginChange()" style="width: 100%; padding: 0.45rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.88rem; outline: none;">
@@ -4089,6 +4131,13 @@
             <label for="modal-label-margin-bottom" style="font-size: 0.85rem; font-weight: 600;">Batas Bawah (mm)</label>
             <input type="number" id="modal-label-margin-bottom" min="0" max="50" value="0" step="0.5" oninput="onModalLabelMarginChange()" style="width: 100%; padding: 0.45rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.88rem; outline: none;">
           </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem; font-weight: 600; cursor: pointer; color: var(--text-main);">
+            <input type="checkbox" id="modal-label-show-rack" checked onchange="onModalLabelRackChange()" style="width: 1.15rem; height: 1.15rem; accent-color: var(--primary-color);">
+            Tampilkan Lokasi Rak pada Label
+          </label>
         </div>
 
         <div class="form-group">
@@ -4139,6 +4188,13 @@
             <label for="bulk-label-margin-left" style="font-size: 0.8rem; font-weight: 600;">Padding Kiri (Bisa Minus) (mm)</label>
             <input type="number" id="bulk-label-margin-left" min="-50" max="50" value="0" step="0.5" oninput="updateBulkLabelPreview()" style="width: 100%; padding: 0.4rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
           </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; color: var(--text-main);">
+            <input type="checkbox" id="bulk-label-show-rack" checked onchange="updateBulkLabelPreview()" style="width: 1.15rem; height: 1.15rem; accent-color: var(--primary-color);">
+            Tampilkan Lokasi Rak pada Label Massal
+          </label>
         </div>
 
         <div class="form-group">
@@ -4618,9 +4674,10 @@
                 <thead>
                   <tr style="background: var(--bg-surface-elevated); border-bottom: 1px solid var(--border-color);">
                     <th style="padding: 0.6rem 0.5rem; text-align: left; min-width: 170px;">Produk*</th>
+                    <th style="padding: 0.6rem 0.5rem; width: 95px;">Satuan Input*</th>
                     <th style="padding: 0.6rem 0.5rem; width: 75px;">Jumlah*</th>
                     <th style="padding: 0.6rem 0.5rem; width: 110px;" id="th-delivery-price-nota">Harga di Nota*</th>
-                    <th style="padding: 0.6rem 0.5rem; width: 115px;">Modal (DPP)*</th>
+                    <th style="padding: 0.6rem 0.5rem; width: 125px;" id="th-delivery-price-buy">Harga Beli + PPN*</th>
                     <th style="padding: 0.6rem 0.5rem; width: 105px;">Harga Jual*</th>
                     <th style="padding: 0.6rem 0.5rem; width: 115px;">Tgl Expired</th>
                     <th style="padding: 0.6rem 0.5rem; width: 105px; text-align: right;">Subtotal</th>

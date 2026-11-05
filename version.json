@@ -1,0 +1,6 @@
+{
+  "version": "1.0.3",
+  "releaseName": "v1.0.3",
+  "releasedAt": "2026-10-30",
+  "description": "Perbaikan auto-focus kursor kasir setelah aksi tambah/edit produk, transaksi sales, penerimaan nota, belanja mandiri, dan modal notifikasi harga."
+}

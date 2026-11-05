@@ -1369,6 +1369,25 @@ svg.icon-empty, [data-lucide].icon-empty, svg.lucide.icon-empty {
   border-color: var(--color-primary);
 }
 
+.btn-scan-camera {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+  box-sizing: border-box;
+}
+.btn-scan-camera:hover {
+  background-color: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
 /* Floating Dropdown */
 .floating-results {
   position: absolute;
