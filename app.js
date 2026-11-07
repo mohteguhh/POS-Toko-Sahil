@@ -2680,21 +2680,27 @@ document.addEventListener('DOMContentLoaded', () => {
       closeEditTxFloatingResults();
     }
     
-    // Auto Refocus ke input pencarian sesuai tab aktif saat mengeklik area non-interaktif
+    // Auto Refocus ke input pencarian sesuai tab aktif saat mengeklik area non-interaktif atau tombol POS
     const activeModal = typeof isAnyModalOrOverlayOpen === 'function' ? isAnyModalOrOverlayOpen() : document.querySelector('.modal.active, .modal-overlay.active');
     const kulakFormCard = document.getElementById('kulak-form-card');
     const kulakFormOpen = kulakFormCard && kulakFormCard.style.display !== 'none';
     const bulkEditCard = document.getElementById('kulak-bulk-edit-card');
     const bulkEditOpen = bulkEditCard && bulkEditCard.style.display !== 'none';
     if (!activeModal && !kulakFormOpen && !bulkEditOpen) {
-      const isInteractive = e.target.closest('input, textarea, select, button, label, a, .modal, .modal-content, [onclick], .product-select-checkbox');
-      if (!isInteractive) {
-        if (activeTab === 'products') {
-          focusProductListSearch();
-        } else if (activeTab === 'pos') {
-          focusSearchInput();
-        } else if (activeTab === 'kulak') {
-          focusKulakSearch();
+      const isTypingField = e.target.closest('input, textarea, select');
+      if (activeTab === 'pos') {
+        // Jika bukan sedang fokus mengetik di input/select/textarea lain, kembalikan kursor ke search-input kasir
+        if (!isTypingField) {
+          focusSearchInput(true);
+        }
+      } else {
+        const isInteractive = e.target.closest('input, textarea, select, button, label, a, .modal, .modal-content, [onclick], .product-select-checkbox');
+        if (!isInteractive) {
+          if (activeTab === 'products') {
+            focusProductListSearch();
+          } else if (activeTab === 'kulak') {
+            focusKulakSearch();
+          }
         }
       }
     }
@@ -2703,7 +2709,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Saat window kembali aktif / fokus (misal kembali dari aplikasi lain / alt-tab)
   window.addEventListener('focus', () => {
     if (typeof activeTab === 'undefined' || activeTab === 'pos') {
-      focusSearchInput();
+      focusSearchInput(true);
     }
   });
 
@@ -2711,7 +2717,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       if (typeof activeTab === 'undefined' || activeTab === 'pos') {
-        focusSearchInput();
+        focusSearchInput(true);
       }
     }
   });
@@ -2728,9 +2734,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Jangan ganggu jika user memang sengaja sedang mengetik di elemen input/textarea/select lain
       const activeTag = document.activeElement ? document.activeElement.tagName : '';
-      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
+      if ((activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') && document.activeElement !== input) return;
 
-      // Abaikan tombol modifier atau fungsi khusus
+      // Abaikan tombol modifier atau fungsi khusus tertentu
       if (e.ctrlKey || e.altKey || e.metaKey) return;
       if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta' || e.key === 'Escape' || e.key === 'Tab') return;
 
@@ -2775,20 +2781,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 350);
 
-  // Interval penjaga fokus: pastikan di tab Kasir kursor tidak hilang / selalu di kolom pencarian
+  // Interval penjaga fokus super-responsif: pastikan di tab Kasir kursor tidak pernah lepas dari kolom pencarian
   setInterval(() => {
     if (typeof activeTab === 'undefined' || activeTab === 'pos') {
       if (typeof isAnyModalOrOverlayOpen === 'function' && isAnyModalOrOverlayOpen()) return;
       const searchInput = document.getElementById('search-input');
       if (searchInput && document.activeElement !== searchInput) {
         const currentTag = document.activeElement ? document.activeElement.tagName : '';
-        const isUserTypingElsewhere = currentTag === 'INPUT' || currentTag === 'TEXTAREA' || currentTag === 'SELECT';
+        const isUserTypingElsewhere = (currentTag === 'INPUT' || currentTag === 'TEXTAREA' || currentTag === 'SELECT') && document.activeElement !== searchInput;
         if (!isUserTypingElsewhere) {
-          focusSearchInput();
+          focusSearchInput(true);
         }
       }
     }
-  }, 300);
+  }, 150);
+
+  // Penjaga saat blur: jika kursor keluar dari kolom pencarian kasir bukan menuju input lain/modal, segera kembalikan
+  if (searchInput) {
+    searchInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        if (typeof activeTab === 'undefined' || activeTab === 'pos') {
+          if (typeof isAnyModalOrOverlayOpen === 'function' && isAnyModalOrOverlayOpen()) return;
+          const currentTag = document.activeElement ? document.activeElement.tagName : '';
+          const isUserTypingElsewhere = (currentTag === 'INPUT' || currentTag === 'TEXTAREA' || currentTag === 'SELECT') && document.activeElement !== searchInput;
+          if (!isUserTypingElsewhere && document.activeElement !== searchInput) {
+            focusSearchInput(true);
+          }
+        }
+      }, 50);
+    });
+  }
 });
 
 // Timer Jam
@@ -4427,7 +4449,9 @@ function focusSearchInput(forceFocus = false) {
     const input = document.getElementById('search-input');
     if (input && (typeof activeTab === 'undefined' || activeTab === 'pos')) {
       if (!isAnyModalOrOverlayOpen()) {
-        if (document.activeElement !== input) {
+        const activeTag = document.activeElement ? document.activeElement.tagName : '';
+        const isTypingOther = (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') && document.activeElement !== input;
+        if (!isTypingOther && document.activeElement !== input) {
           input.focus();
         }
       }
@@ -4438,6 +4462,7 @@ function focusSearchInput(forceFocus = false) {
     doFocus();
   });
   // Cadangan timeout untuk memastikan fokus masuk setelah DOM reflow / transisi selesai
+  setTimeout(doFocus, 10);
   setTimeout(doFocus, 30);
   setTimeout(doFocus, 100);
 }
@@ -4790,7 +4815,7 @@ function getAnalyticsFilteredTxs() {
 }
 
 function getHistoricalProductStock(targetDateStr) {
-  // Jika targetDateStr kosong atau sama dengan hari ini, gunakan langsung stok produk terkini
+  // Jika targetDateStr kosong atau sama dengan hari ini / masa depan, gunakan langsung stok produk terkini (O(1))
   const todayStr = getLocalISODate(new Date()).slice(0, 10);
   if (!targetDateStr || targetDateStr.slice(0, 10) >= todayStr) {
     return products.map(p => ({ ...p, stok: Number(p.stok) || 0 }));
@@ -4800,24 +4825,25 @@ function getHistoricalProductStock(targetDateStr) {
   const targetDateOnly = targetDateStr.slice(0, 10);
 
   // Kumpulkan seluruh tanggal aktivitas paling awal (earliest activity) per produk untuk menentukan kapan produk mulai ada di toko
-  const earliestActivityMap = {};
+  const earliestActivityMap = new Map();
 
   // a. Dari data produk langsung jika punya createdAt
   products.forEach(p => {
     if (p.createdAt) {
-      earliestActivityMap[p.id] = p.createdAt.slice(0, 10);
+      earliestActivityMap.set(String(p.id), p.createdAt.slice(0, 10));
     }
   });
 
-  // b. Dari transaksi penjualan
+  // b. Dari transaksi penjualan (single pass O(T))
   txSource.forEach(tx => {
     if (tx.waktu && Array.isArray(tx.items)) {
       const d = parseTxDateStr(tx.waktu).slice(0, 10);
       tx.items.forEach(it => {
-        const pId = it.id;
+        const pId = it.id ? String(it.id) : null;
         if (pId) {
-          if (!earliestActivityMap[pId] || d < earliestActivityMap[pId]) {
-            earliestActivityMap[pId] = d;
+          const cur = earliestActivityMap.get(pId);
+          if (!cur || d < cur) {
+            earliestActivityMap.set(pId, d);
           }
         }
       });
@@ -4830,10 +4856,11 @@ function getHistoricalProductStock(targetDateStr) {
       if (deliv.tanggal && Array.isArray(deliv.items)) {
         const d = String(deliv.tanggal).slice(0, 10);
         deliv.items.forEach(it => {
-          const pId = it.productId;
+          const pId = it.productId ? String(it.productId) : null;
           if (pId) {
-            if (!earliestActivityMap[pId] || d < earliestActivityMap[pId]) {
-              earliestActivityMap[pId] = d;
+            const cur = earliestActivityMap.get(pId);
+            if (!cur || d < cur) {
+              earliestActivityMap.set(pId, d);
             }
           }
         });
@@ -4846,8 +4873,98 @@ function getHistoricalProductStock(targetDateStr) {
     stockOpnames.forEach(op => {
       if (op.waktu && op.productId) {
         const d = parseTxDateStr(op.waktu).slice(0, 10);
-        if (!earliestActivityMap[op.productId] || d < earliestActivityMap[op.productId]) {
-          earliestActivityMap[op.productId] = d;
+        const pId = String(op.productId);
+        const cur = earliestActivityMap.get(pId);
+        if (!cur || d < cur) {
+          earliestActivityMap.set(pId, d);
+        }
+      }
+    });
+  }
+
+  // PRE-AGGREGATION PASS (O(T) bukan O(P * T)):
+  // 1. Akumulasi penjualan yang terjadi SETELAH targetDateOnly
+  const salesAfterMap = new Map();
+  txSource.forEach(tx => {
+    if (tx.waktu) {
+      const txDate = parseTxDateStr(tx.waktu).slice(0, 10);
+      if (txDate > targetDateOnly && Array.isArray(tx.items)) {
+        tx.items.forEach(item => {
+          const qtyMultiplier = item.isBox ? (item.isiBox || 1) : (item.isGrosir ? (item.grosirQty || 1) : 1);
+          const delta = (Number(item.qty) || 0) * qtyMultiplier;
+          if (item.id) {
+            const idKey = String(item.id);
+            salesAfterMap.set(idKey, (salesAfterMap.get(idKey) || 0) + delta);
+          }
+          if (item.nama) {
+            const nameKey = 'name:' + item.nama.trim().toLowerCase();
+            salesAfterMap.set(nameKey, (salesAfterMap.get(nameKey) || 0) + delta);
+          }
+        });
+      }
+    }
+  });
+
+  // 2. Akumulasi kulakan (sales deliveries) SETELAH targetDateOnly
+  const delivAfterMap = new Map();
+  if (Array.isArray(salesDeliveries)) {
+    salesDeliveries.forEach(deliv => {
+      if (deliv.tanggal) {
+        const delivDate = String(deliv.tanggal).slice(0, 10);
+        if (delivDate > targetDateOnly && Array.isArray(deliv.items)) {
+          deliv.items.forEach(it => {
+            const delta = Number(it.qty) || 0;
+            if (it.productId) {
+              const idKey = String(it.productId);
+              delivAfterMap.set(idKey, (delivAfterMap.get(idKey) || 0) + delta);
+            }
+            if (it.nama) {
+              const nameKey = 'name:' + it.nama.trim().toLowerCase();
+              delivAfterMap.set(nameKey, (delivAfterMap.get(nameKey) || 0) + delta);
+            }
+          });
+        }
+      }
+    });
+  }
+
+  // 3. Akumulasi retur sales fisik SETELAH targetDateOnly
+  const returnAfterMap = new Map();
+  if (Array.isArray(salesReturns)) {
+    salesReturns.forEach(ret => {
+      if (ret.tanggal && ret.status === 'Sudah Diganti Fisik') {
+        const retDate = String(ret.tanggal).slice(0, 10);
+        if (retDate > targetDateOnly) {
+          const delta = Number(ret.qty) || 0;
+          if (ret.productId) {
+            const idKey = String(ret.productId);
+            returnAfterMap.set(idKey, (returnAfterMap.get(idKey) || 0) + delta);
+          }
+          if (ret.productName) {
+            const nameKey = 'name:' + ret.productName.trim().toLowerCase();
+            returnAfterMap.set(nameKey, (returnAfterMap.get(nameKey) || 0) + delta);
+          }
+        }
+      }
+    });
+  }
+
+  // 4. Akumulasi selisih opname SETELAH targetDateOnly
+  const opnameAfterMap = new Map();
+  if (Array.isArray(stockOpnames)) {
+    stockOpnames.forEach(op => {
+      if (op.waktu) {
+        const opDate = parseTxDateStr(op.waktu).slice(0, 10);
+        if (opDate > targetDateOnly) {
+          const delta = Number(op.selisih) || 0;
+          if (op.productId) {
+            const idKey = String(op.productId);
+            opnameAfterMap.set(idKey, (opnameAfterMap.get(idKey) || 0) + delta);
+          }
+          if (op.productName) {
+            const nameKey = 'name:' + op.productName.trim().toLowerCase();
+            opnameAfterMap.set(nameKey, (opnameAfterMap.get(nameKey) || 0) + delta);
+          }
         }
       }
     });
@@ -4855,73 +4972,32 @@ function getHistoricalProductStock(targetDateStr) {
 
   const result = [];
 
+  // Single O(P) lookup pass
   products.forEach(p => {
-    // Cek apakah produk sudah ada di tanggal target:
-    // Jika ada tanggal aktivitas paling awal dan targetDateOnly LEBIH KECIL dari tanggal tersebut, maka produk belum ada!
-    const pNameKey = p.nama ? p.nama.trim().toLowerCase() : '';
-    const earliestDate = earliestActivityMap[p.id] || (pNameKey ? earliestActivityMap[pNameKey] : null) || (p.createdAt ? p.createdAt.slice(0, 10) : null);
+    const pIdStr = String(p.id);
+    const pNameKey = p.nama ? 'name:' + p.nama.trim().toLowerCase() : '';
+    const earliestDate = earliestActivityMap.get(pIdStr) || (p.createdAt ? p.createdAt.slice(0, 10) : null);
     if (earliestDate && targetDateOnly < earliestDate) {
       return; // Skip: produk belum ada pada tanggal yang dipilih
     }
 
     let reconstructedStock = Number(p.stok) || 0;
 
-    // 1. Tambah kembali penjualan yang terjadi SETELAH targetDateStr
-    txSource.forEach(tx => {
-      if (tx.waktu) {
-        const txDate = parseTxDateStr(tx.waktu).slice(0, 10);
-        if (txDate > targetDateOnly && Array.isArray(tx.items)) {
-          tx.items.forEach(item => {
-            const isMatch = (item.id === p.id) || (p.nama && item.nama === p.nama);
-            if (isMatch) {
-              const qtyMultiplier = item.isBox ? (item.isiBox || 1) : (item.isGrosir ? (item.grosirQty || 1) : 1);
-              reconstructedStock += ((Number(item.qty) || 0) * qtyMultiplier);
-            }
-          });
-        }
-      }
-    });
+    // Tambah penjualan yang terjadi setelah target date (mundur ke masa lalu stok lebih banyak)
+    const salesDelta = salesAfterMap.get(pIdStr) || (pNameKey ? salesAfterMap.get(pNameKey) : 0) || 0;
+    reconstructedStock += salesDelta;
 
-    // 2. Kurangi stok dari pembelian kulakan (sales deliveries) yang datang SETELAH targetDateStr
-    if (Array.isArray(salesDeliveries)) {
-      salesDeliveries.forEach(deliv => {
-        if (deliv.tanggal) {
-          const delivDate = String(deliv.tanggal).slice(0, 10);
-          if (delivDate > targetDateOnly && Array.isArray(deliv.items)) {
-            deliv.items.forEach(it => {
-              if (it.productId === p.id || (p.nama && it.nama === p.nama)) {
-                reconstructedStock -= (Number(it.qty) || 0);
-              }
-            });
-          }
-        }
-      });
-    }
+    // Kurangi kulakan setelah target date
+    const delivDelta = delivAfterMap.get(pIdStr) || (pNameKey ? delivAfterMap.get(pNameKey) : 0) || 0;
+    reconstructedStock -= delivDelta;
 
-    // 3. Tambah kembali retur sales yang ditarik fisik SETELAH targetDateStr
-    if (Array.isArray(salesReturns)) {
-      salesReturns.forEach(ret => {
-        if (ret.tanggal && ret.status === 'Sudah Diganti Fisik') {
-          const retDate = String(ret.tanggal).slice(0, 10);
-          if (retDate > targetDateOnly && (ret.productId === p.id || (p.nama && ret.productName === p.nama))) {
-            reconstructedStock += (Number(ret.qty) || 0);
-          }
-        }
-      });
-    }
+    // Tambah retur fisik setelah target date
+    const returnDelta = returnAfterMap.get(pIdStr) || (pNameKey ? returnAfterMap.get(pNameKey) : 0) || 0;
+    reconstructedStock += returnDelta;
 
-    // 4. Balikkan penyesuaian selisih Stock Opname yang terjadi SETELAH targetDateStr
-    if (Array.isArray(stockOpnames)) {
-      stockOpnames.forEach(op => {
-        if (op.waktu && (op.productId === p.id || (p.nama && op.productName === p.nama))) {
-          const opDate = parseTxDateStr(op.waktu).slice(0, 10);
-          if (opDate > targetDateOnly) {
-            // Jika saat opname stok ditambah diff, maka mundur ke masa lalu stok dikurangi diff
-            reconstructedStock -= (Number(op.selisih) || 0);
-          }
-        }
-      });
-    }
+    // Balikkan penyesuaian selisih stock opname
+    const opnameDelta = opnameAfterMap.get(pIdStr) || (pNameKey ? opnameAfterMap.get(pNameKey) : 0) || 0;
+    reconstructedStock -= opnameDelta;
 
     result.push({
       ...p,
@@ -5026,6 +5102,16 @@ function getCurrentCashierAvailableCash() {
 function updateAnalytics() {
   const now = new Date();
   
+  // Pre-index produk ke Map untuk akses instan O(1)
+  const productById = new Map();
+  const productByName = new Map();
+  if (Array.isArray(products)) {
+    products.forEach(p => {
+      if (p.id) productById.set(String(p.id), p);
+      if (p.nama) productByName.set(p.nama, p);
+    });
+  }
+
   // Filter transaksi sesuai filter yang dipilih
   const todayTxs = getAnalyticsFilteredTxs();
   
@@ -5091,7 +5177,7 @@ function updateAnalytics() {
       // Fallback jika item adalah bundle dan belum memiliki harga_beli tercatat
       if (item.isBundle && buyPrice === 0 && Array.isArray(item.bundleItems)) {
         item.bundleItems.forEach(b => {
-          const cp = products.find(p => String(p.id) === String(b.productId));
+          const cp = productById.get(String(b.productId));
           if (cp) buyPrice += (Number(cp.harga_beli) || 0) * (Number(b.qty) || 1);
         });
       }
@@ -5581,6 +5667,7 @@ function updateAnalytics() {
     if (stockAlerts.length === 0) {
       stockListEl.innerHTML = '<div class="widget-empty">Stok aman terkendali.</div>';
     } else {
+      const frag = document.createDocumentFragment();
       stockAlerts.forEach(p => {
         const isHabis = p.stok <= 0;
         const itemEl = document.createElement('div');
@@ -5602,8 +5689,9 @@ function updateAnalytics() {
             ${isHabis ? 'Habis' : 'Menipis'}
           </span>
         `;
-        stockListEl.appendChild(itemEl);
+        frag.appendChild(itemEl);
       });
+      stockListEl.appendChild(frag);
     }
   }
   
@@ -5672,7 +5760,7 @@ function updateAnalytics() {
   
   const sortedSellers = Object.keys(sellCounts).sort((a, b) => sellCounts[b] - sellCounts[a]);
   currentBestSellersData = sortedSellers.map((nama, idx) => {
-    const p = products.find(prod => prod.nama === nama);
+    const p = productByName.get(nama);
     return {
       rank: idx + 1,
       nama: nama,
@@ -5717,7 +5805,11 @@ function renderBestSellersTable() {
     return;
   }
 
-  list.forEach(item => {
+  // Tampilkan maksimal 100 teratas jika tidak ada pencarian spesifik untuk meringankan beban DOM
+  const displayList = (!query && list.length > 100) ? list.slice(0, 100) : list;
+  const frag = document.createDocumentFragment();
+
+  displayList.forEach(item => {
     const boxSvg = `<div class="best-seller-box-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>`;
     
     const imgThumbnail = (item.gambar && item.gambar.trim() !== '')
@@ -5745,8 +5837,9 @@ function renderBestSellersTable() {
       <td class="td-qty"><span class="qty-pill">${item.qty} terjual</span></td>
       <td class="td-revenue"><strong>Rp ${formatRupiah(item.revenue)}</strong></td>
     `;
-    bestSellersBody.appendChild(tr);
+    frag.appendChild(tr);
   });
+  bestSellersBody.appendChild(frag);
 }
 
 function render7DayChart() {
@@ -5766,18 +5859,22 @@ function render7DayChart() {
     });
   }
   
-  // Hitung total omzet per hari menggunakan seluruh data transaksi yang tersedia
+  // Hitung total omzet per hari menggunakan seluruh data transaksi yang tersedia (Single Pass O(T))
   const txSource = getAllAvailableTransactions();
-
-  const dailyTotals = days.map(day => {
-    let total = 0;
+  const dateTotalsMap = new Map();
+  if (Array.isArray(txSource)) {
     txSource.forEach(tx => {
-      if (tx.waktu && parseTxDateStr(tx.waktu) === day.dateStr) {
-        total += (parseFloat(tx.total) || 0);
+      if (tx.waktu) {
+        const dStr = parseTxDateStr(tx.waktu);
+        dateTotalsMap.set(dStr, (dateTotalsMap.get(dStr) || 0) + (parseFloat(tx.total) || 0));
       }
     });
-    return { label: day.label, amount: total };
-  });
+  }
+
+  const dailyTotals = days.map(day => ({
+    label: day.label,
+    amount: dateTotalsMap.get(day.dateStr) || 0
+  }));
   
   const maxAmount = Math.max(...dailyTotals.map(d => d.amount), 100000);
   

@@ -1,6 +1,6 @@
 {
-  "version": "1.0.3",
-  "releaseName": "v1.0.3",
-  "releasedAt": "2026-10-30",
-  "description": "Perbaikan auto-focus kursor kasir setelah aksi tambah/edit produk, transaksi sales, penerimaan nota, belanja mandiri, dan modal notifikasi harga."
+  "version": "1.0.5",
+  "releaseName": "v1.0.5",
+  "releasedAt": "2026-11-07",
+  "description": "Perbaikan auto-focus kursor kasir POS: memastikan kursor selalu aktif dan terkunci pada kolom pencarian barang/barcode saat halaman kasir aktif."
 }
