@@ -3088,14 +3088,31 @@ tr:hover td {
     justify-content: center;
   }
   #pane-products .table-search-wrapper {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
-    width: 100%;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.45rem !important;
+    width: 100% !important;
   }
-  #pane-products .table-search-wrapper select {
-    width: 100%;
-    font-size: 0.8rem;
+  #pane-products .table-search-wrapper .search-bar {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  #pane-products .product-filters-row {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.45rem !important;
+    width: 100% !important;
+  }
+  #pane-products .product-filters-row select {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 0.8rem !important;
+    padding: 0.45rem 0.5rem !important;
+  }
+  #pane-products .product-filters-row .btn-print-rack {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    justify-content: center !important;
   }
 
   #products-table thead {

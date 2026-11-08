@@ -81,7 +81,7 @@
   <link rel="icon" type="image/svg+xml" href="icon-192.svg">
   <link rel="apple-touch-icon" href="icon-192.svg">
 
-  <link rel="stylesheet" href="style.css?v=6.6">
+  <link rel="stylesheet" href="style.css?v=6.7">
 </head>
 <body>
 
@@ -2140,7 +2140,7 @@
             <div class="table-header" style="flex-wrap: wrap; gap: 1rem;">
               <h2>Daftar Inventaris Produk</h2>
               <div class="table-actions">
-                <button class="btn btn-primary btn-sm" onclick="openProductModal()">
+                <button class="btn btn-primary btn-sm btn-new-product" onclick="openProductModal()">
                   <svg viewBox="0 0 24 24" class="icon-sm" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14"/></svg>
                   <span>Produk Baru</span>
                 </button>
@@ -2177,7 +2177,7 @@
             </div>
             
             <!-- SEARCH FILTER FOR INVENTORY LIST -->
-            <div class="table-search-wrapper" style="margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <div class="table-search-wrapper product-search-wrapper" style="margin-bottom: 0.85rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
               <div class="search-bar" style="flex: 1 1 240px; min-width: 200px; display: flex; align-items: center; gap: 0.35rem;">
                 <svg viewBox="0 0 24 24" class="icon-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                 <input type="text" id="product-list-search" placeholder="Cari nama barang atau barcode di tabel..." oninput="filterProductListTable()">
@@ -2185,40 +2185,42 @@
                   <svg viewBox="0 0 24 24" style="width: 17px; height: 17px; display: block;" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 12h8M12 8v8"/></svg>
                 </button>
               </div>
-              <!-- FILTER STATUS KULAK / AKTIF -->
-              <select id="product-list-status-filter" onchange="filterProductListTable()" style="flex: 0 1 auto; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-weight: 600; font-size: 0.85rem;">
-                <option value="All">Semua Status</option>
-                <option value="active">Aktif (Masih Dijual)</option>
-                <option value="discontinued">Stop Kulak (Discontinue)</option>
-              </select>
-              <!-- FILTER KATEGORI PRODUK -->
-              <select id="product-list-category-filter" onchange="filterProductListTable()" style="flex: 0 1 auto; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-size: 0.85rem;">
-                <option value="All">Semua Kategori</option>
-              </select>
-              <!-- FILTER LOKASI RAK -->
-              <select id="product-list-rack-filter" onchange="filterProductListTable()" style="flex: 0 1 auto; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-size: 0.85rem;">
-                <option value="All">Semua Rak</option>
-              </select>
-              <!-- SORTIR PRODUK -->
-              <select id="product-list-sort" onchange="filterProductListTable()" style="flex: 0 1 auto; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-size: 0.85rem;">
-                <option value="newest">Urutan: Terbaru</option>
-                <option value="rack_asc">Nama Rak (A-Z)</option>
-                <option value="rack_desc">Nama Rak (Z-A)</option>
-                <option value="name_asc">Nama (A-Z)</option>
-                <option value="name_desc">Nama (Z-A)</option>
-                <option value="category_asc">Kategori (A-Z)</option>
-                <option value="category_desc">Kategori (Z-A)</option>
-                <option value="stock_asc">Stok (Sedikit - Banyak)</option>
-                <option value="stock_desc">Stok (Banyak - Sedikit)</option>
-                <option value="price_asc">Harga (Termurah)</option>
-                <option value="price_desc">Harga (Termahal)</option>
-              </select>
-              <!-- TOMBOL CETAK DAFTAR BARANG DI RAK -->
-              <button type="button" class="btn btn-secondary btn-sm" onclick="openPrintRackModal()" title="Cetak Daftar Barang per Rak" style="padding: 0.5rem 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
-                <i data-lucide="printer" class="icon-sm"></i>
-                <span>Cetak Isi Rak</span>
-              </button>
-              <span class="help-text" id="table-search-count" style="width: 100%;">Menampilkan 10 data teratas. Ketik kata kunci untuk mencari data lainnya.</span>
+              <div class="product-filters-row">
+                <!-- FILTER STATUS KULAK / AKTIF -->
+                <select id="product-list-status-filter" onchange="filterProductListTable()" style="flex: 1 1 130px; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-weight: 600; font-size: 0.85rem;">
+                  <option value="All">Semua Status</option>
+                  <option value="active">Aktif (Masih Dijual)</option>
+                  <option value="discontinued">Stop Kulak (Discontinue)</option>
+                </select>
+                <!-- FILTER KATEGORI PRODUK -->
+                <select id="product-list-category-filter" onchange="filterProductListTable()" style="flex: 1 1 130px; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-size: 0.85rem;">
+                  <option value="All">Semua Kategori</option>
+                </select>
+                <!-- FILTER LOKASI RAK -->
+                <select id="product-list-rack-filter" onchange="filterProductListTable()" style="flex: 1 1 130px; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-size: 0.85rem;">
+                  <option value="All">Semua Rak</option>
+                </select>
+                <!-- SORTIR PRODUK -->
+                <select id="product-list-sort" onchange="filterProductListTable()" style="flex: 1 1 130px; padding: 0.55rem 0.65rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--bg-surface); color: var(--text-main); outline: none; font-size: 0.85rem;">
+                  <option value="newest">Urutan: Terbaru</option>
+                  <option value="rack_asc">Nama Rak (A-Z)</option>
+                  <option value="rack_desc">Nama Rak (Z-A)</option>
+                  <option value="name_asc">Nama (A-Z)</option>
+                  <option value="name_desc">Nama (Z-A)</option>
+                  <option value="category_asc">Kategori (A-Z)</option>
+                  <option value="category_desc">Kategori (Z-A)</option>
+                  <option value="stock_asc">Stok (Sedikit - Banyak)</option>
+                  <option value="stock_desc">Stok (Banyak - Sedikit)</option>
+                  <option value="price_asc">Harga (Termurah)</option>
+                  <option value="price_desc">Harga (Termahal)</option>
+                </select>
+                <!-- TOMBOL CETAK DAFTAR BARANG DI RAK -->
+                <button type="button" class="btn btn-secondary btn-sm btn-print-rack" onclick="openPrintRackModal()" title="Cetak Daftar Barang per Rak" style="padding: 0.5rem 0.75rem; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; white-space: nowrap;">
+                  <i data-lucide="printer" class="icon-sm"></i>
+                  <span>Cetak Isi Rak</span>
+                </button>
+              </div>
+              <span class="help-text" id="table-search-count" style="width: 100%; margin-top: 0.15rem;">Menampilkan 10 data teratas. Ketik kata kunci untuk mencari data lainnya.</span>
             </div>
             
             <div class="table-wrapper">
