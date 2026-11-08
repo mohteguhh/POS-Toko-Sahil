@@ -3052,7 +3052,7 @@ tr:hover td {
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   /* Kolaps grid form 2 kolom */
   .form-grid-2 {
     grid-template-columns: 1fr;
@@ -3076,22 +3076,30 @@ tr:hover td {
     gap: 0.65rem;
   }
   #pane-products .table-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    width: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.4rem !important;
+    width: 100% !important;
   }
-  #pane-products .table-actions button {
-    flex: 1 1 auto;
-    font-size: 0.75rem;
-    padding: 0.35rem 0.5rem;
-    justify-content: center;
+  #pane-products .table-actions button.btn-new-product {
+    grid-column: 1 / -1 !important;
+    padding: 0.55rem 0.75rem !important;
+    font-size: 0.88rem !important;
+    font-weight: 700 !important;
+  }
+  #pane-products .table-actions button,
+  #pane-products .table-actions a {
+    width: 100% !important;
+    font-size: 0.75rem !important;
+    padding: 0.4rem 0.5rem !important;
+    justify-content: center !important;
   }
   #pane-products .table-search-wrapper {
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 0.45rem !important;
     width: 100% !important;
+    margin-bottom: 0.65rem !important;
   }
   #pane-products .table-search-wrapper .search-bar {
     width: 100% !important;
@@ -6045,7 +6053,7 @@ body.print-landscape {
 
   /* 4. Toolbar & Form Filter agar tidak terpotong */
   .table-search-wrapper,
-  .table-actions,
+  .table-actions:not(#pane-products .table-actions),
   .analytics-btn-group,
   .toolbar-wrapper {
     flex-direction: column !important;
@@ -6054,7 +6062,7 @@ body.print-landscape {
   }
 
   .table-search-wrapper > div,
-  .table-actions > button,
+  .table-actions:not(#pane-products .table-actions) > button,
   .analytics-btn-group > button {
     width: 100% !important;
     justify-content: center !important;
