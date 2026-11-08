@@ -125,8 +125,11 @@
         width: 100% !important;
       }
       #pane-products .search-bar {
-        width: 100% !important;
-        min-width: 0 !important;
+        flex: 1 1 20px !important;
+        min-width: 200px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.35rem !important;
         margin-top: 0 !important;
         margin-bottom: 0 !important;
       }
@@ -2253,7 +2256,7 @@
             
             <!-- SEARCH FILTER FOR INVENTORY LIST -->
             <div class="table-search-wrapper product-search-wrapper">
-              <div class="search-bar" style="flex: 1 1 240px; min-width: 200px; display: flex; align-items: center; gap: 0.35rem;">
+              <div class="search-bar" style="flex: 1 1 20px; min-width: 200px; display: flex; align-items: center; gap: 0.35rem;">
                 <svg viewBox="0 0 24 24" class="icon-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                 <input type="text" id="product-list-search" placeholder="Cari nama barang atau barcode di tabel..." oninput="filterProductListTable()">
                 <button type="button" class="btn-scan-camera" onclick="openCameraScanner('produk')" title="Scan Barcode dengan Kamera" style="padding: 0.55rem 0.75rem; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); cursor: pointer; flex-shrink: 0; box-shadow: var(--shadow-xs);">
