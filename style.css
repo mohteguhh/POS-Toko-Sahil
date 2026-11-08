@@ -6089,3 +6089,76 @@ body.print-landscape {
     z-index: 9990 !important;
   }
 }
+
+
+/* ========================================================================== */
+/* PERBAIKAN KHUSUS KERAPATAN SEARCH & FILTER PRODUK DI MOBILE */
+/* ========================================================================== */
+@media (max-width: 900px) {
+  #pane-products .table-header {
+    margin-bottom: 0.35rem !important;
+    gap: 0.45rem !important;
+  }
+  #pane-products .table-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.35rem !important;
+    width: 100% !important;
+    margin-bottom: 0.35rem !important;
+  }
+  #pane-products .table-actions button.btn-new-product {
+    grid-column: 1 / -1 !important;
+    padding: 0.55rem 0.75rem !important;
+    font-size: 0.88rem !important;
+    font-weight: 700 !important;
+  }
+  #pane-products .table-actions button,
+  #pane-products .table-actions a {
+    width: 100% !important;
+    font-size: 0.75rem !important;
+    padding: 0.4rem 0.5rem !important;
+    justify-content: center !important;
+    margin: 0 !important;
+  }
+  #pane-products .table-search-wrapper,
+  #pane-products .product-search-wrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.35rem !important;
+    margin-top: 0 !important;
+    margin-bottom: 0.5rem !important;
+    width: 100% !important;
+  }
+  #pane-products .search-bar {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  #pane-products .product-filters-row {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.35rem !important;
+    width: 100% !important;
+    margin-top: 0 !important;
+  }
+  #pane-products .product-filters-row select {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 0.8rem !important;
+    padding: 0.42rem 0.5rem !important;
+    margin: 0 !important;
+  }
+  #pane-products .product-filters-row .btn-print-rack {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 0.45rem 0.65rem !important;
+    margin: 0 !important;
+  }
+  #pane-products #table-search-count {
+    margin-top: 0.15rem !important;
+    margin-bottom: 0.25rem !important;
+  }
+}
