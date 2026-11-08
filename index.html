@@ -2137,7 +2137,7 @@
           
           <!-- Product List Table with Search Filter -->
           <div class="card table-card" style="grid-column: 1 / -1;">
-            <div class="table-header" style="flex-wrap: wrap; gap: 1rem;">
+            <div class="table-header">
               <h2>Daftar Inventaris Produk</h2>
               <div class="table-actions">
                 <button class="btn btn-primary btn-sm btn-new-product" onclick="openProductModal()">
@@ -2177,7 +2177,7 @@
             </div>
             
             <!-- SEARCH FILTER FOR INVENTORY LIST -->
-            <div class="table-search-wrapper product-search-wrapper" style="margin-bottom: 0.85rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+            <div class="table-search-wrapper product-search-wrapper">
               <div class="search-bar" style="flex: 1 1 240px; min-width: 200px; display: flex; align-items: center; gap: 0.35rem;">
                 <svg viewBox="0 0 24 24" class="icon-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                 <input type="text" id="product-list-search" placeholder="Cari nama barang atau barcode di tabel..." oninput="filterProductListTable()">
