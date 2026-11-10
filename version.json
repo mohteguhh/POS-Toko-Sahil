@@ -1,6 +1,6 @@
 {
-  "version": "1.0.5",
-  "releaseName": "v1.0.5",
-  "releasedAt": "2026-11-07",
-  "description": "Perbaikan auto-focus kursor kasir POS: memastikan kursor selalu aktif dan terkunci pada kolom pencarian barang/barcode saat halaman kasir aktif."
+  "version": "1.0.6",
+  "releaseName": "v1.0.6",
+  "releasedAt": "2026-11-10",
+  "description": "Perbaikan auto-merge sinkronisasi offline-to-cloud saat perpanjangan lisensi, penambahan peringatan masa aktif H-7, serta filter tanggal & keterangan detail pelunasan tempo sales."
 }

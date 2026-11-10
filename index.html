@@ -249,6 +249,27 @@
 
     <!-- Main Content Container -->
     <main class="content-area">
+      <!-- Peringatan Global Lisensi Langganan Cloud (7 Hari Sebelum Expired atau Sudah Expired) -->
+      <div id="license-subscription-warning-banner" style="display: none; background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1.5px solid #f59e0b; border-radius: 12px; padding: 0.75rem 1.15rem; margin-bottom: 1.25rem; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15); align-items: center; justify-content: space-between; gap: 0.85rem; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(245, 158, 11, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;" id="license-warning-icon">🔔</div>
+          <div>
+            <div style="font-weight: 800; color: #b45309; font-size: 0.92rem;" id="license-warning-title">Peringatan: Masa Aktif Cloud Segera Berakhir!</div>
+            <div style="font-size: 0.82rem; color: #78350f; margin-top: 2px;" id="license-warning-detail">
+              Masa langganan sinkronisasi cloud toko Anda akan berakhir dalam beberapa hari. Segera perpanjang agar transaksi kasir tetap online dan sinkron realtime.
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <button type="button" class="btn btn-primary btn-sm" onclick="openSubscriptionInvoiceModal()" style="background: #d97706; border-color: #d97706; font-weight: 800; font-size: 0.82rem; padding: 0.5rem 1rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(217, 119, 6, 0.35);">
+            💳 Perpanjang Langganan Sekarang
+          </button>
+          <button type="button" onclick="dismissLicenseWarningBanner()" title="Tutup pemberitahuan ini untuk sesi ini" style="background: transparent; border: 1px solid rgba(245, 158, 11, 0.4); color: #b45309; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center;">
+            &times;
+          </button>
+        </div>
+      </div>
+
       <!-- Peringatan Folder Backup Belum Terhubung -->
       <div id="backup-folder-warning-banner" style="display: none; background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border: 1.5px solid #f87171; border-radius: 12px; padding: 0.75rem 1.15rem; margin-bottom: 1.25rem; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.12); align-items: center; justify-content: space-between; gap: 0.85rem; flex-wrap: wrap;">
         <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -1082,12 +1103,20 @@
                 </button>
               </div>
 
-              <!-- Filter Waktu Penerimaan Nota (Rentang Tanggal Dari - Sampai) -->
+              <!-- Filter Waktu Penerimaan Nota (Rentang Tanggal Dari - Sampai & Kategori Tanggal) -->
               <div style="display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; padding: 0.75rem 0.95rem; background: var(--bg-surface-elevated); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
-                <span style="font-weight: 700; font-size: 0.85rem; color: var(--text-main); display: inline-flex; align-items: center; gap: 0.35rem;">
-                  <i data-lucide="calendar" style="width: 15px; height: 15px; color: #059669;"></i>
-                  Rentang Tanggal Nota:
-                </span>
+                <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <span style="font-weight: 700; font-size: 0.85rem; color: var(--text-main); display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <i data-lucide="calendar" style="width: 15px; height: 15px; color: #059669;"></i>
+                    Filter Tanggal:
+                  </span>
+                  <select id="filter-invoice-date-type" onchange="renderSalesDeliveriesTable()" style="padding: 0.4rem 0.6rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem; font-weight: 700;">
+                    <option value="tanggal">Tanggal Nota / Barang Masuk</option>
+                    <option value="jatuhTempo">Tanggal Jatuh Tempo</option>
+                    <option value="riwayatBayar">Tanggal Pelunasan / Pembayaran</option>
+                    <option value="semua">Semua (Cocok Salah Satu)</option>
+                  </select>
+                </div>
                 <div style="display: inline-flex; align-items: center; gap: 0.4rem;">
                   <input type="date" id="filter-invoice-date-start" onchange="renderSalesDeliveriesTable()" style="padding: 0.4rem 0.65rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem; font-weight: 600;" title="Tanggal Mulai">
                   <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted);">s/d</span>
@@ -1376,6 +1405,14 @@
                 </div>
                 <!-- Filter Periode Rekap (Tanggal Sekian s/d Sekian) & Tombol Cetak / Export -->
                 <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                  <div style="display: flex; align-items: center; gap: 0.35rem;">
+                    <select id="sales-rekap-date-type" onchange="renderSalesRekapView()" style="padding: 0.45rem 0.65rem; border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); color: var(--text-main); font-size: 0.85rem; font-weight: 700;">
+                      <option value="semua">Semua Tipe Tanggal (Cocok Salah Satu)</option>
+                      <option value="tanggal">Tanggal Nota / Barang Masuk</option>
+                      <option value="jatuhTempo">Tanggal Jatuh Tempo</option>
+                      <option value="riwayatBayar">Tanggal Pelunasan / Pembayaran</option>
+                    </select>
+                  </div>
                   <div style="display: flex; align-items: center; gap: 0.25rem; background: var(--bg-surface); padding: 3px 8px; border: 1.5px solid var(--border-color); border-radius: 8px;">
                     <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700;">Periode:</span>
                     <input type="date" id="sales-rekap-date-start" onchange="renderSalesRekapView()" style="padding: 0.35rem 0.5rem; border: none; background: transparent; color: var(--text-main); font-weight: 600; font-size: 0.85rem;" title="Tanggal Mulai">
@@ -4910,17 +4947,17 @@
   <!-- MODAL: PELUNASAN / BAYAR TAGIHAN NOTA SALES -->
   <!-- ======================================================== -->
   <div class="modal-overlay" id="sales-pay-modal" style="display: none;">
-    <div class="modal-card" style="max-width: 480px; width: 92%;">
-      <div class="modal-header">
+    <div class="modal-card" style="max-width: 480px; width: 92%; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="flex-shrink: 0;">
         <h3 style="margin: 0; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
           <span>💵</span>
           <span>Pelunasan Tagihan Nota Sales</span>
         </h3>
         <button class="close-modal-btn" onclick="closeSalesPayModal()">&times;</button>
       </div>
-      <form id="sales-pay-form" onsubmit="saveSalesPayment(event)">
+      <form id="sales-pay-form" onsubmit="saveSalesPayment(event)" style="display: flex; flex-direction: column; flex: 1; overflow: hidden; margin: 0;">
         <input type="hidden" id="pay-delivery-id">
-        <div class="modal-body" style="padding: 1.25rem;">
+        <div class="modal-body" style="padding: 1.25rem; overflow-y: auto; flex: 1;">
           <div style="background: var(--bg-surface-elevated); padding: 0.85rem; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 1rem;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.9rem;">
               <span style="color: var(--text-muted);">No. Nota:</span>
@@ -4977,7 +5014,7 @@
             <input type="text" id="pay-notes-input" placeholder="Misal: Tunai langsung ke sales Budi / Transfer BCA" style="width: 100%; padding: 0.55rem 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
           </div>
         </div>
-        <div class="modal-footer flex-end">
+        <div class="modal-footer flex-end" style="flex-shrink: 0;">
           <button type="button" class="btn btn-secondary" onclick="closeSalesPayModal()">Batal</button>
           <button type="submit" class="btn btn-primary" style="font-weight: 700;">Simpan Pembayaran</button>
         </div>

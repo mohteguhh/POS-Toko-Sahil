@@ -809,14 +809,26 @@ async function updateLicenseUI(lic) {
     if (info) {
       info.innerHTML = `Masa aktif cloud berakhir pada ${expStr}. Aplikasi beralih ke <b>Mode Offline</b> (Data tetap aman di komputer).`;
     }
-  } else if (diffDays <= 3) {
+    showLicenseWarningBanner({
+      type: 'expired',
+      title: 'Perhatian: Masa Aktif Cloud Telah Berakhir!',
+      detail: `Masa aktif cloud toko Anda berakhir pada <b>${expStr}</b>. Aplikasi saat ini berjalan dalam <b>Mode Offline</b>. Segera perpanjang langganan agar sinkronisasi cloud aktif kembali.`,
+      daysLeft: 0
+    });
+  } else if (diffDays <= 7) {
     if (badge) {
       badge.textContent = `${diffDays} Hari Lagi`;
-      badge.style.background = '#f59e0b';
+      badge.style.background = diffDays <= 3 ? '#ef4444' : '#f59e0b';
     }
     if (info) {
-      info.innerHTML = `Masa aktif sampai: <b>${expStr}</b> (<span style="color:#d97706; font-weight:700;">Segera perpanjang</span>)`;
+      info.innerHTML = `Masa aktif sampai: <b>${expStr}</b> (<span style="color:#d97706; font-weight:700;">Segera perpanjang dalam ${diffDays} hari</span>)`;
     }
+    showLicenseWarningBanner({
+      type: 'warning',
+      title: `Peringatan: Masa Aktif Cloud Berakhir dalam ${diffDays} Hari!`,
+      detail: `Masa aktif cloud toko Anda akan jatuh tempo pada <b>${expStr}</b> (${diffDays} hari lagi). Harap lakukan perpanjangan sebelum jatuh tempo agar aplikasi tidak beralih ke mode offline.`,
+      daysLeft: diffDays
+    });
   } else {
     if (badge) {
       badge.textContent = 'Aktif';
@@ -825,13 +837,50 @@ async function updateLicenseUI(lic) {
     if (info) {
       info.innerHTML = `Masa aktif sampai: <b>${expStr}</b> (${diffDays} hari lagi)`;
     }
+    // Sembunyikan banner jika masih lebih dari 7 hari
+    const banner = document.getElementById('license-subscription-warning-banner');
+    if (banner) banner.style.display = 'none';
   }
 
   // Update modal tagihan
   const modalKey = document.getElementById('sub-modal-license-key');
   const modalDue = document.getElementById('sub-modal-due-date');
   if (modalKey) modalKey.textContent = currentLicenseKey;
-  if (modalDue) modalDue.textContent = expStr + (diffDays <= 0 ? ' (Sudah Lewat)' : '');
+  if (modalDue) modalDue.textContent = expStr + (diffDays <= 0 ? ' (Sudah Lewat)' : ` (${diffDays} hari lagi)`);
+}
+
+// Banner kontrol peringatan masa aktif langganan cloud
+let isLicenseWarningDismissed = false;
+
+function showLicenseWarningBanner(params) {
+  if (isLicenseWarningDismissed) return;
+  const banner = document.getElementById('license-subscription-warning-banner');
+  if (!banner) return;
+
+  const titleEl = document.getElementById('license-warning-title');
+  const detailEl = document.getElementById('license-warning-detail');
+  const iconEl = document.getElementById('license-warning-icon');
+
+  if (titleEl) titleEl.innerHTML = params.title;
+  if (detailEl) detailEl.innerHTML = params.detail;
+
+  if (params.type === 'expired') {
+    banner.style.background = 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)';
+    banner.style.borderColor = '#ef4444';
+    if (iconEl) iconEl.textContent = '⛔';
+  } else {
+    banner.style.background = 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)';
+    banner.style.borderColor = '#f59e0b';
+    if (iconEl) iconEl.textContent = '🔔';
+  }
+
+  banner.style.display = 'flex';
+}
+
+function dismissLicenseWarningBanner() {
+  isLicenseWarningDismissed = true;
+  const banner = document.getElementById('license-subscription-warning-banner');
+  if (banner) banner.style.display = 'none';
 }
 
 async function saveLicenseKey() {
@@ -1073,30 +1122,55 @@ function setupDatabaseListeners() {
     const data = snapshot.val();
     const cloudTxs = data ? Object.values(data) : [];
     
-    // Jika cloud kosong tapi di lokal browser ada transaksi (misal: habis restore backup database),
-    // jangan hapus transaksi lokal! Unggah data lokal ke cloud agar sinkron.
-    if (cloudTxs.length === 0 && Array.isArray(transactions) && transactions.length > 0) {
-      console.log(`⚠️ RTDB cloud transaksi kosong untuk toko ${currentLicenseKey}, menyinkronkan ${transactions.length} transaksi lokal ke cloud.`);
-      const backupUpdates = {};
-      transactions.forEach(t => {
-        if (t && t.id) {
-          backupUpdates[getStorePath('transactions/' + t.id)] = JSON.parse(JSON.stringify(t));
-        }
-      });
-      if (Object.keys(backupUpdates).length > 0) {
-        firebaseDb.ref('/').update(backupUpdates).catch(e => console.warn('Gagal sync restore ke cloud:', e));
-      }
-      return;
-    }
-
-    // Transaksi dari cloud adalah sumber kebenaran (authoritative)
+    // Gabungkan transaksi: Cloud + Transaksi lokal yang belum sempat terunggah (Offline)
+    // Transaksi dari cloud adalah acuan, TETAPI transaksi lokal yang dibuat saat mode offline/expired
+    // TIDAK boleh hilang tertimpa, melainkan harus dipertahankan dan otomatis diunggah ke cloud!
     const txMap = new Map();
+    const localTxsToUpload = [];
+
+    // 1. Masukkan semua transaksi dari cloud
     cloudTxs.forEach(tx => {
       const id = tx.id || tx.id_transaksi;
       if (id && !recentlyDeletedTxIds.has(id)) {
         txMap.set(id, { ...tx, id });
       }
     });
+
+    // 2. Periksa transaksi lokal (di memori atau localStorage) yang belum ada di cloud
+    let currentLocalTxs = Array.isArray(transactions) ? transactions : [];
+    if (currentLocalTxs.length === 0) {
+      try {
+        const stored = localStorage.getItem('kasir_transactions');
+        if (stored) currentLocalTxs = JSON.parse(stored);
+      } catch (e) {}
+    }
+
+    if (Array.isArray(currentLocalTxs)) {
+      currentLocalTxs.forEach(localTx => {
+        if (!localTx || !localTx.id) return;
+        if (recentlyDeletedTxIds.has(localTx.id)) return;
+
+        // Jika transaksi ada di lokal tetapi belum ada di cloud, pertahankan dan siapkan upload ke cloud!
+        if (!txMap.has(localTx.id)) {
+          txMap.set(localTx.id, localTx);
+          localTxsToUpload.push(localTx);
+        }
+      });
+    }
+
+    // 3. Jika ada transaksi offline lokal yang belum masuk cloud, unggah segera ke RTDB
+    if (localTxsToUpload.length > 0) {
+      console.log(`🚀 [Auto-Merge] Menemukan ${localTxsToUpload.length} transaksi offline lokal. Mengunggah ke cloud...`);
+      const offlineUpdates = {};
+      localTxsToUpload.forEach(tx => {
+        offlineUpdates[getStorePath('transactions/' + tx.id)] = JSON.parse(JSON.stringify(tx));
+      });
+      firebaseDb.ref('/').update(offlineUpdates).then(() => {
+        console.log(`✅ [Auto-Merge] Berhasil mengunggah ${localTxsToUpload.length} transaksi offline ke cloud.`);
+      }).catch(err => {
+        console.warn('⚠️ [Auto-Merge] Gagal mengunggah transaksi offline ke cloud:', err.message);
+      });
+    }
 
     const mergedTxs = Array.from(txMap.values());
     mergedTxs.sort((a, b) => parseTxDate(b.waktu).getTime() - parseTxDate(a.waktu).getTime());
@@ -1189,12 +1263,47 @@ function setupDatabaseListeners() {
   const salesDelivRef = firebaseDb.ref(getStorePath('salesDeliveries'));
   const salesDelivCallback = snapshot => {
     const data = snapshot.val();
-    if (data) {
-      salesDeliveries = Array.isArray(data) ? data : Object.values(data);
-      localStorage.setItem('kasir_sales_deliveries', JSON.stringify(salesDeliveries));
-      if (typeof renderSalesDeliveriesTable === 'function') renderSalesDeliveriesTable();
-      if (typeof renderSalesRekapView === 'function') renderSalesRekapView();
+    const cloudDelivs = data ? (Array.isArray(data) ? data : Object.values(data)) : [];
+    
+    // Auto-merge: gabungkan kiriman dari cloud + kiriman lokal offline yang belum diupload
+    const delivMap = new Map();
+    const localDelivsToUpload = [];
+
+    cloudDelivs.forEach(d => {
+      if (d && d.id) delivMap.set(d.id, d);
+    });
+
+    let currentLocalDelivs = Array.isArray(salesDeliveries) ? salesDeliveries : [];
+    if (currentLocalDelivs.length === 0) {
+      try {
+        const stored = localStorage.getItem('kasir_sales_deliveries');
+        if (stored) currentLocalDelivs = JSON.parse(stored);
+      } catch (e) {}
     }
+
+    if (Array.isArray(currentLocalDelivs)) {
+      currentLocalDelivs.forEach(ld => {
+        if (!ld || !ld.id) return;
+        if (!delivMap.has(ld.id)) {
+          delivMap.set(ld.id, ld);
+          localDelivsToUpload.push(ld);
+        }
+      });
+    }
+
+    const mergedDelivs = Array.from(delivMap.values());
+    salesDeliveries = mergedDelivs;
+    localStorage.setItem('kasir_sales_deliveries', JSON.stringify(salesDeliveries));
+
+    if (localDelivsToUpload.length > 0) {
+      console.log(`🚀 [Auto-Merge] Mengunggah ${localDelivsToUpload.length} sales deliveries lokal ke cloud...`);
+      firebaseDb.ref(getStorePath('salesDeliveries')).set(salesDeliveries).catch(err => {
+        console.warn('Gagal sync merged deliveries:', err);
+      });
+    }
+
+    if (typeof renderSalesDeliveriesTable === 'function') renderSalesDeliveriesTable();
+    if (typeof renderSalesRekapView === 'function') renderSalesRekapView();
   };
   salesDelivRef.on('value', salesDelivCallback, err => console.error('❌ RTDB Deliveries Error:', err.message));
   fbUnsubscribes.push(() => salesDelivRef.off('value', salesDelivCallback));
@@ -24135,6 +24244,7 @@ function saveSalesDelivery(e) {
     imageUrl: imageUrl,
     statusBayar: isFullyPaid ? 'Lunas' : 'Tempo',
     jatuhTempo: payStatus === 'Tempo' ? dueDate : null,
+    tanggalLunas: isFullyPaid ? (existingDelivery?.tanggalLunas || tanggal) : null,
     totalDibayar: paidAmount,
     sisaTagihan: sisaTagihan,
     sumberDana: (document.getElementById('delivery-fund-source')?.value) || 'dana_lain',
@@ -24210,23 +24320,45 @@ function saveSalesDelivery(e) {
 function resetInvoiceFilters() {
   const elStart = document.getElementById('filter-invoice-date-start');
   const elEnd = document.getElementById('filter-invoice-date-end');
+  const elType = document.getElementById('filter-invoice-date-type');
   if (elStart) elStart.value = '';
   if (elEnd) elEnd.value = '';
+  if (elType) elType.value = 'tanggal';
   renderSalesDeliveriesTable();
 }
 
 function getFilteredSalesDeliveriesList() {
   const start = document.getElementById('filter-invoice-date-start')?.value;
   const end = document.getElementById('filter-invoice-date-end')?.value;
+  const filterType = document.getElementById('filter-invoice-date-type')?.value || 'tanggal';
 
   let filtered = [...salesDeliveries];
 
-  if (start && end) {
-    filtered = filtered.filter(d => d.tanggal >= start && d.tanggal <= end);
-  } else if (start) {
-    filtered = filtered.filter(d => d.tanggal >= start);
-  } else if (end) {
-    filtered = filtered.filter(d => d.tanggal <= end);
+  if (start || end) {
+    filtered = filtered.filter(d => {
+      const matchRange = (dateStr) => {
+        if (!dateStr) return false;
+        if (start && end) return dateStr >= start && dateStr <= end;
+        if (start) return dateStr >= start;
+        if (end) return dateStr <= end;
+        return true;
+      };
+
+      if (filterType === 'tanggal') {
+        return matchRange(d.tanggal);
+      } else if (filterType === 'jatuhTempo') {
+        return matchRange(d.jatuhTempo);
+      } else if (filterType === 'riwayatBayar') {
+        if (!Array.isArray(d.riwayatBayar) || d.riwayatBayar.length === 0) return false;
+        return d.riwayatBayar.some(b => matchRange(b.tanggal));
+      } else if (filterType === 'semua') {
+        if (matchRange(d.tanggal)) return true;
+        if (matchRange(d.jatuhTempo)) return true;
+        if (Array.isArray(d.riwayatBayar) && d.riwayatBayar.some(b => matchRange(b.tanggal))) return true;
+        return false;
+      }
+      return matchRange(d.tanggal);
+    });
   }
 
   // Sort by tanggal descending (terbaru dulu)
@@ -24268,8 +24400,19 @@ function renderSalesDeliveriesTable() {
     const isLunas = sisa <= 0;
 
     let paymentBadge = '';
+    const lastPayDate = (Array.isArray(d.riwayatBayar) && d.riwayatBayar.length > 0)
+      ? d.riwayatBayar[d.riwayatBayar.length - 1].tanggal
+      : null;
+    const lunasDate = d.tanggalLunas || (isLunas ? lastPayDate : null);
+
     if (isLunas) {
-      paymentBadge = `<span style="background: rgba(16, 185, 129, 0.15); color: #059669; padding: 0.2rem 0.45rem; border-radius: 999px; font-weight: 700; font-size: 0.75rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.2rem;">✅ Lunas</span>`;
+      paymentBadge = `
+        <div style="display: flex; flex-direction: column; gap: 0.15rem; line-height: 1.2;">
+          <span style="background: rgba(16, 185, 129, 0.15); color: #059669; padding: 0.2rem 0.45rem; border-radius: 999px; font-weight: 700; font-size: 0.75rem; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 0.2rem;">✅ Lunas</span>
+          ${lunasDate ? `<span style="font-size: 0.68rem; color: #059669; font-weight: 600;">Lunas: ${lunasDate}</span>` : ''}
+          ${d.jatuhTempo ? `<span style="font-size: 0.66rem; color: var(--text-muted);">Tempo: ${d.jatuhTempo}</span>` : ''}
+        </div>
+      `;
     } else {
       const isOverdue = d.jatuhTempo && (d.jatuhTempo < todayStr);
       paymentBadge = `
@@ -24282,6 +24425,7 @@ function renderSalesDeliveriesTable() {
               ${isOverdue ? 'Lewat: ' : 'Tempo: '}${d.jatuhTempo}
             </span>
           ` : ''}
+          ${lastPayDate ? `<span style="font-size: 0.68rem; color: #0284c7; font-weight: 600;">Bayar: ${lastPayDate}</span>` : ''}
         </div>
       `;
     }
@@ -24430,6 +24574,11 @@ async function saveSalesPayment(e) {
   d.totalDibayar = newPaid;
   d.sisaTagihan = newSisa;
   d.statusBayar = (newSisa <= 0) ? 'Lunas' : 'Tempo';
+  if (newSisa <= 0 && !d.tanggalLunas) {
+    d.tanggalLunas = tanggal;
+  } else if (newSisa > 0) {
+    d.tanggalLunas = null;
+  }
 
   if (!Array.isArray(d.riwayatBayar)) {
     d.riwayatBayar = [];
@@ -24957,20 +25106,41 @@ function renderSalesRekapView() {
   const dateStart = document.getElementById('sales-rekap-date-start')?.value || '';
   const dateEnd = document.getElementById('sales-rekap-date-end')?.value || '';
   const selectedSales = document.getElementById('sales-rekap-sales-target')?.value || 'All';
+  const filterDateType = document.getElementById('sales-rekap-date-type')?.value || 'semua';
 
-  // 1. Filter Deliveries berdasarkan rentang tanggal
+  const matchRange = (dateStr) => {
+    if (!dateStr) return false;
+    if (dateStart && dateEnd) return dateStr >= dateStart && dateStr <= dateEnd;
+    if (dateStart) return dateStr >= dateStart;
+    if (dateEnd) return dateStr <= dateEnd;
+    return true;
+  };
+
+  // 1. Filter Deliveries berdasarkan tipe tanggal dan rentang tanggal
   let deliveries = salesDeliveries.filter(d => {
     if (selectedSales !== 'All' && d.salesId !== selectedSales) return false;
-    if (dateStart && d.tanggal && d.tanggal < dateStart) return false;
-    if (dateEnd && d.tanggal && d.tanggal > dateEnd) return false;
-    return true;
+    if (!dateStart && !dateEnd) return true;
+
+    if (filterDateType === 'tanggal') {
+      return matchRange(d.tanggal);
+    } else if (filterDateType === 'jatuhTempo') {
+      return matchRange(d.jatuhTempo);
+    } else if (filterDateType === 'riwayatBayar') {
+      return Array.isArray(d.riwayatBayar) && d.riwayatBayar.some(b => matchRange(b.tanggal));
+    } else if (filterDateType === 'semua') {
+      if (matchRange(d.tanggal)) return true;
+      if (matchRange(d.jatuhTempo)) return true;
+      if (Array.isArray(d.riwayatBayar) && d.riwayatBayar.some(b => matchRange(b.tanggal))) return true;
+      return false;
+    }
+    return matchRange(d.tanggal);
   });
 
   // 2. Filter Returns berdasarkan rentang tanggal
   let returns = salesReturns.filter(r => {
     if (selectedSales !== 'All' && r.salesId !== selectedSales) return false;
-    if (dateStart && r.tanggal && r.tanggal < dateStart) return false;
-    if (dateEnd && r.tanggal && r.tanggal > dateEnd) return false;
+    if (filterDateType === 'jatuhTempo' || filterDateType === 'riwayatBayar') return false;
+    if (!matchRange(r.tanggal)) return false;
     return true;
   });
 
@@ -25022,10 +25192,22 @@ function renderSalesRekapView() {
     const sisa = (d.sisaTagihan !== undefined) ? d.sisaTagihan : (d.statusBayar === 'Tempo' ? d.grandTotal : 0);
     const isLunas = sisa <= 0;
 
-    let refText = `Nota: ${d.noNota}`;
-    if (!isLunas) {
-      refText += ` [⏳ Tempo: Sisa ${formatRupiah(sisa)}]`;
+    const lastPayDate = (Array.isArray(d.riwayatBayar) && d.riwayatBayar.length > 0)
+      ? d.riwayatBayar[d.riwayatBayar.length - 1].tanggal
+      : null;
+    const lunasDate = d.tanggalLunas || (isLunas ? lastPayDate : null);
+
+    let tempoKet = '';
+    if (d.statusBayar === 'Tempo' || d.jatuhTempo || lastPayDate || isLunas) {
+      const parts = [];
+      if (d.jatuhTempo) parts.push(`Tempo: ${d.jatuhTempo}`);
+      if (lastPayDate) parts.push(`Dibayar: ${lastPayDate}`);
+      if (isLunas && lunasDate) parts.push(`Lunas: ${lunasDate}`);
+      else if (!isLunas) parts.push(`Sisa: ${formatRupiah(sisa)}`);
+      if (parts.length > 0) tempoKet = ` [${parts.join(' | ')}]`;
     }
+
+    let refText = `Nota: ${d.noNota}${tempoKet}`;
     if (d.bonus) {
       refText += ` (Bonus: ${d.bonus})`;
     }
@@ -25057,6 +25239,32 @@ function renderSalesRekapView() {
     });
   });
 
+  // 3. Tambahkan Riwayat Pembayaran / Pelunasan Nota ke dalam Log Rekapan
+  salesDeliveries.forEach(d => {
+    if (selectedSales !== 'All' && d.salesId !== selectedSales) return;
+    if (Array.isArray(d.riwayatBayar) && d.riwayatBayar.length > 0) {
+      d.riwayatBayar.forEach(b => {
+        if (!b.tanggal) return;
+        if (dateStart && b.tanggal < dateStart) return;
+        if (dateEnd && b.tanggal > dateEnd) return;
+
+        const danaLabel = b.sumberDana === 'saldo_penjualan' ? 'Potong Saldo Kasir' : 'Dana Lain';
+        mergedLogs.push({
+          tanggal: b.tanggal,
+          tipe: 'Pelunasan Tagihan',
+          sales: d.salesName,
+          ref: `Bayar Nota: ${d.noNota} (${danaLabel})`,
+          detail: b.catatan || `Pelunasan tagihan nota ${d.noNota}`,
+          nilai: Number(b.nominal) || 0,
+          isReturn: false,
+          isPayment: true,
+          isLunas: true,
+          sisa: 0
+        });
+      });
+    }
+  });
+
   // Urutkan tanggal terbaru ke terlama
   mergedLogs.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
 
@@ -25074,18 +25282,27 @@ function renderSalesRekapView() {
 
   mergedLogs.forEach(log => {
     const tr = document.createElement('tr');
+    let badgeTipe = '';
+    let nilaiColor = '#059669';
+
+    if (log.isReturn) {
+      badgeTipe = `<span style="background: rgba(239, 68, 68, 0.15); color: #dc2626; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.8rem;">🔄 Retur</span>`;
+      nilaiColor = '#dc2626';
+    } else if (log.isPayment) {
+      badgeTipe = `<span style="background: rgba(16, 185, 129, 0.15); color: #059669; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.8rem;">💵 Pelunasan / Cicil</span>`;
+      nilaiColor = '#0284c7';
+    } else {
+      badgeTipe = `<span style="background: rgba(37, 99, 235, 0.15); color: #2563eb; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.8rem;">📦 Pembelian Nota</span>`;
+      nilaiColor = '#059669';
+    }
+
     tr.innerHTML = `
       <td>${log.tanggal || '-'}</td>
-      <td>
-        ${log.isReturn ? 
-          `<span style="background: rgba(239, 68, 68, 0.15); color: #dc2626; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.8rem;">🔄 Retur</span>` : 
-          `<span style="background: rgba(37, 99, 235, 0.15); color: #2563eb; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.8rem;">📦 Pembelian Nota</span>`
-        }
-      </td>
+      <td>${badgeTipe}</td>
       <td><strong>${log.sales}</strong></td>
       <td style="font-family: monospace; font-size: 0.85rem;">${log.ref}</td>
       <td style="font-size: 0.85rem; max-width: 250px;">${log.detail}</td>
-      <td style="text-align: right; font-family: monospace; font-weight: 700; ${log.isReturn ? 'color: #dc2626;' : 'color: #059669;'}">
+      <td style="text-align: right; font-family: monospace; font-weight: 700; color: ${nilaiColor};">
         ${log.isReturn ? '-' : ''}${formatRupiah(log.nilai)}
       </td>
     `;
@@ -25194,6 +25411,29 @@ function printSalesRekapReport() {
     const ppnRate = d.ppnPercent !== undefined ? d.ppnPercent : (d.hasPpn ? 11 : 0);
     const ppnText = (d.hasPpn || ppnRate > 0) ? `Kena PPN ${ppnRate}% (Modal otomatis dipotong PPN jadi DPP)` : 'Non-PPN (0%)';
 
+    const lastPayDate = (Array.isArray(d.riwayatBayar) && d.riwayatBayar.length > 0)
+      ? d.riwayatBayar[d.riwayatBayar.length - 1].tanggal
+      : null;
+    const lunasDate = d.tanggalLunas || (isLunas ? lastPayDate : null);
+
+    let paymentBadgePrint = '';
+    if (isLunas) {
+      paymentBadgePrint = `
+        <span style="font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 800; background: #dcfce7; color: #15803d;">
+          ✅ LUNAS ${lunasDate ? `(${lunasDate})` : ''}
+        </span>
+        ${d.jatuhTempo ? `<span style="font-size: 10px; color: #64748b; margin-left: 4px;">(Tempo: ${d.jatuhTempo})</span>` : ''}
+      `;
+    } else {
+      paymentBadgePrint = `
+        <span style="font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 800; background: #fee2e2; color: #b91c1c;">
+          ⏳ TEMPO (Sisa: Rp ${formatRupiah(sisa)})
+        </span>
+        ${d.jatuhTempo ? `<span style="font-size: 10px; color: #b91c1c; font-weight: 700; margin-left: 4px;">(Jatuh Tempo: ${d.jatuhTempo})</span>` : ''}
+        ${lastPayDate ? `<span style="font-size: 10px; color: #0284c7; margin-left: 4px;">(Dibayar: ${lastPayDate})</span>` : ''}
+      `;
+    }
+
     deliveryBlocksHtml += `
       <div style="border: 1.5px solid #cbd5e1; border-radius: 8px; margin-bottom: 14px; page-break-inside: avoid; background: #fff; overflow: hidden;">
         <div style="background: #f8fafc; border-bottom: 1px solid #cbd5e1; padding: 7px 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
@@ -25201,12 +25441,10 @@ function printSalesRekapReport() {
             <span style="font-size: 11px; background: #0f172a; color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 800; margin-right: 6px;">#${idx + 1}</span>
             <strong style="font-size: 12px; color: #0f172a;">No. Nota: ${d.noNota || '-'}</strong>
             <span style="font-size: 11px; color: #475569; margin-left: 8px;">| Sales: <b>${d.salesName || '-'}</b></span>
-            <span style="font-size: 11px; color: #475569; margin-left: 8px;">| Tgl: <b>${d.tanggal || '-'}</b></span>
+            <span style="font-size: 11px; color: #475569; margin-left: 8px;">| Tgl Masuk: <b>${d.tanggal || '-'}</b></span>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 800; background: ${isLunas ? '#dcfce7; color: #15803d;' : '#fee2e2; color: #b91c1c;'}">
-              ${isLunas ? '✅ LUNAS' : `⏳ TEMPO (Sisa: Rp ${formatRupiah(sisa)})`}
-            </span>
+          <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+            ${paymentBadgePrint}
           </div>
         </div>
 
@@ -25419,6 +25657,47 @@ function printSingleSalesDeliveryReceipt(deliveryId) {
   const sisa = (d.sisaTagihan !== undefined) ? d.sisaTagihan : (d.statusBayar === 'Tempo' ? d.grandTotal : 0);
   const isLunas = sisa <= 0;
 
+  const lastPayDate = (Array.isArray(d.riwayatBayar) && d.riwayatBayar.length > 0)
+    ? d.riwayatBayar[d.riwayatBayar.length - 1].tanggal
+    : null;
+  const lunasDate = d.tanggalLunas || (isLunas ? lastPayDate : null);
+
+  // Rincian Riwayat Pembayaran jika ada
+  let paymentHistoryHtml = '';
+  if (Array.isArray(d.riwayatBayar) && d.riwayatBayar.length > 0) {
+    const rows = d.riwayatBayar.map((b, bIdx) => `
+      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+        <td style="padding: 4px 6px; text-align: center;">${bIdx + 1}</td>
+        <td style="padding: 4px 6px;">${b.tanggal || '-'}</td>
+        <td style="padding: 4px 6px; text-align: right; font-weight: 700; font-family: monospace;">Rp ${formatRupiah(b.nominal)}</td>
+        <td style="padding: 4px 6px;">${b.sumberDana === 'saldo_penjualan' ? 'Potong Kasir' : 'Dana Luar'}</td>
+        <td style="padding: 4px 6px; color: #475569;">${b.catatan || '-'}</td>
+      </tr>
+    `).join('');
+
+    paymentHistoryHtml = `
+      <div style="margin-bottom: 16px; border: 1.5px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fff;">
+        <div style="background: #f1f5f9; padding: 6px 12px; font-size: 11px; font-weight: 800; color: #0f172a; text-transform: uppercase;">
+          Riwayat Pembayaran / Cicilan Nota Ini
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 0;">
+          <thead>
+            <tr style="background: #f8fafc; font-size: 10px; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #cbd5e1;">
+              <th style="padding: 5px 6px; width: 28px; text-align: center;">No</th>
+              <th style="padding: 5px 6px; width: 100px; text-align: left;">Tanggal Bayar</th>
+              <th style="padding: 5px 6px; width: 115px; text-align: right;">Nominal</th>
+              <th style="padding: 5px 6px; width: 100px; text-align: left;">Sumber Dana</th>
+              <th style="padding: 5px 6px; text-align: left;">Catatan / Keterangan</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   let itemsTableRows = '';
   let totalQtyNota = 0;
 
@@ -25528,6 +25807,9 @@ function printSingleSalesDeliveryReceipt(deliveryId) {
           <div>No. Nota / Faktur: <strong style="font-size: 14px; color: #0f172a; font-family: monospace;">${d.noNota || '-'}</strong></div>
           <div style="margin-top: 4px;">Distributor / Sales: <strong>${d.salesName || '-'}</strong></div>
           <div style="margin-top: 4px;">Tanggal Datang Barang: <b>${d.tanggal || '-'}</b></div>
+          ${d.jatuhTempo ? `<div style="margin-top: 4px; color: #b45309;">Tanggal Jatuh Tempo: <b>${d.jatuhTempo}</b></div>` : ''}
+          ${lastPayDate ? `<div style="margin-top: 4px; color: #0284c7;">Tanggal Terakhir Dibayar: <b>${lastPayDate}</b></div>` : ''}
+          ${isLunas && lunasDate ? `<div style="margin-top: 4px; color: #15803d;">Tanggal Lunas: <b>${lunasDate}</b></div>` : ''}
         </div>
         <div style="text-align: right;">
           <div>Status Pembayaran: 
@@ -25536,6 +25818,7 @@ function printSingleSalesDeliveryReceipt(deliveryId) {
             </span>
           </div>
           ${d.jatuhTempo && !isLunas ? `<div style="margin-top: 4px; color: #dc2626; font-weight: 600;">Jatuh Tempo: ${d.jatuhTempo}</div>` : ''}
+          ${isLunas && lunasDate ? `<div style="margin-top: 4px; color: #15803d; font-weight: 600;">Lunas Tanggal: ${lunasDate}</div>` : ''}
           <div style="margin-top: 4px; color: #475569;">Total Fisik: <b>${totalQtyNota} pcs</b></div>
         </div>
       </div>
@@ -25574,6 +25857,8 @@ function printSingleSalesDeliveryReceipt(deliveryId) {
           ${!isLunas ? `<div style="color: #dc2626; font-weight: 700;">Sisa Hutang: Rp ${formatRupiah(sisa)}</div>` : ''}
         </div>
       </div>
+
+      ${paymentHistoryHtml}
 
       <div style="margin-top: 35px; display: flex; justify-content: space-between; padding: 0 40px; page-break-inside: avoid;">
         <div style="text-align: center; width: 200px;">
@@ -25802,8 +26087,15 @@ async function shareSalesDeliveryToWhatsApp(deliveryId) {
   if (d.returDeduction) text += `Potongan Retur: -Rp ${formatRupiah(d.returDeduction)}\n`;
   text += `*Grand Total: Rp ${formatRupiah(d.grandTotal || 0)}*\n`;
   text += `--------------------------------\n`;
+  const lastPayDate = (Array.isArray(d.riwayatBayar) && d.riwayatBayar.length > 0)
+    ? d.riwayatBayar[d.riwayatBayar.length - 1].tanggal
+    : null;
+  const lunasDate = d.tanggalLunas || (isLunas ? lastPayDate : null);
+
   text += `Status Bayar: *${isLunas ? '✅ LUNAS' : `⏳ TEMPO (Sisa: Rp ${formatRupiah(sisa)})`}*\n`;
-  if (!isLunas && d.jatuhTempo) text += `Jatuh Tempo: *${d.jatuhTempo}*\n`;
+  if (d.jatuhTempo) text += `Jatuh Tempo: *${d.jatuhTempo}*\n`;
+  if (lastPayDate) text += `Terakhir Dibayar: *${lastPayDate}*\n`;
+  if (isLunas && lunasDate) text += `Lunas Tanggal: *${lunasDate}*\n`;
   if (d.bonus) text += `Bonus/Hadiah: 🎁 *${d.bonus}*\n`;
   text += `--------------------------------\n`;
   text += `_Terima kasih atas kiriman barangnya. Salam sukses & berkah selalu!_ 🙏`;
@@ -25923,6 +26215,29 @@ function printFilteredDeliveriesReport() {
     const ppnRate = d.ppnPercent !== undefined ? d.ppnPercent : (d.hasPpn ? 11 : 0);
     const ppnText = (d.hasPpn || ppnRate > 0) ? `Kena PPN ${ppnRate}% (Modal otomatis dipotong PPN jadi DPP)` : 'Non-PPN (0%)';
 
+    const lastPayDate = (Array.isArray(d.riwayatBayar) && d.riwayatBayar.length > 0)
+      ? d.riwayatBayar[d.riwayatBayar.length - 1].tanggal
+      : null;
+    const lunasDate = d.tanggalLunas || (isLunas ? lastPayDate : null);
+
+    let paymentBadgePrint = '';
+    if (isLunas) {
+      paymentBadgePrint = `
+        <span style="font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 800; background: #dcfce7; color: #15803d;">
+          ✅ LUNAS ${lunasDate ? `(${lunasDate})` : ''}
+        </span>
+        ${d.jatuhTempo ? `<span style="font-size: 11px; color: #64748b; margin-left: 4px;">(Tempo: ${d.jatuhTempo})</span>` : ''}
+      `;
+    } else {
+      paymentBadgePrint = `
+        <span style="font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 800; background: #fee2e2; color: #b91c1c;">
+          ⏳ TEMPO (Sisa Tagihan: Rp ${formatRupiah(sisa)})
+        </span>
+        ${d.jatuhTempo ? `<span style="font-size: 11px; color: #b91c1c; font-weight: 700; margin-left: 4px;">(Jatuh Tempo: ${d.jatuhTempo})</span>` : ''}
+        ${lastPayDate ? `<span style="font-size: 11px; color: #0284c7; margin-left: 4px;">(Dibayar: ${lastPayDate})</span>` : ''}
+      `;
+    }
+
     blocksHtml += `
       <div style="border: 1.5px solid #cbd5e1; border-radius: 8px; margin-bottom: 16px; page-break-inside: avoid; background: #fff; overflow: hidden;">
         <!-- Header Nota -->
@@ -25933,11 +26248,8 @@ function printFilteredDeliveriesReport() {
             <span style="font-size: 12px; color: #475569; margin-left: 8px;">| Sales / Distributor: <b>${d.salesName || '-'}</b></span>
             <span style="font-size: 12px; color: #475569; margin-left: 8px;">| Tanggal Masuk: <b>${d.tanggal || '-'}</b></span>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 800; background: ${isLunas ? '#dcfce7; color: #15803d;' : '#fee2e2; color: #b91c1c;'}">
-              ${isLunas ? '✅ LUNAS' : `⏳ TEMPO (Sisa Tagihan: Rp ${formatRupiah(sisa)})`}
-            </span>
-            ${d.jatuhTempo && !isLunas ? `<span style="font-size: 11px; color: #b91c1c;">(Jatuh Tempo: ${d.jatuhTempo})</span>` : ''}
+          <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+            ${paymentBadgePrint}
           </div>
         </div>
 
@@ -26282,7 +26594,20 @@ function exportSalesRekapCSV() {
     return true;
   });
 
-  if (deliveries.length === 0 && returns.length === 0) {
+  let paymentsCount = 0;
+  salesDeliveries.forEach(d => {
+    if (selectedSales !== 'All' && d.salesId !== selectedSales) return;
+    if (Array.isArray(d.riwayatBayar)) {
+      d.riwayatBayar.forEach(b => {
+        if (!b.tanggal) return;
+        if (dateStart && b.tanggal < dateStart) return;
+        if (dateEnd && b.tanggal > dateEnd) return;
+        paymentsCount++;
+      });
+    }
+  });
+
+  if (deliveries.length === 0 && returns.length === 0 && paymentsCount === 0) {
     alert('Tidak ada data transaksi untuk diekspor ke CSV.');
     return;
   }
@@ -26292,13 +26617,35 @@ function exportSalesRekapCSV() {
   deliveries.forEach(d => {
     const itemsText = (d.items || []).map(i => `${i.nama} (${i.qty} pcs)`).join('; ');
     const sisa = (d.sisaTagihan !== undefined) ? d.sisaTagihan : (d.statusBayar === 'Tempo' ? d.grandTotal : 0);
-    const statusText = sisa <= 0 ? 'Lunas' : `Tempo (Sisa ${sisa})`;
+    const lastPayDate = (Array.isArray(d.riwayatBayar) && d.riwayatBayar.length > 0)
+      ? d.riwayatBayar[d.riwayatBayar.length - 1].tanggal
+      : null;
+    const lunasDate = d.tanggalLunas || (sisa <= 0 ? lastPayDate : null);
+
+    let statusText = sisa <= 0 ? 'Lunas' : `Tempo (Sisa ${sisa})`;
+    if (d.jatuhTempo) statusText += ` | Tempo: ${d.jatuhTempo}`;
+    if (lastPayDate) statusText += ` | Dibayar: ${lastPayDate}`;
+    if (sisa <= 0 && lunasDate) statusText += ` | Lunas: ${lunasDate}`;
+
     csvContent += `"${d.tanggal}","Pembelian Masuk","${d.salesName}","${d.noNota}","${itemsText}","${statusText}",${d.grandTotal || 0}\n`;
   });
 
   returns.forEach(r => {
     const val = (r.qty || 0) * (r.hargaBeli || 0);
     csvContent += `"${r.tanggal}","Retur Produk","${r.salesName}","${r.alasan}","${r.productName} (${r.qty} pcs)","${r.status}",-${val}\n`;
+  });
+
+  salesDeliveries.forEach(d => {
+    if (selectedSales !== 'All' && d.salesId !== selectedSales) return;
+    if (Array.isArray(d.riwayatBayar)) {
+      d.riwayatBayar.forEach(b => {
+        if (!b.tanggal) return;
+        if (dateStart && b.tanggal < dateStart) return;
+        if (dateEnd && b.tanggal > dateEnd) return;
+        const danaLabel = b.sumberDana === 'saldo_penjualan' ? 'Potong Saldo Kasir' : 'Dana Lain';
+        csvContent += `"${b.tanggal}","Pelunasan Tagihan","${d.salesName}","Nota ${d.noNota}","${b.catatan || 'Pelunasan tagihan'}","${danaLabel}",${Number(b.nominal) || 0}\n`;
+      });
+    }
   });
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
