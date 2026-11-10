@@ -923,7 +923,10 @@ async function saveLicenseKey() {
 
 function openSubscriptionInvoiceModal() {
   const modal = document.getElementById('subscription-modal');
-  if (modal) modal.classList.add('active');
+  if (modal) {
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+  }
   if (currentLicenseData) {
     updateLicenseUI(currentLicenseData);
   }
