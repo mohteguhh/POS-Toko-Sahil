@@ -1136,27 +1136,31 @@ function setupDatabaseListeners() {
       }
     });
 
-    // 2. Periksa transaksi lokal (di memori atau localStorage) yang belum ada di cloud
-    let currentLocalTxs = Array.isArray(transactions) ? transactions : [];
-    if (currentLocalTxs.length === 0) {
-      try {
-        const stored = localStorage.getItem('kasir_transactions');
-        if (stored) currentLocalTxs = JSON.parse(stored);
-      } catch (e) {}
+    // 2. Periksa transaksi lokal (di memori dan localStorage) yang belum ada di cloud
+    const currentLocalTxsMap = new Map();
+    if (Array.isArray(transactions)) {
+      transactions.forEach(t => { if (t && t.id) currentLocalTxsMap.set(t.id, t); });
     }
-
-    if (Array.isArray(currentLocalTxs)) {
-      currentLocalTxs.forEach(localTx => {
-        if (!localTx || !localTx.id) return;
-        if (recentlyDeletedTxIds.has(localTx.id)) return;
-
-        // Jika transaksi ada di lokal tetapi belum ada di cloud, pertahankan dan siapkan upload ke cloud!
-        if (!txMap.has(localTx.id)) {
-          txMap.set(localTx.id, localTx);
-          localTxsToUpload.push(localTx);
+    try {
+      const stored = localStorage.getItem('kasir_transactions');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(t => { if (t && t.id && !currentLocalTxsMap.has(t.id)) currentLocalTxsMap.set(t.id, t); });
         }
-      });
-    }
+      }
+    } catch (e) {}
+
+    currentLocalTxsMap.forEach(localTx => {
+      if (!localTx || !localTx.id) return;
+      if (recentlyDeletedTxIds.has(localTx.id)) return;
+
+      // Jika transaksi ada di lokal tetapi belum ada di cloud, pertahankan dan siapkan upload ke cloud!
+      if (!txMap.has(localTx.id)) {
+        txMap.set(localTx.id, localTx);
+        localTxsToUpload.push(localTx);
+      }
+    });
 
     // 3. Jika ada transaksi offline lokal yang belum masuk cloud, unggah segera ke RTDB
     if (localTxsToUpload.length > 0) {
@@ -3126,8 +3130,9 @@ function safeLocalStorageSet(key, value) {
 }
 
 function saveTransactionsLocally() {
+  // Transaksi diurutkan dari yang terbaru (indeks 0). Ambil N transaksi TERBARU (indeks awal), bukan yang terlama!
   const dataToSave = transactions.length > MAX_LOCAL_TRANSACTIONS 
-    ? transactions.slice(-MAX_LOCAL_TRANSACTIONS) 
+    ? transactions.slice(0, MAX_LOCAL_TRANSACTIONS) 
     : transactions;
     
   safeLocalStorageSet('kasir_transactions', JSON.stringify(dataToSave));

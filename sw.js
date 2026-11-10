@@ -1,9 +1,9 @@
-const CACHE_NAME = 'kasirkilat-cache-v46';
+const CACHE_NAME = 'kasirkilat-cache-v47';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './style.css?v=6.9',
-  './app.js?v=6.3',
+  './app.js?v=6.4',
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',
