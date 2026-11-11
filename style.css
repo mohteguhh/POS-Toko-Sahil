@@ -3208,14 +3208,23 @@ tr:hover td {
     padding: 0.15rem 0.4rem !important;
   }
 
-  /* Kolom 3 & 4 (Baris 2): Harga Jual (Besar) & Stok (Badge) */
-  #products-table td:nth-child(7) { /* Harga Jual */
+  /* Kolom 3 & 4 (Baris 2): Harga Beli (Modal) & Stok (Badge) */
+  #products-table td:nth-child(6) { /* Harga Beli */
     grid-column: 3;
     grid-row: 2;
-    font-size: 0.95rem !important;
-    font-weight: 800 !important;
-    color: var(--color-primary, #d97706);
+    display: inline-flex !important;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.74rem !important;
+    color: var(--text-muted, #64748b) !important;
     line-height: 1.2;
+    margin-bottom: 0.1rem;
+  }
+  #products-table td:nth-child(6)::before {
+    display: inline !important;
+    content: "Beli: ";
+    font-weight: 600;
+    color: #64748b;
   }
   #products-table td:nth-child(8) { /* Stok */
     grid-column: 4;
@@ -3226,13 +3235,17 @@ tr:hover td {
     color: #475569;
   }
 
-  /* Kolom 3 & 4 (Baris 3): ID / Barcode & Tombol Aksi */
-  #products-table td:nth-child(3) { /* ID Produk */
+  /* Kolom 3 & 4 (Baris 3): Harga Jual (Besar) & Tombol Aksi */
+  #products-table td:nth-child(7) { /* Harga Jual */
     grid-column: 3;
     grid-row: 3;
-    font-size: 0.72rem !important;
-    color: #94a3b8;
-    font-family: monospace;
+    font-size: 0.95rem !important;
+    font-weight: 800 !important;
+    color: var(--color-primary, #d97706);
+    line-height: 1.2;
+  }
+  #products-table td:nth-child(3) { /* ID Produk */
+    display: none !important;
   }
   #products-table td:nth-child(12) { /* Tombol Aksi (Kolom 12) */
     grid-column: 4;
@@ -3255,8 +3268,7 @@ tr:hover td {
     height: 14px;
   }
 
-  /* Sembunyikan kolom sekunder (Harga Beli, Barcode panjang, Kadaluarsa) di ringkasan kartu mobile */
-  #products-table td:nth-child(6),
+  /* Sembunyikan kolom sekunder (Barcode panjang, Rak, Kadaluarsa) di ringkasan kartu mobile */
   #products-table td:nth-child(9),
   #products-table td:nth-child(10),
   #products-table td:nth-child(11) {
