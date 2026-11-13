@@ -11478,9 +11478,27 @@ function renderProductsTable(highlightProductId = null) {
       ? `<span style="font-weight:600; color:var(--color-primary); background:rgba(79,70,229,0.08); padding:0.1rem 0.35rem; border-radius:4px; font-size:0.75rem; white-space:nowrap; display:inline-flex; align-items:center; gap:0.2rem;" title="${p.rak}">📍 ${p.rak}</span>`
       : `<span style="color:var(--text-muted); font-size:0.75rem;">-</span>`;
     
-    let hargaJualDisplay = `Rp ${formatRupiah(p.harga_jual)}`;
-    if ((parseInt(p.isi_box) || 0) > 1 && (parseFloat(p.harga_box) || 0) > 0) {
-      hargaJualDisplay += `<br><span style="font-size:0.75rem; color:var(--color-primary); font-weight:600; background:rgba(79,70,229,0.1); padding:0.1rem 0.35rem; border-radius:4px; display:inline-flex; align-items:center; gap:0.25rem; margin-top:0.2rem;"><i data-lucide="package" style="width:12px; height:12px;"></i> 1 ${p.nama_box || 'Kotak'} (${p.isi_box} pcs): Rp ${formatRupiah(p.harga_box)}</span>`;
+    let hargaJualDisplay = `<div style="font-weight:700; color:var(--text-main);">Rp ${formatRupiah(p.harga_jual)} <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted);">/ pcs</span></div>`;
+    
+    // Tampilkan detail harga bertingkat (multi-satuan / box / renteng / dus)
+    const displayUnits = Array.isArray(p.units) && p.units.length > 0 ? p.units : (
+      ((parseInt(p.isi_box) || 0) > 1 && (parseFloat(p.harga_box) || 0) > 0) ? [{
+        name: p.nama_box || 'Box',
+        ratio: parseInt(p.isi_box),
+        price: parseFloat(p.harga_box)
+      }] : []
+    );
+
+    if (displayUnits.length > 0) {
+      displayUnits.forEach(u => {
+        const uRatio = parseInt(u.ratio) || 1;
+        const uPrice = parseFloat(u.price) || 0;
+        if (uRatio > 1 && uPrice > 0) {
+          const perPcs = Math.round(uPrice / uRatio);
+          const uName = (u.name || 'Box').toLowerCase();
+          hargaJualDisplay += `<div class="badge-tier-price-row" style="font-size:0.75rem; color:#0369a1; background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:0.18rem 0.45rem; margin-top:0.25rem; display:inline-flex; align-items:center; gap:0.3rem; line-height:1.3; flex-wrap:wrap;"><i data-lucide="package" style="width:12px; height:12px; color:#0284c7; flex-shrink:0;"></i> <span>1 ${uName} (${uRatio} pcs @ ${formatRupiah(perPcs)}) : <b>Rp ${formatRupiah(uPrice)}</b></span></div>`;
+        }
+      });
     }
     if (p.grosir_qty > 0 && p.grosir_harga > 0) {
       hargaJualDisplay += `<br><span style="font-size:0.75rem; color:#2563eb; font-weight:600; background:rgba(37,99,235,0.1); padding:0.1rem 0.35rem; border-radius:4px; display:inline-flex; align-items:center; gap:0.25rem; margin-top:0.2rem;"><i data-lucide="tag" style="width:12px; height:12px;"></i> Grosir: ${p.grosir_qty} pcs = Rp ${formatRupiah(p.grosir_harga)}</span>`;
@@ -12243,109 +12261,278 @@ async function deleteProduct(index) {
 }
 
 // Export Tabel ke Excel (Format CSV)
+// Export Tabel ke Excel (.xlsx) / CSV
 function exportToCSV() {
   if (products.length === 0) {
     alert("Daftar produk kosong.");
     return;
   }
-  
-  let csvContent = "data:text/csv;charset=utf-8,";
-  csvContent += "ID,Nama Produk,Kategori,Harga Beli,Harga Jual,Stok,Barcode,Rak,Gambar,Tanggal Kadaluarsa,Status Kulak\n";
-  
-  products.forEach(p => {
+
+  // Format array data untuk diekspor ke Excel
+  const exportData = products.map(p => {
     const isDiscontinued = Boolean(p.is_discontinued || p.status_kulak === 'discontinue');
-    const row = [
-      `"${p.id}"`,
-      `"${p.nama}"`,
-      `"${p.kategori || 'Umum'}"`,
-      p.harga_beli || 0,
-      p.harga_jual || 0,
-      p.stok,
-      `"${p.barcode || ''}"`,
-      `"${p.rak || ''}"`,
-      `"${p.gambar || ''}"`,
-      `"${p.tanggal_kadaluarsa || ''}"`,
-      `"${isDiscontinued ? 'Stop Kulak' : 'Aktif'}"`
-    ].join(",");
-    csvContent += row + "\n";
+    
+    // Satuan bertingkat
+    const units = Array.isArray(p.units) && p.units.length > 0 ? p.units : (
+      (p.has_unit_box || p.isi_box > 0) ? [{
+        name: p.nama_box || 'Dus',
+        ratio: p.isi_box || 1,
+        price: p.harga_box || 0,
+        barcode: p.barcode_box || ''
+      }] : []
+    );
+
+    const u1 = units[0] || {};
+    const u2 = units[1] || {};
+    const u3 = units[2] || {};
+
+    return {
+      "ID Produk": p.id || '',
+      "Nama Produk": p.nama || '',
+      "Kategori": p.kategori || 'Umum',
+      "Harga Beli": p.harga_beli || 0,
+      "Harga Jual": p.harga_jual || 0,
+      "Stok": p.stok != null ? p.stok : 0,
+      "Barcode": p.barcode || '',
+      "Rak": p.rak || '',
+      "Tanggal Kadaluarsa": p.tanggal_kadaluarsa || '',
+      "Gambar": p.gambar || '',
+      "Status": isDiscontinued ? 'Stop Kulak' : 'Aktif',
+
+      // Satuan Bertingkat 1
+      "Satuan 1 (Nama)": u1.name || '',
+      "Satuan 1 (Isi Pcs)": u1.ratio || '',
+      "Satuan 1 (Harga)": u1.price || '',
+      "Satuan 1 (Barcode)": u1.barcode || '',
+
+      // Satuan Bertingkat 2
+      "Satuan 2 (Nama)": u2.name || '',
+      "Satuan 2 (Isi Pcs)": u2.ratio || '',
+      "Satuan 2 (Harga)": u2.price || '',
+      "Satuan 2 (Barcode)": u2.barcode || '',
+
+      // Satuan Bertingkat 3
+      "Satuan 3 (Nama)": u3.name || '',
+      "Satuan 3 (Isi Pcs)": u3.ratio || '',
+      "Satuan 3 (Harga)": u3.price || '',
+      "Satuan 3 (Barcode)": u3.barcode || '',
+
+      // Aturan Harga Grosir
+      "Grosir Min Qty": p.grosir_qty || '',
+      "Grosir Harga": p.grosir_harga || '',
+
+      // Promo Diskon
+      "Harga Promo Diskon": p.harga_diskon || '',
+      "Kuota Promo": p.kuota_diskon || '',
+
+      // Promo Beli X Gratis Y
+      "Promo Beli X": p.promo_beli_x || '',
+      "Promo Gratis Y": p.promo_gratis_y || ''
+    };
   });
-  
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `Data_Produk_Toko Sahil POS_${new Date().toISOString().slice(0,10)}.csv`);
-  document.body.appendChild(link);
-  
-  link.click();
-  document.body.removeChild(link);
+
+  const todayStr = (typeof getLocalISODate === 'function') ? getLocalISODate(new Date()).slice(0, 10) : new Date().toISOString().slice(0, 10);
+
+  if (typeof XLSX !== 'undefined') {
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    ws['!cols'] = [
+      { wch: 12 }, // ID Produk
+      { wch: 28 }, // Nama Produk
+      { wch: 15 }, // Kategori
+      { wch: 13 }, // Harga Beli
+      { wch: 13 }, // Harga Jual
+      { wch: 10 }, // Stok
+      { wch: 18 }, // Barcode
+      { wch: 14 }, // Rak
+      { wch: 18 }, // Tanggal Kadaluarsa
+      { wch: 30 }, // Gambar
+      { wch: 12 }, // Status
+      { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, // Satuan 1
+      { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, // Satuan 2
+      { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, // Satuan 3
+      { wch: 14 }, { wch: 14 }, // Grosir
+      { wch: 18 }, { wch: 12 }, // Diskon
+      { wch: 14 }, { wch: 14 }  // Beli X Gratis Y
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Data Produk");
+    XLSX.writeFile(wb, "Data_Produk_POS_" + todayStr + ".xlsx");
+  } else {
+    // Fallback CSV jika library XLSX belum termuat
+    let csvContent = "data:text/csv;charset=utf-8,";
+    const headers = Object.keys(exportData[0]);
+    csvContent += headers.map(h => '"' + h + '"').join(",") + "\n";
+    exportData.forEach(row => {
+      const line = headers.map(h => '"' + (row[h] !== undefined && row[h] !== null ? String(row[h]).replace(/"/g, '""') : '') + '"').join(",");
+      csvContent += line + "\n";
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Data_Produk_POS_" + todayStr + ".csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 }
 
 // ─── FITUR IMPORT EXCEL & CONTOH TEMPLATE EXCEL ──────────────────────────────────
 
-// 1. Unduh Contoh Template File Excel (.xlsx)
+// 1. Unduh Contoh Template File Excel (.xlsx) Lengkap
 function downloadProductExcelTemplate() {
   const sampleData = [
     {
       "ID Produk": "P1001",
-      "Nama Produk": "Kopi Susu Gula Aren",
+      "Nama Produk": "Club Botol 600ml",
       "Kategori": "Minuman",
-      "Harga Beli": 10000,
-      "Harga Jual": 15000,
-      "Stok": 50,
-      "Barcode": "8991234567890",
-      "Rak": "Rak A1",
-      "Tanggal Kadaluarsa": "2026-12-31",
-      "Gambar": "https://images.unsplash.com/photo-1541167760496-1628856ab772?w=200"
+      "Harga Beli": 1500,
+      "Harga Jual": 2000,
+      "Stok": 120,
+      "Barcode": "8992753123456",
+      "Rak": "Rak Minuman A1",
+      "Tanggal Kadaluarsa": "2027-12-31",
+      "Gambar": "https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=200",
+      "Status": "Aktif",
+      
+      // Satuan bertingkat (contoh kemasan Dus isi 12)
+      "Satuan 1 (Nama)": "Dus",
+      "Satuan 1 (Isi Pcs)": 12,
+      "Satuan 1 (Harga)": 22000,
+      "Satuan 1 (Barcode)": "8992753123999",
+
+      // Satuan bertingkat ke-2 (jika ada, misal Renteng/Pack)
+      "Satuan 2 (Nama)": "",
+      "Satuan 2 (Isi Pcs)": "",
+      "Satuan 2 (Harga)": "",
+      "Satuan 2 (Barcode)": "",
+
+      // Satuan bertingkat ke-3
+      "Satuan 3 (Nama)": "",
+      "Satuan 3 (Isi Pcs)": "",
+      "Satuan 3 (Harga)": "",
+      "Satuan 3 (Barcode)": "",
+
+      // Aturan Grosir (Harga khusus jika beli minimal N pcs)
+      "Grosir Min Qty": 6,
+      "Grosir Harga": 11000,
+
+      // Promo Diskon Khusus
+      "Harga Promo Diskon": 1800,
+      "Kuota Promo": 20,
+
+      // Promo Beli X Gratis Y
+      "Promo Beli X": 10,
+      "Promo Gratis Y": 1
     },
     {
       "ID Produk": "P1002",
-      "Nama Produk": "Roti Bakar Coklat Keju",
+      "Nama Produk": "Indomie Goreng Original",
       "Kategori": "Makanan",
-      "Harga Beli": 12000,
-      "Harga Jual": 18000,
-      "Stok": 30,
-      "Barcode": "8999876543210",
-      "Rak": "Rak B2",
-      "Tanggal Kadaluarsa": "",
-      "Gambar": ""
+      "Harga Beli": 2800,
+      "Harga Jual": 3500,
+      "Stok": 200,
+      "Barcode": "8998866200225",
+      "Rak": "Rak Makanan B1",
+      "Tanggal Kadaluarsa": "2026-10-15",
+      "Gambar": "",
+      "Status": "Aktif",
+
+      // Satuan bertingkat (Dus isi 40 dan Renteng isi 5)
+      "Satuan 1 (Nama)": "Dus",
+      "Satuan 1 (Isi Pcs)": 40,
+      "Satuan 1 (Harga)": 132000,
+      "Satuan 1 (Barcode)": "8998866200400",
+
+      "Satuan 2 (Nama)": "Renteng",
+      "Satuan 2 (Isi Pcs)": 5,
+      "Satuan 2 (Harga)": 17000,
+      "Satuan 2 (Barcode)": "",
+
+      "Satuan 3 (Nama)": "",
+      "Satuan 3 (Isi Pcs)": "",
+      "Satuan 3 (Harga)": "",
+      "Satuan 3 (Barcode)": "",
+
+      "Grosir Min Qty": 10,
+      "Grosir Harga": 33000,
+
+      "Harga Promo Diskon": "",
+      "Kuota Promo": "",
+
+      "Promo Beli X": 5,
+      "Promo Gratis Y": 1
     },
     {
       "ID Produk": "P1003",
-      "Nama Produk": "Keripik Singkong Renyah",
-      "Kategori": "Snack",
-      "Harga Beli": 5000,
-      "Harga Jual": 8000,
-      "Stok": 100,
-      "Barcode": "8995551234567",
-      "Rak": "Etalase Depan",
-      "Tanggal Kadaluarsa": "2027-06-30",
-      "Gambar": ""
+      "Nama Produk": "Kopi Sachet Mantap",
+      "Kategori": "Minuman",
+      "Harga Beli": 1200,
+      "Harga Jual": 1500,
+      "Stok": 150,
+      "Barcode": "8991002003004",
+      "Rak": "Rak C2",
+      "Tanggal Kadaluarsa": "2027-05-20",
+      "Gambar": "",
+      "Status": "Aktif",
+
+      // Satuan bertingkat Renteng isi 10
+      "Satuan 1 (Nama)": "Renteng",
+      "Satuan 1 (Isi Pcs)": 10,
+      "Satuan 1 (Harga)": 14000,
+      "Satuan 1 (Barcode)": "8991002003103",
+
+      "Satuan 2 (Nama)": "",
+      "Satuan 2 (Isi Pcs)": "",
+      "Satuan 2 (Harga)": "",
+      "Satuan 2 (Barcode)": "",
+
+      "Satuan 3 (Nama)": "",
+      "Satuan 3 (Isi Pcs)": "",
+      "Satuan 3 (Harga)": "",
+      "Satuan 3 (Barcode)": "",
+
+      "Grosir Min Qty": "",
+      "Grosir Harga": "",
+
+      "Harga Promo Diskon": 1350,
+      "Kuota Promo": 30,
+
+      "Promo Beli X": "",
+      "Promo Gratis Y": ""
     }
   ];
 
   if (typeof XLSX !== 'undefined') {
     const ws = XLSX.utils.json_to_sheet(sampleData);
-    // Atur lebar kolom agar rapi
+    // Atur lebar kolom agar rapi dan mudah dibaca
     ws['!cols'] = [
       { wch: 12 }, // ID Produk
       { wch: 28 }, // Nama Produk
       { wch: 15 }, // Kategori
-      { wch: 14 }, // Harga Beli
-      { wch: 14 }, // Harga Jual
+      { wch: 13 }, // Harga Beli
+      { wch: 13 }, // Harga Jual
       { wch: 10 }, // Stok
       { wch: 18 }, // Barcode
-      { wch: 14 }, // Rak
+      { wch: 16 }, // Rak
       { wch: 18 }, // Tanggal Kadaluarsa
-      { wch: 35 }  // Gambar (URL / Path)
+      { wch: 30 }, // Gambar
+      { wch: 12 }, // Status
+      { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, // Satuan 1
+      { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, // Satuan 2
+      { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, // Satuan 3
+      { wch: 14 }, { wch: 14 }, // Grosir
+      { wch: 18 }, { wch: 12 }, // Diskon
+      { wch: 14 }, { wch: 14 }  // Beli X Gratis Y
     ];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Produk");
+    XLSX.utils.book_append_sheet(wb, ws, "Contoh_Produk");
     XLSX.writeFile(wb, "Contoh_Format_Import_Produk.xlsx");
   } else {
     // Fallback jika lib XLSX sedang loading
-    let csv = "ID Produk,Nama Produk,Kategori,Harga Beli,Harga Jual,Stok,Barcode,Tanggal Kadaluarsa,Gambar\n";
+    const headers = Object.keys(sampleData[0]);
+    let csv = headers.map(h => '"' + h + '"').join(",") + "\n";
     sampleData.forEach(r => {
-      csv += `"${r["ID Produk"]}","${r["Nama Produk"]}","${r["Kategori"]}",${r["Harga Beli"]},${r["Harga Jual"]},${r["Stok"]},"${r["Barcode"]}","${r["Tanggal Kadaluarsa"]}","${r["Gambar"]}"\n`;
+      csv += headers.map(h => '"' + (r[h] !== undefined && r[h] !== null ? String(r[h]).replace(/"/g, '""') : '') + '"').join(",") + "\n";
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -12395,28 +12582,75 @@ function handleProductExcelUpload(event) {
       const updatesCloud = {};
 
       rows.forEach((row, idx) => {
-        // Normalisasi key object agar tidak terpengaruh huruf besar/kecil atau spasi
+        // Normalisasi key object agar tidak terpengaruh huruf besar/kecil atau karakter tanda baca
         const normalizedRow = {};
         Object.keys(row).forEach(k => {
-          normalizedRow[k.trim().toLowerCase()] = row[k];
+          const cleanK = k.trim().toLowerCase().replace(/[\s_()\-]+/g, '');
+          normalizedRow[cleanK] = row[k];
         });
 
-        // Toleransi nama kolom Bahasa Indonesia & Inggris
-        const rawName = row['Nama Produk'] || row['Nama'] || row['nama'] || row['Product Name'] || row['nama_produk'] ||
-                        normalizedRow['nama produk'] || normalizedRow['nama'] || normalizedRow['product name'] || normalizedRow['nama_produk'];
-        if (!rawName) return; // Lewati baris tanpa nama
+        const getVal = (aliases) => {
+          for (const a of aliases) {
+            if (row[a] !== undefined && row[a] !== null && String(row[a]).trim() !== '') return row[a];
+            const cleanA = a.trim().toLowerCase().replace(/[\s_()\-]+/g, '');
+            if (normalizedRow[cleanA] !== undefined && normalizedRow[cleanA] !== null && String(normalizedRow[cleanA]).trim() !== '') return normalizedRow[cleanA];
+          }
+          return '';
+        };
 
-        let rawId = String(row['ID Produk'] || row['ID'] || row['id'] || row['Id'] || normalizedRow['id produk'] || normalizedRow['id'] || '').trim();
-        const rawCat = String(row['Kategori'] || row['kategori'] || row['Category'] || normalizedRow['kategori'] || normalizedRow['category'] || 'Umum').trim() || 'Umum';
-        const rawBuy = parseFloat(row['Harga Beli'] || row['harga_beli'] || row['Beli'] || row['Buy Price'] || normalizedRow['harga beli'] || normalizedRow['harga_beli'] || normalizedRow['beli']) || 0;
-        const rawSell = parseFloat(row['Harga Jual'] || row['harga_jual'] || row['Jual'] || row['Sell Price'] || normalizedRow['harga jual'] || normalizedRow['harga_jual'] || normalizedRow['jual']) || 0;
-        const rawStock = parseInt(row['Stok'] || row['stok'] || row['Stock'] || row['Jumlah'] || normalizedRow['stok'] || normalizedRow['stock'] || normalizedRow['jumlah']) || 0;
-        const rawBarcode = String(row['Barcode'] || row['barcode'] || normalizedRow['barcode'] || '').trim();
-        const rawRack = String(row['Rak'] || row['rak'] || row['Lokasi Rak'] || row['lokasi_rak'] || row['Rack'] || normalizedRow['rak'] || normalizedRow['lokasi rak'] || normalizedRow['lokasi_rak'] || normalizedRow['rack'] || '').trim();
-        const rawExpiry = String(row['Tanggal Kadaluarsa'] || row['tanggal_kadaluarsa'] || row['Kadaluarsa'] || row['Expiry'] || normalizedRow['tanggal kadaluarsa'] || normalizedRow['tanggal_kadaluarsa'] || normalizedRow['kadaluarsa'] || normalizedRow['expired'] || '').trim();
-        const rawImage = String(row['Gambar'] || row['gambar'] || row['Image'] || row['Foto'] || row['image'] || normalizedRow['gambar'] || normalizedRow['image'] || normalizedRow['foto'] || '').trim();
-        const rawStatus = String(row['Status Kulak'] || row['Status'] || row['status_kulak'] || normalizedRow['status kulak'] || normalizedRow['status'] || normalizedRow['status_kulak'] || '').trim().toLowerCase();
+        // Toleransi nama kolom Bahasa Indonesia & Inggris
+        const rawName = getVal(['Nama Produk', 'Nama', 'nama', 'Product Name', 'nama_produk']);
+        if (!rawName) return; // Lewati baris tanpa nama produk
+
+        let rawId = String(getVal(['ID Produk', 'ID', 'id', 'Id', 'id_produk'])).trim();
+        const rawCat = String(getVal(['Kategori', 'kategori', 'Category']) || 'Umum').trim() || 'Umum';
+        const rawBuy = parseFloat(getVal(['Harga Beli', 'harga_beli', 'Beli', 'Buy Price', 'modal'])) || 0;
+        const rawSell = parseFloat(getVal(['Harga Jual', 'harga_jual', 'Jual', 'Sell Price', 'harga'])) || 0;
+        const rawStock = parseInt(getVal(['Stok', 'stok', 'Stock', 'Jumlah', 'qty'])) || 0;
+        const rawBarcode = String(getVal(['Barcode', 'barcode', 'kode_barcode'])).trim();
+        const rawRack = String(getVal(['Rak', 'rak', 'Lokasi Rak', 'lokasi_rak', 'Rack'])).trim();
+        const rawExpiry = String(getVal(['Tanggal Kadaluarsa', 'tanggal_kadaluarsa', 'Kadaluarsa', 'Expiry', 'expired'])).trim();
+        const rawImage = String(getVal(['Gambar', 'gambar', 'Image', 'Foto', 'image', 'foto'])).trim();
+        const rawStatus = String(getVal(['Status Kulak', 'Status', 'status_kulak', 'status'])).trim().toLowerCase();
         const isDiscontinuedFromExcel = (rawStatus.includes('stop') || rawStatus.includes('discontinue') || rawStatus.includes('tidak') || rawStatus.includes('nonaktif') || rawStatus === 'off' || rawStatus === '0');
+
+        // Satuan Bertingkat (Units 1, 2, 3)
+        const units = [];
+        for (let uIdx = 1; uIdx <= 3; uIdx++) {
+          const uName = String(getVal([
+            'Satuan ' + uIdx + ' (Nama)', 'Satuan ' + uIdx + ' Nama', 'Satuan' + uIdx + 'Nama', 'Nama Satuan ' + uIdx
+          ])).trim();
+          const uRatio = parseInt(getVal([
+            'Satuan ' + uIdx + ' (Isi Pcs)', 'Satuan ' + uIdx + ' Isi Pcs', 'Satuan' + uIdx + 'IsiPcs', 'Isi Satuan ' + uIdx, 'Isi Pcs ' + uIdx
+          ])) || 0;
+          const uPrice = parseFloat(getVal([
+            'Satuan ' + uIdx + ' (Harga)', 'Satuan ' + uIdx + ' Harga', 'Satuan' + uIdx + 'Harga', 'Harga Satuan ' + uIdx
+          ])) || 0;
+          const uBarcode = String(getVal([
+            'Satuan ' + uIdx + ' (Barcode)', 'Satuan ' + uIdx + ' Barcode', 'Satuan' + uIdx + 'Barcode', 'Barcode Satuan ' + uIdx
+          ])).trim();
+
+          if (uRatio > 1 && uPrice > 0) {
+            units.push({
+              name: uName || (uIdx === 1 ? 'Dus' : 'Pack'),
+              ratio: uRatio,
+              price: uPrice,
+              barcode: uBarcode
+            });
+          }
+        }
+
+        // Aturan Grosir
+        const rawGrosirQty = parseInt(getVal(['Grosir Min Qty', 'grosir_qty', 'Min Qty Grosir', 'Qty Grosir', 'Grosir Qty'])) || 0;
+        const rawGrosirPrice = parseFloat(getVal(['Grosir Harga', 'grosir_harga', 'Harga Grosir', 'Harga Khusus Grosir'])) || 0;
+
+        // Promo Diskon
+        const rawPromoPrice = parseFloat(getVal(['Harga Promo Diskon', 'harga_diskon', 'Harga Diskon', 'Harga Promo', 'Promo Price'])) || 0;
+        const rawPromoQuota = parseInt(getVal(['Kuota Promo', 'kuota_diskon', 'Kuota Diskon', 'Promo Quota'])) || 0;
+
+        // Promo Beli X Gratis Y
+        const rawPromoBuyX = parseInt(getVal(['Promo Beli X', 'promo_beli_x', 'Beli X', 'Buy X'])) || 0;
+        const rawPromoGetY = parseInt(getVal(['Promo Gratis Y', 'promo_gratis_y', 'Gratis Y', 'Get Y', 'Free Y'])) || 0;
 
         // Jika ID kosong di file Excel, generate ID otomatis sesuai urutan (P001, P002, dst)
         if (!rawId) {
@@ -12425,6 +12659,14 @@ function handleProductExcelUpload(event) {
 
         const existingIdx = products.findIndex(p => p.id === rawId || (rawBarcode && p.barcode === rawBarcode));
         
+        // Backward-compatible unit_box fields
+        const firstUnit = units[0] || {};
+        const hasBox = units.length > 0;
+        const barcodeBox = firstUnit.barcode || '';
+        const unitBoxName = firstUnit.name || 'Dus';
+        const qtyBox = firstUnit.ratio || 0;
+        const priceBox = firstUnit.price || 0;
+
         const prodData = {
           id: rawId,
           nama: String(rawName).trim(),
@@ -12436,13 +12678,30 @@ function handleProductExcelUpload(event) {
           rak: rawRack,
           tanggal_kadaluarsa: rawExpiry,
           gambar: rawImage,
+          
+          // Satuan bertingkat
+          units: units,
+          has_unit_box: hasBox,
+          nama_box: unitBoxName,
+          isi_box: qtyBox,
+          harga_box: priceBox,
+          barcode_box: barcodeBox,
+
+          // Aturan Grosir & Promo
+          grosir_qty: rawGrosirQty,
+          grosir_harga: rawGrosirPrice,
+          harga_diskon: rawPromoPrice,
+          kuota_diskon: rawPromoQuota,
+          promo_beli_x: rawPromoBuyX,
+          promo_gratis_y: rawPromoGetY,
+
           is_discontinued: rawStatus ? isDiscontinuedFromExcel : (existingIdx !== -1 ? Boolean(products[existingIdx].is_discontinued) : false),
           status_kulak: (rawStatus ? isDiscontinuedFromExcel : (existingIdx !== -1 && products[existingIdx].is_discontinued)) ? 'discontinue' : 'aktif',
           createdAt: (existingIdx !== -1 && products[existingIdx]?.createdAt) ? products[existingIdx].createdAt : new Date().toISOString()
         };
 
         if (existingIdx !== -1) {
-          // Perbarui produk yang sudah ada
+          // Perbarui produk yang sudah ada (merge agar field lain tidak tertimpa kosong)
           products[existingIdx] = { ...products[existingIdx], ...prodData };
           updatedCount++;
         } else {
@@ -12485,7 +12744,7 @@ function handleProductExcelUpload(event) {
         });
       }
 
-      alert(`✅ Berhasil Mengimpor Data Excel!\n\n• Produk Baru Ditambahkan: ${addedCount}\n• Produk Lama Diperbarui: ${updatedCount}\n• Total Produk di Kasir: ${products.length}`);
+      alert("✅ Berhasil Mengimpor Data Excel!\n\n• Produk Baru Ditambahkan: " + addedCount + "\n• Produk Lama Diperbarui: " + updatedCount + "\n• Total Produk di Kasir: " + products.length);
     } catch (err) {
       console.error('Gagal membaca file Excel:', err);
       alert('❌ Gagal memproses file Excel: ' + err.message + '\n\nSilakan gunakan template dari tombol "Contoh Excel" sebagai acuan.');
@@ -12495,9 +12754,6 @@ function handleProductExcelUpload(event) {
   };
   reader.readAsArrayBuffer(file);
 }
-
-
-
 
 
 
