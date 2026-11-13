@@ -5216,7 +5216,19 @@ function getCurrentCashierAvailableCash() {
   return Math.max(0, cashIn - cashOut);
 }
 
+let updateAnalyticsTimer = null;
+function scheduleUpdateAnalytics() {
+  if (updateAnalyticsTimer) clearTimeout(updateAnalyticsTimer);
+  updateAnalyticsTimer = setTimeout(() => {
+    updateAnalytics();
+  }, 100);
+}
+
 function updateAnalytics() {
+  // Hanya hitung analitik jika tab Analitik aktif atau baru saja dibuka agar tidak membebani transaksi kasir
+  if (activeTab !== 'analytics') {
+    return;
+  }
   const now = new Date();
   
   // Pre-index produk ke Map untuk akses instan O(1)
@@ -7400,7 +7412,7 @@ function renderFloatingDropdown() {
     selectedEl.scrollIntoView({ block: 'nearest' });
   }
   if (typeof lucide !== 'undefined' && lucide.createIcons) {
-    try { lucide.createIcons(); } catch(e) {}
+    try { lucide.createIcons({ root: dropdown }); } catch(e) {}
   }
 }
 
@@ -11548,7 +11560,7 @@ function renderProductsTable(highlightProductId = null) {
   // Sinkronkan tombol cetak massal dan checkbox master berdasarkan item yang baru saja di-render
   updateBulkActionButtonState();
   if (typeof lucide !== 'undefined' && lucide.createIcons) {
-    try { lucide.createIcons(); } catch(e) {}
+    try { lucide.createIcons({ root: tbody }); } catch(e) {}
   }
 }
 
