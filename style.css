@@ -3235,14 +3235,26 @@ tr:hover td {
     color: #475569;
   }
 
-  /* Kolom 3 & 4 (Baris 3): Harga Jual (Besar) & Tombol Aksi */
-  #products-table td:nth-child(7) { /* Harga Jual */
-    grid-column: 3;
-    grid-row: 3;
+  /* Kolom 3 & 4 (Baris 3): Harga Jual & Tombol Aksi */
+  #products-table td:nth-child(7) { /* Harga Jual & Detail Bertingkat */
+    grid-column: 3 / -1;
+    grid-row: 4;
     font-size: 0.95rem !important;
     font-weight: 800 !important;
     color: var(--color-primary, #d97706);
-    line-height: 1.2;
+    line-height: 1.3;
+    margin-top: 0.25rem;
+    padding-top: 0.35rem !important;
+    border-top: 1px dashed #e2e8f0 !important;
+  }
+  #products-table td:nth-child(7) .badge-tier-price-row,
+  #products-table td:nth-child(7) .badge-grosir-price-row,
+  #products-table td:nth-child(7) .badge-promo-buyget-row {
+    display: flex !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    font-size: 0.78rem !important;
+    margin-top: 0.3rem !important;
   }
   #products-table td:nth-child(3) { /* ID Produk */
     display: none !important;

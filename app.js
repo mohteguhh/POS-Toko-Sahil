@@ -11496,15 +11496,15 @@ function renderProductsTable(highlightProductId = null) {
         if (uRatio > 1 && uPrice > 0) {
           const perPcs = Math.round(uPrice / uRatio);
           const uName = (u.name || 'Box').toLowerCase();
-          hargaJualDisplay += `<div class="badge-tier-price-row" style="font-size:0.75rem; color:#0369a1; background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:0.18rem 0.45rem; margin-top:0.25rem; display:inline-flex; align-items:center; gap:0.3rem; line-height:1.3; flex-wrap:wrap;"><i data-lucide="package" style="width:12px; height:12px; color:#0284c7; flex-shrink:0;"></i> <span>1 ${uName} (${uRatio} pcs @ ${formatRupiah(perPcs)}) : <b>Rp ${formatRupiah(uPrice)}</b></span></div>`;
+          hargaJualDisplay += `<div class="badge-tier-price-row" style="font-size:0.75rem; color:#0369a1; background:#f0f9ff; border:1px solid #bae6fd; border-radius:6px; padding:0.2rem 0.5rem; margin-top:0.25rem; display:inline-flex; align-items:center; gap:0.35rem; line-height:1.3; flex-wrap:wrap;"><i data-lucide="package" style="width:13px; height:13px; color:#0284c7; flex-shrink:0;"></i> <span>1 ${uName} (${uRatio} pcs @ ${formatRupiah(perPcs)}) : <b>Rp ${formatRupiah(uPrice)}</b></span></div>`;
         }
       });
     }
     if (p.grosir_qty > 0 && p.grosir_harga > 0) {
-      hargaJualDisplay += `<br><span style="font-size:0.75rem; color:#2563eb; font-weight:600; background:rgba(37,99,235,0.1); padding:0.1rem 0.35rem; border-radius:4px; display:inline-flex; align-items:center; gap:0.25rem; margin-top:0.2rem;"><i data-lucide="tag" style="width:12px; height:12px;"></i> Grosir: ${p.grosir_qty} pcs = Rp ${formatRupiah(p.grosir_harga)}</span>`;
+      hargaJualDisplay += `<div class="badge-grosir-price-row" style="font-size:0.75rem; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:0.2rem 0.5rem; margin-top:0.25rem; display:inline-flex; align-items:center; gap:0.35rem; line-height:1.3; flex-wrap:wrap;"><i data-lucide="tag" style="width:13px; height:13px; color:#2563eb; flex-shrink:0;"></i> <span>Grosir: ${p.grosir_qty} pcs = <b>Rp ${formatRupiah(p.grosir_harga)}</b></span></div>`;
     }
     if (p.promo_beli_x > 0 && p.promo_gratis_y > 0) {
-      hargaJualDisplay += `<br><span style="font-size:0.75rem; color:#059669; font-weight:600; background:rgba(16,185,129,0.1); padding:0.1rem 0.35rem; border-radius:4px; display:inline-flex; align-items:center; gap:0.25rem; margin-top:0.2rem;"><i data-lucide="gift" style="width:12px; height:12px;"></i> Beli ${p.promo_beli_x} Gratis ${p.promo_gratis_y}</span>`;
+      hargaJualDisplay += `<div class="badge-promo-buyget-row" style="font-size:0.75rem; color:#047857; background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:0.2rem 0.5rem; margin-top:0.25rem; display:inline-flex; align-items:center; gap:0.35rem; line-height:1.3; flex-wrap:wrap;"><i data-lucide="gift" style="width:13px; height:13px; color:#059669; flex-shrink:0;"></i> <span>Beli ${p.promo_beli_x} Gratis ${p.promo_gratis_y}</span></div>`;
     }
     
     const isDiscontinued = Boolean(p.is_discontinued || p.status_kulak === 'discontinue');
