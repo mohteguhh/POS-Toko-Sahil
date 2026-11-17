@@ -5939,13 +5939,13 @@ function updateAnalytics() {
             <span class="stock-status-badge ${isHabis ? 'badge-rose' : 'badge-amber'}">
               ${isHabis ? 'Habis' : 'Menipis'}
             </span>
-            <div class="widget-stock-correct-box" style="display: ${isWidgetStockCorrectionActive ? 'flex' : 'none'}; align-items: center; gap: 0.25rem; background: var(--bg-surface-elevated, #f8fafc); padding: 0.2rem 0.35rem; border-radius: 8px; border: 1px solid var(--border-color, #e2e8f0);">
+            <div class="widget-stock-correct-box ${isWidgetStockCorrectionActive ? 'active' : ''}" style="display: ${isWidgetStockCorrectionActive ? 'flex' : 'none'}; align-items: center; gap: 0.25rem; background: var(--bg-surface-elevated, #f8fafc); padding: 0.2rem 0.35rem; border-radius: 8px; border: 1px solid var(--border-color, #e2e8f0);">
               <input type="number" id="widget-correct-qty-${p.id}" min="0" value="${p.stok}"
-                style="width: 48px; padding: 0.25rem 0.2rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-weight: 700; text-align: center; background: var(--bg-card, #fff); color: var(--text-main); outline: none;"
+                style="width: 44px; min-width: 44px; max-width: 48px; padding: 0.25rem 0.2rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-weight: 700; text-align: center; background: var(--bg-card, #fff); color: var(--text-main); outline: none; box-sizing: border-box;"
                 title="Ketik jumlah fisik di rak jika barang sebenarnya masih ada"
                 onfocus="this.select()"
                 onkeydown="if(event.key==='Enter') quickCorrectStock('${p.id}', 'widget-correct-qty-')">
-              <button class="btn btn-primary btn-sm" onclick="quickCorrectStock('${p.id}', 'widget-correct-qty-')" title="Simpan Koreksi Stok Langsung" style="padding: 0.25rem 0.45rem; font-size: 0.75rem; font-weight: 700; border-radius: 6px;">
+              <button class="btn btn-primary btn-sm" onclick="quickCorrectStock('${p.id}', 'widget-correct-qty-')" title="Simpan Koreksi Stok Langsung" style="padding: 0.25rem 0.45rem; font-size: 0.75rem; font-weight: 700; border-radius: 6px; white-space: nowrap;">
                 Ubah
               </button>
             </div>
@@ -6401,6 +6401,11 @@ function toggleStockCorrectionMode() {
   const boxEls = document.querySelectorAll('.widget-stock-correct-box');
   boxEls.forEach(el => {
     el.style.display = isWidgetStockCorrectionActive ? 'flex' : 'none';
+    if (isWidgetStockCorrectionActive) {
+      el.classList.add('active');
+    } else {
+      el.classList.remove('active');
+    }
   });
 
   if (typeof lucide !== 'undefined' && lucide.createIcons) {

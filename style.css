@@ -6255,27 +6255,39 @@ body.print-landscape {
     border-top: 1px dashed #e2e8f0 !important;
     display: flex !important;
     align-items: center !important;
-    justify-content: space-between !important;
+    justify-content: flex-start !important;
     flex-wrap: wrap !important;
     gap: 0.5rem !important;
   }
 
+  /* Kotak koreksi stok hanya tampil jika mode koreksi diaktifkan oleh user */
   #stock-alerts-list .widget-stock-correct-box {
+    display: none; /* Default disembunyikan sampai tombol Koreksi Stok ditekan */
+    flex: 0 0 auto !important;
+    align-items: center !important;
+    gap: 0.25rem !important;
+    margin-left: auto !important; /* Geser ke kanan jika aktif */
+  }
+
+  #stock-alerts-list .widget-stock-correct-box.active {
     display: flex !important;
-    flex: 1 1 auto !important;
-    justify-content: flex-end !important;
   }
 
   #stock-alerts-list .widget-stock-correct-box input {
-    width: 54px !important;
-    padding: 0.3rem 0.25rem !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 48px !important;
+    padding: 0.25rem 0.2rem !important;
     font-size: 0.85rem !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
   }
 
   #stock-alerts-list .btn-stop-kulak-alert {
-    padding: 0.3rem 0.6rem !important;
+    padding: 0.25rem 0.55rem !important;
     font-size: 0.75rem !important;
     border-radius: 6px !important;
+    flex-shrink: 0 !important;
   }
 }
 
