@@ -5922,10 +5922,11 @@ function updateAnalytics() {
           }
         }
 
+        itemEl.className = 'widget-item stock-item stock-alert-card';
         itemEl.innerHTML = `
-          <div class="widget-item-left" style="flex: 1; min-width: 0;">
+          <div class="widget-item-left stock-card-main-info" style="flex: 1; min-width: 0;">
             ${iconOrImg}
-            <div style="min-width: 0; overflow: hidden;">
+            <div style="min-width: 0; overflow: hidden; flex: 1;">
               <h4 class="stock-item-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(p.nama)} <span class="stock-qty-sub">(${p.stok})</span></h4>
               <p class="stock-category-sub" style="margin: 0.1rem 0 0;">KATEGORI: ${escapeHtml(p.kategori || 'UMUM')}</p>
               <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
@@ -5934,7 +5935,7 @@ function updateAnalytics() {
               </div>
             </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; margin-left: 0.5rem;">
+          <div class="stock-card-actions-row" style="display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0;">
             <span class="stock-status-badge ${isHabis ? 'badge-rose' : 'badge-amber'}">
               ${isHabis ? 'Habis' : 'Menipis'}
             </span>
@@ -5949,7 +5950,7 @@ function updateAnalytics() {
               </button>
             </div>
             <!-- Tombol Stop Kulak (Produk tidak akan muncul di stok menipis/kulakan lagi tanpa menghapus data produk) -->
-            <button type="button" class="btn btn-warning btn-sm" onclick="stopKulakFromStockAlert('${p.id}')" title="Stop Kulak (Produk tidak akan muncul di Stok Menipis & Daftar Belanja lagi, tanpa menghapus produk)" style="padding: 0.25rem 0.55rem; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem; border-radius: 6px; background: rgba(245, 158, 11, 0.12); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.35); white-space: nowrap;">
+            <button type="button" class="btn btn-warning btn-sm btn-stop-kulak-alert" onclick="stopKulakFromStockAlert('${p.id}')" title="Stop Kulak (Produk tidak akan muncul di Stok Menipis & Daftar Belanja lagi, tanpa menghapus produk)" style="padding: 0.25rem 0.55rem; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem; border-radius: 6px; background: rgba(245, 158, 11, 0.12); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.35); white-space: nowrap;">
               <svg viewBox="0 0 24 24" style="width: 13px; height: 13px;" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 14.14 14.14"/></svg>
               <span>Stop Kulak</span>
             </button>
@@ -6331,31 +6332,31 @@ function renderShoppingListTable() {
     tr.id = `shopping-row-${p.id}`;
     tr.style.borderBottom = '1px solid var(--border-color)';
     tr.innerHTML = `
-      <td style="text-align: center; padding: 0.65rem 0.5rem;">
+      <td data-label="Pilih" style="text-align: center; padding: 0.65rem 0.5rem;">
         <input type="checkbox" style="width: 1.15rem; height: 1.15rem; cursor: pointer; accent-color: var(--color-success);" onchange="toggleShoppingItemDone(this)">
       </td>
-      <td style="font-weight: 600; padding: 0.65rem 0.75rem;">
+      <td data-label="Barang" style="font-weight: 600; padding: 0.65rem 0.75rem;">
         <div class="shopping-item-title">${p.nama}</div>
         <span style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">ID: ${p.id}</span>
       </td>
-      <td style="padding: 0.65rem 0.75rem;">
+      <td data-label="Kategori" style="padding: 0.65rem 0.75rem;">
         <span class="cat-btn" style="cursor:default; margin:0; font-size:0.75rem;">${p.kategori || 'Umum'}</span>
       </td>
-      <td style="text-align: center; padding: 0.65rem 0.75rem;">
+      <td data-label="Lokasi Rak" style="text-align: center; padding: 0.65rem 0.75rem;">
         ${p.rak ? `<span style="display:inline-flex; align-items:center; gap:0.2rem; background:rgba(79,70,229,0.08); color:var(--color-primary); padding:0.15rem 0.45rem; border-radius:6px; font-size:0.75rem; font-weight:700;">📍 ${escapeHtml(p.rak)}</span>` : '<span style="color:var(--text-muted); font-size:0.8rem;">-</span>'}
       </td>
-      <td style="text-align: center; padding: 0.65rem 0.75rem;">
+      <td data-label="Sisa Stok" style="text-align: center; padding: 0.65rem 0.75rem;">
         <span style="display: inline-block; padding: 0.2rem 0.6rem; border-radius: 50px; font-weight: 700; font-size: 0.8rem; background: ${isHabis ? 'rgba(244,63,94,0.12)' : 'rgba(245,158,11,0.12)'}; color: ${isHabis ? 'var(--color-danger)' : '#b45309'};">
           ${isHabis ? '0 (Habis)' : `${p.stok} pcs`}
         </span>
       </td>
-      <td style="padding: 0.65rem 0.75rem; font-weight: 600; color: var(--text-main); font-size: 0.85rem;">
+      <td data-label="Harga Modal" style="padding: 0.65rem 0.75rem; font-weight: 600; color: var(--text-main); font-size: 0.85rem;">
         Rp ${formatRupiah(p.harga_beli || 0)}
       </td>
-      <td style="padding: 0.65rem 0.75rem; font-size: 0.82rem; font-family: monospace; color: var(--text-muted);">
+      <td data-label="Barcode" style="padding: 0.65rem 0.75rem; font-size: 0.82rem; font-family: monospace; color: var(--text-muted);">
         ${p.barcode || '-'}
       </td>
-      <td style="padding: 0.65rem 0.75rem; text-align: center;">
+      <td data-label="Koreksi Stok" style="padding: 0.65rem 0.75rem; text-align: center;">
         <div style="display: inline-flex; align-items: center; gap: 0.35rem;">
           <input type="number" id="correct-qty-${p.id}" min="0" placeholder="Qty" value="${p.stok}"
             style="width: 58px; padding: 0.3rem 0.4rem; border: 1px solid var(--border-color); border-radius: 6px; font-family: var(--font-main); font-size: 0.85rem; text-align: center; background: var(--bg-card); color: var(--text-main); outline: none;"
