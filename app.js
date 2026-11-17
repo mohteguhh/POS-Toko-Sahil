@@ -2584,7 +2584,9 @@ let appConfig = safeJsonParse('kasir_app_config', {
   enableDeliveryNote: false,
   enableWaReceipt: false,
   enableCloudSync: false,
-  enableDailyAutoBackup: true
+  enableDailyAutoBackup: true,
+  lowStockThreshold: 2,
+  salesWaStockThreshold: 2
 });
 if (appConfig.enableCloudSync === undefined) appConfig.enableCloudSync = false;
 if (appConfig.enablePromo === undefined) appConfig.enablePromo = false;
@@ -2595,6 +2597,16 @@ if (appConfig.autoCashNonCash === undefined) appConfig.autoCashNonCash = false;
 if (appConfig.enableDeliveryNote === undefined) appConfig.enableDeliveryNote = false;
 if (appConfig.enableWaReceipt === undefined) appConfig.enableWaReceipt = false;
 if (appConfig.enableDailyAutoBackup === undefined) appConfig.enableDailyAutoBackup = true;
+if (appConfig.lowStockThreshold === undefined || appConfig.lowStockThreshold === null || isNaN(appConfig.lowStockThreshold)) {
+  appConfig.lowStockThreshold = 2;
+} else {
+  appConfig.lowStockThreshold = Math.max(0, parseInt(appConfig.lowStockThreshold, 10));
+}
+if (appConfig.salesWaStockThreshold === undefined || appConfig.salesWaStockThreshold === null || isNaN(appConfig.salesWaStockThreshold)) {
+  appConfig.salesWaStockThreshold = 2;
+} else {
+  appConfig.salesWaStockThreshold = Math.max(0, parseInt(appConfig.salesWaStockThreshold, 10));
+}
 
 // Pengaturan Nota / Struk Toko (Default)
 let receiptSettings = safeJsonParse('kasir_receipt_settings', {
@@ -3592,6 +3604,17 @@ function saveAppConfig() {
     appConfig.imgbbApiKey = imgbbInput.value.trim();
   }
 
+  const thresholdInput = document.getElementById('setting-low-stock-threshold');
+  if (thresholdInput) {
+    const rawVal = parseInt(thresholdInput.value, 10);
+    appConfig.lowStockThreshold = isNaN(rawVal) ? 2 : Math.max(0, rawVal);
+    // Sinkronkan juga batas untuk WA sales dan tabel sales
+    appConfig.salesWaStockThreshold = appConfig.lowStockThreshold;
+    thresholdInput.value = appConfig.lowStockThreshold;
+    const badge = document.getElementById('setting-low-stock-badge');
+    if (badge) badge.textContent = `≤ ${appConfig.lowStockThreshold} pcs`;
+  }
+
   const chkPointsMode = document.getElementById('chk-loyalty-points-mode');
   if (chkPointsMode) {
     appConfig.enableLoyaltyPointsMode = chkPointsMode.checked;
@@ -3623,6 +3646,9 @@ function saveAppConfig() {
   calculateTotal(); // Update POS discount visibility
   checkPromoBanner(); // Update visibilitas banner carousel promo
   if (typeof applyPosGridConfig === 'function') applyPosGridConfig();
+  if (typeof updateAnalytics === 'function') updateAnalytics();
+  if (typeof renderShoppingListTable === 'function') renderShoppingListTable();
+  if (typeof renderSalesTable === 'function') renderSalesTable();
   
   if (typeof showPosToast === 'function') {
     showPosToast('Pengaturan Sistem Aplikasi berhasil disimpan!', 'promo');
@@ -3705,6 +3731,16 @@ function loadAppConfig() {
 
   const imgbbInput = document.getElementById('setting-imgbb-api-key');
   if (imgbbInput) imgbbInput.value = appConfig.imgbbApiKey || '';
+
+  const thresholdInput = document.getElementById('setting-low-stock-threshold');
+  if (thresholdInput) {
+    thresholdInput.value = (appConfig.lowStockThreshold !== undefined && appConfig.lowStockThreshold !== null && !isNaN(appConfig.lowStockThreshold)) ? appConfig.lowStockThreshold : 2;
+    const badge = document.getElementById('setting-low-stock-badge');
+    if (badge) badge.textContent = `≤ ${thresholdInput.value} pcs`;
+    thresholdInput.oninput = function() {
+      if (badge) badge.textContent = `≤ ${this.value || 0} pcs`;
+    };
+  }
 
   checkPromoBanner();
 }
@@ -5782,8 +5818,66 @@ function updateAnalytics() {
   if (filterType === 'hari') {
     targetDateForStock = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
   }
+  const lowThreshold = (appConfig && appConfig.lowStockThreshold !== undefined && appConfig.lowStockThreshold !== null && !isNaN(appConfig.lowStockThreshold)) ? parseInt(appConfig.lowStockThreshold, 10) : 2;
+  const subtitleEl = document.getElementById('stock-alert-limit-subtitle');
+  if (subtitleEl) {
+    subtitleEl.textContent = lowThreshold === 0 ? 'Batas: Habis Total (0 pcs)' : `Batas: 0 - ${lowThreshold} pcs`;
+  }
+  const modalSubtitleEl = document.getElementById('shopping-list-modal-subtitle');
+  if (modalSubtitleEl) {
+    modalSubtitleEl.textContent = lowThreshold === 0 ? 'Daftar semua produk yang habis total (0 pcs) untuk kulakan.' : `Daftar semua produk yang habis (0 pcs) dan menipis (≤ ${lowThreshold} pcs) untuk kulakan.`;
+  }
   const productsWithHistoricalStock = getHistoricalProductStock(targetDateForStock);
-  const stockAlerts = productsWithHistoricalStock.filter(p => p.stok <= 2 && !p.is_discontinued && p.status_kulak !== 'discontinue');
+  let stockAlerts = productsWithHistoricalStock.filter(p => p.stok <= lowThreshold && !p.is_discontinued && p.status_kulak !== 'discontinue');
+
+  // Ambil mode urutan/filter stok menipis
+  const stockSortMode = document.getElementById('stock-alert-filter-sort')?.value || 'all';
+
+  // Hitung total unit terjual dan transaksi terakhir untuk setiap produk
+  const allTxsForStock = (analyticsTransactions !== null && analyticsTransactions !== undefined) ? analyticsTransactions : transactions;
+  const prodSalesTotalMap = new Map();
+  const prodLastSoldMap = new Map();
+
+  allTxsForStock.forEach(tx => {
+    if (!tx || !Array.isArray(tx.items)) return;
+    const txTime = tx.waktu ? new Date(tx.waktu).getTime() : 0;
+    tx.items.forEach(it => {
+      const pId = it.id ? String(it.id) : null;
+      const pName = it.nama ? String(it.nama).toLowerCase().trim() : '';
+      const qtySold = Number(it.qty) || 0;
+
+      if (pId) {
+        prodSalesTotalMap.set(pId, (prodSalesTotalMap.get(pId) || 0) + qtySold);
+        if (txTime > (prodLastSoldMap.get(pId) || 0)) {
+          prodLastSoldMap.set(pId, txTime);
+        }
+      }
+      if (pName) {
+        prodSalesTotalMap.set('name:' + pName, (prodSalesTotalMap.get('name:' + pName) || 0) + qtySold);
+        if (txTime > (prodLastSoldMap.get('name:' + pName) || 0)) {
+          prodLastSoldMap.set('name:' + pName, txTime);
+        }
+      }
+    });
+  });
+
+  // Terapkan sorting/filter berdasarkan pilihan owner
+  if (stockSortMode === 'terlaris') {
+    stockAlerts.sort((a, b) => {
+      const soldA = prodSalesTotalMap.get(String(a.id)) || prodSalesTotalMap.get('name:' + (a.nama || '').toLowerCase().trim()) || 0;
+      const soldB = prodSalesTotalMap.get(String(b.id)) || prodSalesTotalMap.get('name:' + (b.nama || '').toLowerCase().trim()) || 0;
+      if (soldB !== soldA) return soldB - soldA; // Banyak terjual ke sedikit
+      return a.stok - b.stok;
+    });
+  } else if (stockSortMode === 'terlama_tidak_laku') {
+    stockAlerts.sort((a, b) => {
+      const lastA = prodLastSoldMap.get(String(a.id)) || prodLastSoldMap.get('name:' + (a.nama || '').toLowerCase().trim()) || 0;
+      const lastB = prodLastSoldMap.get(String(b.id)) || prodLastSoldMap.get('name:' + (b.nama || '').toLowerCase().trim()) || 0;
+      if (lastA !== lastB) return lastA - lastB; // Yang tidak pernah laku (0) / waktu terlama di paling atas
+      return a.stok - b.stok;
+    });
+  }
+
   const stockListEl = document.getElementById('stock-alerts-list');
   const countBadgeEl = document.getElementById('stock-alert-count-badge');
   if (countBadgeEl) {
@@ -5797,6 +5891,8 @@ function updateAnalytics() {
       stockListEl.innerHTML = '<div class="widget-empty">Stok aman terkendali.</div>';
     } else {
       const frag = document.createDocumentFragment();
+      const nowTs = Date.now();
+
       stockAlerts.forEach(p => {
         const isHabis = p.stok <= 0;
         const itemEl = document.createElement('div');
@@ -5806,17 +5902,58 @@ function updateAnalytics() {
           ? `<img src="${p.gambar}" alt="${p.nama}" class="stock-item-img" onclick="event.stopPropagation(); openProductImageLightbox('${p.gambar}', '${escapeJsQuotes(p.nama)}')" onerror="this.onerror=null; this.outerHTML='<div class=\\'widget-icon-box bg-white-border\\'><svg viewBox=\\'0 0 24 24\\' class=\\'w-4 h-4 text-muted\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'2\\'><path d=\\'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\\'/><polyline points=\\'3.27 6.96 12 12.01 20.73 6.96\\'/><line x1=\\'12\\' y1=\\'22.08\\' x2=\\'12\\' y2=\\'12\\'/></svg></div>';">`
           : `<div class="widget-icon-box bg-white-border"><svg viewBox="0 0 24 24" class="w-4 h-4 text-muted" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>`;
 
+        const rackHtml = p.rak 
+          ? `<span style="display:inline-flex; align-items:center; gap:0.25rem; font-size:0.75rem; font-weight:700; color:var(--color-primary); background:rgba(79,70,229,0.08); padding:0.15rem 0.45rem; border-radius:6px; margin-top:0.25rem;" title="Lokasi Rak: ${escapeHtml(p.rak)}">📍 Rak: ${escapeHtml(p.rak)}</span>` 
+          : `<span style="font-size:0.72rem; color:var(--text-muted); margin-top:0.2rem; display:inline-block;">📍 Rak: -</span>`;
+
+        // Keterangan penjualan / status tidak laku
+        const totalSold = prodSalesTotalMap.get(String(p.id)) || prodSalesTotalMap.get('name:' + (p.nama || '').toLowerCase().trim()) || 0;
+        const lastSoldTs = prodLastSoldMap.get(String(p.id)) || prodLastSoldMap.get('name:' + (p.nama || '').toLowerCase().trim()) || 0;
+        let saleInfoBadge = '';
+        if (stockSortMode === 'terlaris') {
+          saleInfoBadge = `<span style="display:inline-block; font-size:0.72rem; color:#047857; background:#d1fae5; padding:0.1rem 0.4rem; border-radius:4px; font-weight:700; margin-top:0.2rem;">🔥 ${totalSold} terjual</span>`;
+        } else if (stockSortMode === 'terlama_tidak_laku') {
+          if (!lastSoldTs) {
+            saleInfoBadge = `<span style="display:inline-block; font-size:0.72rem; color:#991b1b; background:#fee2e2; padding:0.1rem 0.4rem; border-radius:4px; font-weight:700; margin-top:0.2rem;">⏳ Belum pernah laku</span>`;
+          } else {
+            const diffDays = Math.floor((nowTs - lastSoldTs) / (1000 * 60 * 60 * 24));
+            const lastDateFormatted = new Date(lastSoldTs).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+            saleInfoBadge = `<span style="display:inline-block; font-size:0.72rem; color:#b45309; background:#fef3c7; padding:0.1rem 0.4rem; border-radius:4px; font-weight:700; margin-top:0.2rem;">⏳ Terakhir laku: ${lastDateFormatted} (${diffDays} hr lalu)</span>`;
+          }
+        }
+
         itemEl.innerHTML = `
-          <div class="widget-item-left">
+          <div class="widget-item-left" style="flex: 1; min-width: 0;">
             ${iconOrImg}
-            <div>
-              <h4 class="stock-item-title">${p.nama} <span class="stock-qty-sub">(${p.stok})</span></h4>
-              <p class="stock-category-sub">KATEGORI: ${p.kategori || 'UMUM'}</p>
+            <div style="min-width: 0; overflow: hidden;">
+              <h4 class="stock-item-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(p.nama)} <span class="stock-qty-sub">(${p.stok})</span></h4>
+              <p class="stock-category-sub" style="margin: 0.1rem 0 0;">KATEGORI: ${escapeHtml(p.kategori || 'UMUM')}</p>
+              <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                ${rackHtml}
+                ${saleInfoBadge}
+              </div>
             </div>
           </div>
-          <span class="stock-status-badge ${isHabis ? 'badge-rose' : 'badge-amber'}">
-            ${isHabis ? 'Habis' : 'Menipis'}
-          </span>
+          <div style="display: flex; align-items: center; gap: 0.45rem; flex-shrink: 0; margin-left: 0.5rem;">
+            <span class="stock-status-badge ${isHabis ? 'badge-rose' : 'badge-amber'}">
+              ${isHabis ? 'Habis' : 'Menipis'}
+            </span>
+            <div class="widget-stock-correct-box" style="display: ${isWidgetStockCorrectionActive ? 'flex' : 'none'}; align-items: center; gap: 0.25rem; background: var(--bg-surface-elevated, #f8fafc); padding: 0.2rem 0.35rem; border-radius: 8px; border: 1px solid var(--border-color, #e2e8f0);">
+              <input type="number" id="widget-correct-qty-${p.id}" min="0" value="${p.stok}"
+                style="width: 48px; padding: 0.25rem 0.2rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.8rem; font-weight: 700; text-align: center; background: var(--bg-card, #fff); color: var(--text-main); outline: none;"
+                title="Ketik jumlah fisik di rak jika barang sebenarnya masih ada"
+                onfocus="this.select()"
+                onkeydown="if(event.key==='Enter') quickCorrectStock('${p.id}', 'widget-correct-qty-')">
+              <button class="btn btn-primary btn-sm" onclick="quickCorrectStock('${p.id}', 'widget-correct-qty-')" title="Simpan Koreksi Stok Langsung" style="padding: 0.25rem 0.45rem; font-size: 0.75rem; font-weight: 700; border-radius: 6px;">
+                Ubah
+              </button>
+            </div>
+            <!-- Tombol Stop Kulak (Produk tidak akan muncul di stok menipis/kulakan lagi tanpa menghapus data produk) -->
+            <button type="button" class="btn btn-warning btn-sm" onclick="stopKulakFromStockAlert('${p.id}')" title="Stop Kulak (Produk tidak akan muncul di Stok Menipis & Daftar Belanja lagi, tanpa menghapus produk)" style="padding: 0.25rem 0.55rem; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem; border-radius: 6px; background: rgba(245, 158, 11, 0.12); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.35); white-space: nowrap;">
+              <svg viewBox="0 0 24 24" style="width: 13px; height: 13px;" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 14.14 14.14"/></svg>
+              <span>Stop Kulak</span>
+            </button>
+          </div>
         `;
         frag.appendChild(itemEl);
       });
@@ -6151,9 +6288,10 @@ function renderShoppingListTable() {
   if (!tbody) return;
   
   const searchVal = (document.getElementById('shopping-search-input')?.value || '').toLowerCase().trim();
+  const lowThreshold = (appConfig && appConfig.lowStockThreshold !== undefined && appConfig.lowStockThreshold !== null && !isNaN(appConfig.lowStockThreshold)) ? parseInt(appConfig.lowStockThreshold, 10) : 2;
   
-  // Ambil semua barang dengan stok <= 2 (0 = habis, 1-2 = menipis) yang masih aktif dikulak
-  const lowStockProducts = products.filter(p => p.stok <= 2 && !p.is_discontinued && p.status_kulak !== 'discontinue');
+  // Ambil semua barang dengan stok <= lowThreshold (0 = habis, 1..threshold = menipis) yang masih aktif dikulak
+  const lowStockProducts = products.filter(p => p.stok <= lowThreshold && !p.is_discontinued && p.status_kulak !== 'discontinue');
   
   const outCount = lowStockProducts.filter(p => p.stok === 0).length;
   const lowCount = lowStockProducts.filter(p => p.stok > 0).length;
@@ -6161,6 +6299,10 @@ function renderShoppingListTable() {
   const totalItemsEl = document.getElementById('shopping-total-items');
   const outCountEl = document.getElementById('shopping-out-count');
   const lowCountEl = document.getElementById('shopping-low-count');
+  const modalSubtitleEl = document.getElementById('shopping-list-modal-subtitle');
+  if (modalSubtitleEl) {
+    modalSubtitleEl.textContent = lowThreshold === 0 ? 'Daftar semua produk yang habis total (0 pcs) untuk kulakan.' : `Daftar semua produk yang habis (0 pcs) dan menipis (≤ ${lowThreshold} pcs) untuk kulakan.`;
+  }
   
   if (totalItemsEl) totalItemsEl.textContent = `${lowStockProducts.length} item`;
   if (outCountEl) outCountEl.textContent = `${outCount} habis total`;
@@ -6200,6 +6342,9 @@ function renderShoppingListTable() {
         <span class="cat-btn" style="cursor:default; margin:0; font-size:0.75rem;">${p.kategori || 'Umum'}</span>
       </td>
       <td style="text-align: center; padding: 0.65rem 0.75rem;">
+        ${p.rak ? `<span style="display:inline-flex; align-items:center; gap:0.2rem; background:rgba(79,70,229,0.08); color:var(--color-primary); padding:0.15rem 0.45rem; border-radius:6px; font-size:0.75rem; font-weight:700;">📍 ${escapeHtml(p.rak)}</span>` : '<span style="color:var(--text-muted); font-size:0.8rem;">-</span>'}
+      </td>
+      <td style="text-align: center; padding: 0.65rem 0.75rem;">
         <span style="display: inline-block; padding: 0.2rem 0.6rem; border-radius: 50px; font-weight: 700; font-size: 0.8rem; background: ${isHabis ? 'rgba(244,63,94,0.12)' : 'rgba(245,158,11,0.12)'}; color: ${isHabis ? 'var(--color-danger)' : '#b45309'};">
           ${isHabis ? '0 (Habis)' : `${p.stok} pcs`}
         </span>
@@ -6227,12 +6372,86 @@ function renderShoppingListTable() {
   });
 }
 
-// Koreksi Cepat Stok Barang Langsung dari Modal Belanja
-function quickCorrectStock(productId) {
-  const inputEl = document.getElementById(`correct-qty-${productId}`);
+// State mode edit/koreksi stok langsung pada widget analisis
+let isWidgetStockCorrectionActive = false;
+
+function toggleStockCorrectionMode() {
+  isWidgetStockCorrectionActive = !isWidgetStockCorrectionActive;
+  const btn = document.getElementById('btn-toggle-stock-correct');
+  const label = document.getElementById('btn-toggle-stock-correct-label');
+  
+  if (btn) {
+    if (isWidgetStockCorrectionActive) {
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-primary');
+      btn.style.background = 'var(--color-primary, #4f46e5)';
+      btn.style.color = '#fff';
+      if (label) label.textContent = 'Selesai Koreksi';
+    } else {
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-secondary');
+      btn.style.background = '';
+      btn.style.color = '';
+      if (label) label.textContent = 'Koreksi Stok';
+    }
+  }
+
+  // Tampilkan atau sembunyikan semua kotak koreksi stok di widget
+  const boxEls = document.querySelectorAll('.widget-stock-correct-box');
+  boxEls.forEach(el => {
+    el.style.display = isWidgetStockCorrectionActive ? 'flex' : 'none';
+  });
+
+  if (typeof lucide !== 'undefined' && lucide.createIcons) {
+    lucide.createIcons();
+  }
+}
+
+// Stop Kulak langsung dari widget Stok Menipis (produk tidak akan muncul lagi di stok menipis/belanja, tanpa menghapus produk)
+async function stopKulakFromStockAlert(productId) {
+  const p = products.find(prod => String(prod.id) === String(productId));
+  if (!p) {
+    alert("Produk tidak ditemukan.");
+    return;
+  }
+
+  const confirmed = await showAppConfirm(
+    `📦 KONFIRMASI STOP KULAK\n\n` +
+    `Tandai produk "${p.nama}" sebagai "Sudah Tidak Kulak Lagi (Stop Kulak)"?\n\n` +
+    `• Produk TIDAK AKAN DIHAPUS dari sistem.\n` +
+    `• Produk tidak akan muncul lagi di tabel Stok Menipis & Daftar Belanja saat stoknya habis.\n` +
+    `• Riwayat transaksi, barcode, dan data penjualan tetap aman.\n` +
+    `• Anda dapat mengaktifkannya kembali kapan saja lewat menu Produk.`,
+    { title: "Stop Kulak Produk" }
+  );
+  if (!confirmed) return;
+
+  p.is_discontinued = true;
+  p.status_kulak = 'discontinue';
+
+  saveProductsLocally();
+  if (firebaseDb && typeof saveProductCloud === 'function') {
+    saveProductCloud(p);
+  }
+
+  if (typeof updateAnalytics === 'function') updateAnalytics();
+  if (typeof renderShoppingListTable === 'function') renderShoppingListTable();
+  if (typeof renderProductsTable === 'function') renderProductsTable();
+  if (typeof renderPosCatalogGrid === 'function') renderPosCatalogGrid();
+
+  if (typeof showPosToast === 'function') {
+    showPosToast(`Produk "${p.nama}" disetel Stop Kulak. Tidak lagi muncul di stok menipis.`, 'info');
+  } else {
+    alert(`✅ Produk "${p.nama}" berhasil disetel Stop Kulak. Produk tidak akan muncul di daftar stok menipis lagi.`);
+  }
+}
+
+// Koreksi Cepat Stok Barang Langsung dari Modal Belanja atau Widget Analisis
+function quickCorrectStock(productId, prefix = 'correct-qty-') {
+  const inputEl = document.getElementById(`${prefix}${productId}`);
   if (!inputEl) return;
   
-  const newQty = parseInt(inputEl.value);
+  const newQty = parseInt(inputEl.value, 10);
   if (isNaN(newQty) || newQty < 0) {
     alert('Jumlah stok tidak valid.');
     return;
@@ -6243,6 +6462,26 @@ function quickCorrectStock(productId) {
   
   const oldStock = p.stok;
   p.stok = newQty;
+
+  // Koreksi batch stok jika ada perubahan
+  if (newQty < oldStock) {
+    if (typeof deductProductBatchesFEFO === 'function') {
+      deductProductBatchesFEFO(p, oldStock - newQty);
+    }
+  } else if (newQty > oldStock) {
+    if (typeof addProductBatch === 'function') {
+      addProductBatch(p, newQty - oldStock, p.tanggal_kadaluarsa || '');
+    }
+  }
+
+  // Jika produk sebelumnya berstatus Stop Kulak (discontinue) dan stoknya diubah/ditambah, aktifkan kembali otomatis
+  let reactivated = false;
+  if (p.is_discontinued || p.status_kulak === 'discontinue') {
+    p.is_discontinued = false;
+    p.status_kulak = 'aktif';
+    reactivated = true;
+  }
+
   saveProductsLocally();
   
   // Sinkronkan ke cloud RTDB
@@ -6253,11 +6492,15 @@ function quickCorrectStock(productId) {
   // Refresh tabel analytics dan shopping list
   updateAnalytics();
   renderShoppingListTable();
+  if (typeof renderProductsTable === 'function') renderProductsTable();
+  if (typeof renderPosCatalogGrid === 'function') renderPosCatalogGrid();
   
-  if (newQty > 2) {
-    alert(`✅ Berhasil mengoreksi stok "${p.nama}" dari ${oldStock} pcs menjadi ${newQty} pcs. Produk telah dihapus dari daftar barang habis.`);
+  const currentThreshold = (appConfig && appConfig.lowStockThreshold !== undefined && appConfig.lowStockThreshold !== null && !isNaN(appConfig.lowStockThreshold)) ? parseInt(appConfig.lowStockThreshold, 10) : 2;
+  const statusMsg = reactivated ? ' (Status Stop Kulak otomatis diaktifkan kembali)' : '';
+  if (newQty > currentThreshold) {
+    alert(`✅ Berhasil mengoreksi stok "${p.nama}" dari ${oldStock} pcs menjadi ${newQty} pcs${statusMsg}. Produk telah keluar dari daftar stok menipis/habis.`);
   } else {
-    alert(`✅ Stok "${p.nama}" diperbarui menjadi ${newQty} pcs.`);
+    alert(`✅ Stok "${p.nama}" diperbarui menjadi ${newQty} pcs${statusMsg}.`);
   }
 }
 
@@ -6607,7 +6850,8 @@ function toggleShoppingItemDone(checkbox) {
 
 // Buka Langsung WhatsApp dengan Pesan Terisi (Direct Open)
 function copyShoppingListToWhatsApp() {
-  const lowStockProducts = products.filter(p => p.stok <= 2);
+  const lowThreshold = (appConfig && appConfig.lowStockThreshold !== undefined && appConfig.lowStockThreshold !== null && !isNaN(appConfig.lowStockThreshold)) ? parseInt(appConfig.lowStockThreshold, 10) : 2;
+  const lowStockProducts = products.filter(p => p.stok <= lowThreshold && !p.is_discontinued && p.status_kulak !== 'discontinue');
   if (lowStockProducts.length === 0) {
     alert('Tidak ada produk yang habis/menipis.');
     return;
@@ -6644,7 +6888,8 @@ function copyShoppingListToWhatsApp() {
 
 // Export Daftar Belanja ke CSV / Excel
 function exportShoppingListCSV() {
-  const lowStockProducts = products.filter(p => p.stok <= 2 && !p.is_discontinued && p.status_kulak !== 'discontinue');
+  const lowThreshold = (appConfig && appConfig.lowStockThreshold !== undefined && appConfig.lowStockThreshold !== null && !isNaN(appConfig.lowStockThreshold)) ? parseInt(appConfig.lowStockThreshold, 10) : 2;
+  const lowStockProducts = products.filter(p => p.stok <= lowThreshold && !p.is_discontinued && p.status_kulak !== 'discontinue');
   if (lowStockProducts.length === 0) {
     alert('Tidak ada produk yang habis/menipis.');
     return;
@@ -6683,7 +6928,8 @@ function exportShoppingListCSV() {
 
 // Cetak Checklist Belanja (Ukuran Font Ringkas & Hemat Kertas 58mm / A4)
 function printShoppingList() {
-  const lowStockProducts = products.filter(p => p.stok <= 2 && !p.is_discontinued && p.status_kulak !== 'discontinue');
+  const lowThreshold = (appConfig && appConfig.lowStockThreshold !== undefined && appConfig.lowStockThreshold !== null && !isNaN(appConfig.lowStockThreshold)) ? parseInt(appConfig.lowStockThreshold, 10) : 2;
+  const lowStockProducts = products.filter(p => p.stok <= lowThreshold && !p.is_discontinued && p.status_kulak !== 'discontinue');
   if (lowStockProducts.length === 0) {
     alert('Tidak ada barang yang habis/menipis.');
     return;
@@ -8580,15 +8826,25 @@ function renderCart() {
     const expDate = item.tanggal_kadaluarsa || (cartProd && cartProd.tanggal_kadaluarsa);
     if (expDate && typeof getProductExpiryStatus === 'function') {
       const expInfo = getProductExpiryStatus(expDate);
+      
+      // Ambil rincian batch terdekat jika multi-batch
+      let batchDetailNote = '';
+      if (cartProd && Array.isArray(cartProd.batches) && cartProd.batches.length > 1) {
+        const earliestBatch = cartProd.batches.find(b => Number(b.qty) > 0 && b.expired === expDate);
+        if (earliestBatch) {
+          batchDetailNote = ` <small style="opacity:0.9; font-weight:700;">(Batch 1: ${earliestBatch.qty} pcs)</small>`;
+        }
+      }
+
       if (expInfo.status === 'PASSED') {
         // Sudah lewat kadaluarsa: Badge Hitam Pekat dengan Teks Kuning Terang Neon & Border Putih (Sangat Mencolok & Kontras di atas background orange)
-        expBadgeHtml = `<div style="margin-top:0.25rem;"><span style="background:#1e1b4b; color:#fef08a; border:1.5px solid #ffffff; font-size:0.75rem; font-weight:900; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.4); letter-spacing:0.3px;"><span style="color:#f87171; font-size:0.9rem;">⛔</span> <span>KADALUARSA (${expDate})</span></span></div>`;
+        expBadgeHtml = `<div style="margin-top:0.25rem;"><span style="background:#1e1b4b; color:#fef08a; border:1.5px solid #ffffff; font-size:0.75rem; font-weight:900; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.4); letter-spacing:0.3px;"><span style="color:#f87171; font-size:0.9rem;">⛔</span> <span>KADALUARSA (${expDate})${batchDetailNote}</span></span></div>`;
       } else if (expInfo.status === 'H14') {
         // Kritis <= 14 hari: Badge Biru Dongker Gelap dengan Teks Putih Bersih & Aksen Kuning
-        expBadgeHtml = `<div style="margin-top:0.25rem;"><span style="background:#0f172a; color:#ffffff; border:1.5px solid #38bdf8; font-size:0.75rem; font-weight:800; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.35);"><span style="color:#facc15;">⚠️</span> <span>Exp Kritis: <strong style="color:#38bdf8;">${expInfo.label}</strong> (${expDate})</span></span></div>`;
+        expBadgeHtml = `<div style="margin-top:0.25rem;"><span style="background:#0f172a; color:#ffffff; border:1.5px solid #38bdf8; font-size:0.75rem; font-weight:800; padding:3px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.35);"><span style="color:#facc15;">⚠️</span> <span>Exp Kritis: <strong style="color:#38bdf8;">${expInfo.label}</strong> (${expDate})${batchDetailNote}</span></span></div>`;
       } else if (expInfo.status === 'H30') {
         // Mendekati <= 30 hari: Badge Ungu Gelap dengan Teks Putih & Cyan
-        expBadgeHtml = `<div style="margin-top:0.25rem;"><span style="background:#312e81; color:#ffffff; border:1.5px solid #a5b4fc; font-size:0.73rem; font-weight:800; padding:2px 7px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 5px rgba(0,0,0,0.3);"><span style="color:#fbbf24;">⏰</span> <span>Exp &le; 1 Bln: <strong style="color:#c7d2fe;">${expInfo.label}</strong></span></span></div>`;
+        expBadgeHtml = `<div style="margin-top:0.25rem;"><span style="background:#312e81; color:#ffffff; border:1.5px solid #a5b4fc; font-size:0.73rem; font-weight:800; padding:2px 7px; border-radius:6px; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 5px rgba(0,0,0,0.3);"><span style="color:#fbbf24;">⏰</span> <span>Exp &le; 1 Bln: <strong style="color:#c7d2fe;">${expInfo.label}</strong> (${expDate})${batchDetailNote}</span></span></div>`;
       }
     }
 
@@ -9416,7 +9672,7 @@ async function processCheckout() {
   const productsSnapshot = JSON.parse(JSON.stringify(products));
   const customersSnapshot = JSON.parse(JSON.stringify(customers));
 
-  // 1. Kurangi stok produk secara lokal (termasuk komponen dalam paket bundling)
+  // 1. Kurangi stok produk secara lokal (termasuk komponen dalam paket bundling) dengan metode FEFO
   cart.forEach(cartItem => {
     if (cartItem.isBundle && Array.isArray(cartItem.bundleItems)) {
       cartItem.bundleItems.forEach(bComp => {
@@ -9424,6 +9680,10 @@ async function processCheckout() {
         if (compProd) {
           const totalCompPcs = (bComp.qty || 1) * (cartItem.qty || 1);
           compProd.stok = Math.max(0, compProd.stok - totalCompPcs);
+          // Kurangi batch kadaluarsa FEFO
+          if (typeof deductProductBatchesFEFO === 'function') {
+            deductProductBatchesFEFO(compProd, totalCompPcs);
+          }
         }
       });
     } else {
@@ -9431,6 +9691,10 @@ async function processCheckout() {
       if (localProd) {
         const pcsToDeduct = cartItem.isBox ? (cartItem.qty * (cartItem.isiBox || cartItem.ratio || 1)) : (cartItem.isGrosir ? (cartItem.qty * (cartItem.grosirQty || 1)) : cartItem.qty);
         localProd.stok = Math.max(0, localProd.stok - pcsToDeduct);
+        // Kurangi batch kadaluarsa FEFO
+        if (typeof deductProductBatchesFEFO === 'function') {
+          deductProductBatchesFEFO(localProd, pcsToDeduct);
+        }
         if (cartItem.isPromo && !cartItem.isBonus) {
           let prevKuota = parseInt(localProd.kuota_diskon) || 0;
           if (prevKuota > 0) {
@@ -10891,7 +11155,15 @@ function openKulakForm(p) {
   document.getElementById('kulak-edit-id').value = p.id;
   document.getElementById('kulak-prod-name').textContent = p.nama;
   document.getElementById('kulak-prod-id').textContent = `ID: ${p.id} | Barcode: ${p.barcode || '-'}`;
-  document.getElementById('kulak-prod-current-stock').textContent = `Stok Saat Ini: ${p.stok} pcs`;
+  let stockInfoText = `Stok Saat Ini: ${p.stok} pcs`;
+  if (p.tanggal_kadaluarsa) {
+    stockInfoText += ` (Exp: ${p.tanggal_kadaluarsa})`;
+  }
+  const batchesSummary = typeof getProductBatchesSummary === 'function' ? getProductBatchesSummary(p) : '';
+  if (batchesSummary) {
+    stockInfoText += ` | Batch: [${batchesSummary}]`;
+  }
+  document.getElementById('kulak-prod-current-stock').textContent = stockInfoText;
   
   const imgUrl = p.gambar || DEFAULT_PRODUCT_PLACEHOLDER;
   document.getElementById('kulak-prod-img').src = imgUrl;
@@ -10951,7 +11223,9 @@ function openKulakForm(p) {
   if (priceNotaEl) priceNotaEl.value = p.harga_beli || 0;
   document.getElementById('kulak-price-buy').value = p.harga_beli || 0;
   document.getElementById('kulak-price-sell').value = p.harga_jual;
-  document.getElementById('kulak-date-expiry').value = p.tanggal_kadaluarsa || '';
+  // Kosongkan input expiry untuk kulak baru secara default agar user mengisi expiry batch baru jika berbeda
+  document.getElementById('kulak-date-expiry').value = '';
+  document.getElementById('kulak-date-expiry').placeholder = p.tanggal_kadaluarsa || 'YYYY-MM-DD';
   
   calculateKulakFinalStockPreview();
   calculateKulakModalDpp();
@@ -11088,13 +11362,37 @@ function saveKulak(e) {
     if (mode === 'add') {
       const effectiveAdd = inputQty * unitRatio;
       p.stok = p.stok + effectiveAdd;
+      // Multi-Batch Expired FEFO: Simpan batch baru tanpa menimpa batch lama yang belum kadaluarsa
+      if (typeof addProductBatch === 'function') {
+        addProductBatch(p, effectiveAdd, newExpiry);
+      } else {
+        if (newExpiry) p.tanggal_kadaluarsa = newExpiry;
+      }
     } else {
       p.stok = inputQty * unitRatio; // Konversi ke pcs jika memilih kemasan dus/renteng
+      // Reset atau tetapkan batch ke stok baru
+      p.batches = [{
+        qty: p.stok,
+        expired: newExpiry || ''
+      }];
+      p.tanggal_kadaluarsa = newExpiry || '';
     }
     
     p.harga_beli = newBuyPrice;
     p.harga_jual = newSellPrice;
-    p.tanggal_kadaluarsa = newExpiry;
+
+    // Pastikan tanggal_kadaluarsa produk utama selalu mencerminkan batch yang paling awal expired (FEFO)
+    if (typeof syncProductEarliestExpiry === 'function') {
+      syncProductEarliestExpiry(p);
+    } else if (newExpiry) {
+      p.tanggal_kadaluarsa = newExpiry;
+    }
+
+    // Jika produk sebelumnya Stop Kulak dan stok ditambah/diubah, aktifkan kembali otomatis
+    if (p.is_discontinued || p.status_kulak === 'discontinue') {
+      p.is_discontinued = false;
+      p.status_kulak = 'aktif';
+    }
     
     saveProductsLocally();
     if (typeof showPosToast === 'function') {
@@ -11249,6 +11547,10 @@ function saveBulkEdit() {
       p.stok = newStock;
       p.harga_beli = validBuy;
       p.harga_jual = validSell;
+      if (isStockChanged && (p.is_discontinued || p.status_kulak === 'discontinue')) {
+        p.is_discontinued = false;
+        p.status_kulak = 'aktif';
+      }
       changedCount++;
     }
   });
@@ -11859,6 +12161,21 @@ async function saveProduct(event) {
   const qtyBox = firstUnit.ratio || 0;
   const priceBox = firstUnit.price || 0;
 
+  let isStatusAutoReactivated = false;
+  let targetDiscontinued = (targetIndex > -1 && products[targetIndex]) ? Boolean(products[targetIndex].is_discontinued) : false;
+  let targetStatusKulak = (targetIndex > -1 && products[targetIndex]?.status_kulak) ? products[targetIndex].status_kulak : 'aktif';
+
+  // Jika produk sebelumnya Stop Kulak dan stoknya diubah/diinput (> 0), otomatis aktifkan kembali
+  if (targetIndex > -1 && products[targetIndex]) {
+    const oldProd = products[targetIndex];
+    const isOldStopKulak = Boolean(oldProd.is_discontinued || oldProd.status_kulak === 'discontinue');
+    if (isOldStopKulak && stockInput !== (oldProd.stok || 0) && stockInput > 0) {
+      targetDiscontinued = false;
+      targetStatusKulak = 'aktif';
+      isStatusAutoReactivated = true;
+    }
+  }
+
   const productData = {
     id: idInput,
     nama: nameInput,
@@ -11886,8 +12203,8 @@ async function saveProduct(event) {
     isi_box: qtyBox,
     harga_box: priceBox,
     units: productUnits,
-    is_discontinued: (targetIndex > -1 && products[targetIndex]) ? Boolean(products[targetIndex].is_discontinued) : false,
-    status_kulak: (targetIndex > -1 && products[targetIndex]?.status_kulak) ? products[targetIndex].status_kulak : 'aktif',
+    is_discontinued: targetDiscontinued,
+    status_kulak: targetStatusKulak,
     createdAt: (targetIndex > -1 && products[targetIndex]?.createdAt) ? products[targetIndex].createdAt : new Date().toISOString(),
     harga_sebelumnya: (isPriceChanged && priceSellInput < oldPrice) ? oldPrice : ((targetIndex > -1 && products[targetIndex]?.harga_sebelumnya) ? products[targetIndex].harga_sebelumnya : null),
     harga_turun_at: (isPriceChanged && priceSellInput < oldPrice) ? new Date().toISOString() : ((targetIndex > -1 && products[targetIndex]?.harga_turun_at) ? products[targetIndex].harga_turun_at : null)
@@ -22741,13 +23058,19 @@ function renderSalesTable() {
     return;
   }
 
+  const salesThreshold = (appConfig && appConfig.salesWaStockThreshold !== undefined && appConfig.salesWaStockThreshold !== null && !isNaN(appConfig.salesWaStockThreshold)) ? parseInt(appConfig.salesWaStockThreshold, 10) : 2;
+  const headerThresholdInput = document.getElementById('sales-stock-filter-threshold');
+  if (headerThresholdInput && headerThresholdInput.value != salesThreshold) {
+    headerThresholdInput.value = salesThreshold;
+  }
+
   filtered.forEach((s, idx) => {
     const tr = document.createElement('tr');
 
-    // Hitung produk yang ditangani & produk yang stoknya habis / menipis (<= 2)
+    // Hitung produk yang ditangani & produk yang stoknya habis / menipis (<= salesThreshold)
     const assignedIds = Array.isArray(s.productIds) ? s.productIds : [];
     const assignedProds = products.filter(p => assignedIds.includes(p.id));
-    const emptyProds = assignedProds.filter(p => (Number(p.stok) || 0) <= 2);
+    const emptyProds = assignedProds.filter(p => (Number(p.stok) || 0) <= salesThreshold);
 
     let stockBadge = '';
     if (assignedProds.length === 0) {
@@ -22762,7 +23085,7 @@ function renderSalesTable() {
     let prodPreviewHtml = '';
     if (assignedProds.length > 0) {
       const top3 = assignedProds.slice(0, 3).map(p => {
-        const isLow = (Number(p.stok) || 0) <= 2;
+        const isLow = (Number(p.stok) || 0) <= salesThreshold;
         return `<span style="display: inline-block; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.78rem; margin: 0.1rem; ${isLow ? 'color: #dc2626; font-weight: 600;' : ''}">${p.nama} (${p.stok})</span>`;
       }).join(' ');
       const moreCount = assignedProds.length - 3;
@@ -23118,18 +23441,49 @@ async function deleteSales(salesId) {
   }
 }
 
-function getSalesWaDefaultMessage(salesId) {
+function onSalesThresholdFilterChange(val) {
+  const num = parseInt(val, 10);
+  appConfig.salesWaStockThreshold = isNaN(num) ? 2 : Math.max(0, num);
+  localStorage.setItem('kasir_app_config', JSON.stringify(appConfig));
+  saveAppConfigCloud();
+  renderSalesTable();
+}
+
+function onSalesWaThresholdChange() {
+  const salesId = document.getElementById('sales-wa-id')?.value;
+  if (!salesId) return;
+  const input = document.getElementById('sales-wa-threshold-input');
+  if (input) {
+    const num = parseInt(input.value, 10);
+    appConfig.salesWaStockThreshold = isNaN(num) ? 2 : Math.max(0, num);
+    localStorage.setItem('kasir_app_config', JSON.stringify(appConfig));
+    saveAppConfigCloud();
+    const headerInput = document.getElementById('sales-stock-filter-threshold');
+    if (headerInput) headerInput.value = appConfig.salesWaStockThreshold;
+    renderSalesTable();
+  }
+  const defaultMsg = getSalesWaDefaultMessage(salesId);
+  const textarea = document.getElementById('sales-wa-message-text');
+  if (textarea) textarea.value = defaultMsg;
+}
+
+function getSalesWaDefaultMessage(salesId, customThreshold = null) {
   const s = salesList.find(x => x.id === salesId);
   if (!s) return '';
+  const threshold = (customThreshold !== null && customThreshold !== undefined)
+    ? Math.max(0, parseInt(customThreshold, 10))
+    : ((appConfig && appConfig.salesWaStockThreshold !== undefined && appConfig.salesWaStockThreshold !== null && !isNaN(appConfig.salesWaStockThreshold)) ? parseInt(appConfig.salesWaStockThreshold, 10) : 2);
+
   const assignedIds = Array.isArray(s.productIds) ? s.productIds : [];
   const assignedProds = products.filter(p => assignedIds.includes(p.id));
-  const emptyOrLow = assignedProds.filter(p => (Number(p.stok) || 0) <= 2);
+  const emptyOrLow = assignedProds.filter(p => (Number(p.stok) || 0) <= threshold);
   const storeName = (receiptSettings && receiptSettings.name) ? receiptSettings.name : 'Toko Kami';
   const todayStr = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
+  const batasLabel = threshold === 0 ? 'KOSONG / HABIS TOTAL (0 pcs)' : `KOSONG / MENIPIS (≤ ${threshold} pcs)`;
   let text = `Halo Mas/Mbak *${s.nama}* (${s.perusahaan || 'Sales'}),\n`;
   text += `Ini dari *${storeName}*.\n`;
-  text += `Berikut adalah daftar barang pesanan/kulak yang stoknya sudah *KOSONG / MENIPIS* per ${todayStr}:\n\n`;
+  text += `Berikut adalah daftar barang pesanan/kulak yang stoknya sudah *${batasLabel}* per ${todayStr}:\n\n`;
 
   if (emptyOrLow.length > 0) {
     emptyOrLow.forEach((p, idx) => {
@@ -23137,7 +23491,7 @@ function getSalesWaDefaultMessage(salesId) {
       text += `${idx + 1}. *${p.nama}* -> Sisa Stok: *${p.stok} pcs* ${isZero ? '⚠️ (HABIS)' : ''}\n`;
     });
   } else {
-    text += `(Saat ini stok masih aman, namun mohon konfirmasi jadwal kunjungan berikutnya ya Mas/Mbak).\n`;
+    text += `(Saat ini stok masih aman di atas ${threshold} pcs, namun mohon konfirmasi jadwal kunjungan berikutnya ya Mas/Mbak).\n`;
   }
 
   text += `\nMohon bantuannya untuk dijadwalkan pengiriman nota berikutnya ya. Terima kasih! 🙏`;
@@ -23164,7 +23518,11 @@ function openSalesWaModal(salesId) {
   document.getElementById('sales-wa-phone').textContent = s.hp || '-';
   document.getElementById('sales-wa-company').textContent = s.perusahaan ? `Perusahaan: ${s.perusahaan}` : 'Sales Supplier';
 
-  const defaultMsg = getSalesWaDefaultMessage(s.id);
+  const salesThreshold = (appConfig && appConfig.salesWaStockThreshold !== undefined && appConfig.salesWaStockThreshold !== null && !isNaN(appConfig.salesWaStockThreshold)) ? parseInt(appConfig.salesWaStockThreshold, 10) : 2;
+  const waThresholdInput = document.getElementById('sales-wa-threshold-input');
+  if (waThresholdInput) waThresholdInput.value = salesThreshold;
+
+  const defaultMsg = getSalesWaDefaultMessage(s.id, salesThreshold);
   const textarea = document.getElementById('sales-wa-message-text');
   if (textarea) textarea.value = defaultMsg;
 
@@ -23189,7 +23547,9 @@ function closeSalesWaModal() {
 function resetSalesWaDefaultMessage() {
   const salesId = document.getElementById('sales-wa-id')?.value;
   if (!salesId) return;
-  const defaultMsg = getSalesWaDefaultMessage(salesId);
+  const waThresholdInput = document.getElementById('sales-wa-threshold-input');
+  const threshold = waThresholdInput ? parseInt(waThresholdInput.value, 10) : null;
+  const defaultMsg = getSalesWaDefaultMessage(salesId, threshold);
   const textarea = document.getElementById('sales-wa-message-text');
   if (textarea) textarea.value = defaultMsg;
 }
@@ -24172,7 +24532,11 @@ function onDeliveryItemSelectChanged(selectEl) {
     if (notaInput) notaInput.value = defaultBuy;
     if (buyInput) buyInput.value = defaultBuy;
     if (sellInput) sellInput.value = prod.harga_jual || prod.harga || 0;
-    if (expiryInput && prod.tanggal_kadaluarsa) expiryInput.value = prod.tanggal_kadaluarsa;
+    if (expiryInput) {
+      expiryInput.value = ''; // Jangan overwrite otomatis dengan exp lama agar penerimaan nota bisa memasukkan tanggal exp baru yang tertera di kardus/produk yang datang
+      expiryInput.title = prod.tanggal_kadaluarsa ? `Exp stok lama: ${prod.tanggal_kadaluarsa}` : '';
+      expiryInput.placeholder = prod.tanggal_kadaluarsa || 'YYYY-MM-DD';
+    }
 
     calculateDeliveryRowSubtotal(selectEl);
   }
@@ -24459,8 +24823,17 @@ function saveSalesDelivery(e) {
       prod.harga_beli = item.hargaBeli;
       prod.harga_jual = item.hargaJual;
       prod.harga = item.hargaJual; // fallback kompatibilitas
-      if (item.expired) {
-        prod.tanggal_kadaluarsa = item.expired;
+      if (prod.is_discontinued || prod.status_kulak === 'discontinue') {
+        prod.is_discontinued = false;
+        prod.status_kulak = 'aktif';
+      }
+      // Multi-Batch Expired FEFO: Tambahkan batch baru dan sinkronkan tanggal kadaluarsa terawal
+      if (typeof addProductBatch === 'function') {
+        addProductBatch(prod, effectiveQty, item.expired);
+      } else {
+        if (item.expired) {
+          prod.tanggal_kadaluarsa = item.expired;
+        }
       }
 
       // Proteksi Otomatis: Jika harga beli naik, pastikan harga jual kemasan (renteng/dus) tidak berada di bawah modal baru
@@ -25172,9 +25545,12 @@ async function saveSalesReturn(e) {
     }
   }
 
-  // 1. Kurangi stok produk secara otomatis di database
+  // 1. Kurangi stok produk secara otomatis di database (FEFO batch)
   const newStok = Math.max(0, currentStok - qty);
   prod.stok = newStok;
+  if (typeof deductProductBatchesFEFO === 'function') {
+    deductProductBatchesFEFO(prod, qty);
+  }
 
   if (firebaseDb && typeof saveProductCloud === 'function') {
     saveProductCloud(prod);
@@ -30275,6 +30651,10 @@ async function applySingleStockOpname(productId) {
 
   if ((await showAppConfirm(`Konfirmasi penyesuaian stok "${p.nama}"?\n• Stok Lama: ${oldStock} pcs\n• Stok Fisik Baru: ${physVal} pcs\n• Selisih: ${diff > 0 ? '+' : ''}${diff}\n• Alasan: ${reason}`))) {
     p.stok = physVal;
+    if (p.is_discontinued || p.status_kulak === 'discontinue') {
+      p.is_discontinued = false;
+      p.status_kulak = 'aktif';
+    }
     saveProductsLocally();
     if (firebaseDb) saveProductCloud(p);
 
@@ -30322,6 +30702,10 @@ function applyBatchStockOpname() {
         const oldStock = p.stok || 0;
         const diff = physVal - oldStock;
         p.stok = physVal;
+        if (p.is_discontinued || p.status_kulak === 'discontinue') {
+          p.is_discontinued = false;
+          p.status_kulak = 'aktif';
+        }
         if (firebaseDb) saveProductCloud(p);
 
         stockOpnames.unshift({
@@ -30624,8 +31008,149 @@ function exportOpnameHistoryToExcel() {
 
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 4. MODUL EXPIRED TRACKER (MONITORING KADALUARSA)
+// 4. MODUL EXPIRED TRACKER & MULTI-BATCH FEFO (FIRST EXPIRED FIRST OUT)
 // ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Memastikan array batches pada produk tersedia dan valid secara backward-compatible.
+ * Jika produk memiliki stok lama dan tanggal_kadaluarsa tanpa array batches, inisialisasi batch pertama.
+ */
+function ensureProductBatches(p) {
+  if (!p) return [];
+  if (!Array.isArray(p.batches)) {
+    p.batches = [];
+  }
+  // Normalisasi elemen batch yang mungkin tidak valid atau bernilai 0
+  p.batches = p.batches.filter(b => b && typeof b === 'object' && Number(b.qty) > 0);
+
+  // Jika batches kosong namun ada p.stok > 0 dan p.tanggal_kadaluarsa
+  if (p.batches.length === 0 && (Number(p.stok) || 0) > 0 && p.tanggal_kadaluarsa) {
+    p.batches.push({
+      qty: Number(p.stok) || 0,
+      expired: String(p.tanggal_kadaluarsa).trim()
+    });
+  }
+  return p.batches;
+}
+
+/**
+ * Sinkronisasi tanggal_kadaluarsa produk utama dengan batch aktif paling awal (FEFO).
+ * Mengurutkan batches secara kronologis dan memperbarui p.tanggal_kadaluarsa.
+ */
+function syncProductEarliestExpiry(p) {
+  if (!p) return;
+  ensureProductBatches(p);
+
+  // Filter batch yang masih memiliki sisa qty > 0 dan memiliki tanggal expired
+  const activeBatches = p.batches
+    .filter(b => Number(b.qty) > 0 && b.expired && String(b.expired).trim() !== '')
+    .sort((a, b) => new Date(a.expired).getTime() - new Date(b.expired).getTime());
+
+  if (activeBatches.length > 0) {
+    p.tanggal_kadaluarsa = activeBatches[0].expired;
+  } else if (!p.batches.some(b => Number(b.qty) > 0)) {
+    // Jika semua stok/batch habis
+    if ((Number(p.stok) || 0) <= 0) {
+      // Biarkan tanggal kadaluarsa terakhir tetap ada atau kosongkan jika tidak ada batch
+    }
+  }
+}
+
+/**
+ * Menambahkan batch stok baru ke dalam produk dengan tanggal kadaluarsanya.
+ * Mendukung Belanja Mandiri (Kulak Toko) maupun Penerimaan Nota Sales.
+ */
+function addProductBatch(p, qty, expiredDate) {
+  if (!p || qty <= 0) return;
+  ensureProductBatches(p);
+
+  const exp = expiredDate ? String(expiredDate).trim() : '';
+
+  if (exp) {
+    // Jika sudah ada batch dengan tanggal expired persis sama, gabungkan jumlahnya
+    const existingSameExp = p.batches.find(b => b.expired === exp);
+    if (existingSameExp) {
+      existingSameExp.qty = (Number(existingSameExp.qty) || 0) + Number(qty);
+    } else {
+      p.batches.push({
+        qty: Number(qty),
+        expired: exp
+      });
+    }
+  } else {
+    // Jika tanpa expired, masukkan ke batch tanpa exp
+    const existingNoExp = p.batches.find(b => !b.expired);
+    if (existingNoExp) {
+      existingNoExp.qty = (Number(existingNoExp.qty) || 0) + Number(qty);
+    } else {
+      p.batches.push({
+        qty: Number(qty),
+        expired: ''
+      });
+    }
+  }
+
+  // Selalu urutkan batch: yang punya expired diurutkan dari yang paling dekat (FEFO), yang tanpa expired ditaruh di akhir
+  p.batches.sort((a, b) => {
+    if (!a.expired) return 1;
+    if (!b.expired) return -1;
+    return new Date(a.expired).getTime() - new Date(b.expired).getTime();
+  });
+
+  syncProductEarliestExpiry(p);
+}
+
+/**
+ * Mengurangi stok dari batches secara First-Expired, First-Out (FEFO) saat kasir / penjualan / retur.
+ */
+function deductProductBatchesFEFO(p, qtyToDeduct) {
+  if (!p || qtyToDeduct <= 0) return;
+  ensureProductBatches(p);
+
+  let remainingToDeduct = Number(qtyToDeduct);
+
+  // Urutkan batch dari tanggal terawal (paling mendekati expired terlebih dahulu)
+  p.batches.sort((a, b) => {
+    if (!a.expired) return 1;
+    if (!b.expired) return -1;
+    return new Date(a.expired).getTime() - new Date(b.expired).getTime();
+  });
+
+  for (let i = 0; i < p.batches.length; i++) {
+    const batch = p.batches[i];
+    const bQty = Number(batch.qty) || 0;
+    if (bQty <= 0) continue;
+
+    if (bQty <= remainingToDeduct) {
+      remainingToDeduct -= bQty;
+      batch.qty = 0;
+    } else {
+      batch.qty = bQty - remainingToDeduct;
+      remainingToDeduct = 0;
+      break;
+    }
+  }
+
+  // Bersihkan batch dengan qty <= 0
+  p.batches = p.batches.filter(b => Number(b.qty) > 0);
+
+  syncProductEarliestExpiry(p);
+}
+
+/**
+ * Format ringkasan rincian batch untuk ditampilkan di UI (misal: "2 pcs (5 Nov 2026), 10 pcs (30 Nov 2026)")
+ */
+function getProductBatchesSummary(p) {
+  if (!p) return '';
+  ensureProductBatches(p);
+  const activeBatches = (p.batches || []).filter(b => Number(b.qty) > 0);
+  if (activeBatches.length <= 1) return '';
+
+  return activeBatches.map(b => {
+    const expText = b.expired ? b.expired : 'Tanpa Exp';
+    return `${b.qty} pcs (${expText})`;
+  }).join(' | ');
+}
 
 function getProductExpiryStatus(dateStr) {
   if (!dateStr) return { status: 'NONE', label: 'Tanpa Tgl', days: 9999, color: '#64748b' };
@@ -30804,14 +31329,26 @@ function renderExpiredTrackerTable() {
   tbody.innerHTML = filtered.map(p => {
     const info = getProductExpiryStatus(p.tanggal_kadaluarsa);
     const badge = `<span style="background:rgba(0,0,0,0.06); color:${info.color}; font-weight:800; padding:3px 8px; border-radius:6px; font-size:0.8rem; border:1px solid ${info.color}40;">${info.label}</span>`;
+    
+    // Rincian Batch Multi-Expired FEFO
+    let batchesHtml = '';
+    const activeBatches = Array.isArray(p.batches) ? p.batches.filter(b => Number(b.qty) > 0) : [];
+    if (activeBatches.length > 1) {
+      batchesHtml = `
+        <div style="margin-top: 4px; font-size: 0.73rem; background: rgba(59, 130, 246, 0.08); border: 1px dashed rgba(59, 130, 246, 0.4); border-radius: 6px; padding: 3px 6px; color: #1e40af; line-height: 1.3;">
+          <strong style="display: block; margin-bottom: 2px;">📦 Rincian Multi-Batch (FEFO):</strong>
+          ${activeBatches.map((b, bIdx) => `<div>• Batch ${bIdx + 1}: <b>${b.qty} pcs</b> (Exp: ${b.expired || 'Tanpa Exp'})</div>`).join('')}
+        </div>
+      `;
+    }
 
     return `
       <tr>
-        <td><strong>${p.nama}</strong><br><small style="color:var(--text-muted);">${p.id}</small></td>
+        <td><strong>${p.nama}</strong><br><small style="color:var(--text-muted);">${p.id}</small>${batchesHtml}</td>
         <td style="font-family:monospace; font-size:0.82rem;">${p.barcode || '-'}</td>
         <td><span style="background:var(--bg-body); padding:2px 8px; border-radius:6px; font-size:0.78rem;">${p.rak || '-'}</span></td>
         <td style="text-align:center; font-weight:800; font-size:0.95rem; color:${p.stok <= 2 ? '#dc2626' : 'var(--text-main)'};">${p.stok || 0} pcs</td>
-        <td style="font-weight:700;">${p.tanggal_kadaluarsa}</td>
+        <td style="font-weight:700;">${p.tanggal_kadaluarsa || '-'}</td>
         <td>${badge}</td>
         <td style="text-align:center;">
           <div style="display:flex; gap:0.35rem; justify-content:center; flex-wrap:wrap;">
