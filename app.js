@@ -4865,6 +4865,12 @@ function initAnalyticsFilter() {
   const dateInput = document.getElementById('analytics-filter-date');
   if (dateInput && !dateInput.value) dateInput.value = todayStr;
   
+  const startDateInput = document.getElementById('analytics-filter-start-date');
+  if (startDateInput && !startDateInput.value) startDateInput.value = todayStr;
+
+  const endDateInput = document.getElementById('analytics-filter-end-date');
+  if (endDateInput && !endDateInput.value) endDateInput.value = todayStr;
+
   const monthInput = document.getElementById('analytics-filter-month');
   if (monthInput && !monthInput.value) monthInput.value = thisMonth;
   
@@ -4885,6 +4891,8 @@ function initAnalyticsFilter() {
 function onAnalyticsFilterTypeChange() {
   const filterType = document.getElementById('analytics-filter-type').value;
   document.getElementById('analytics-filter-date-wrap').style.display = filterType === 'hari' ? 'flex' : 'none';
+  const rangeWrap = document.getElementById('analytics-filter-range-wrap');
+  if (rangeWrap) rangeWrap.style.display = filterType === 'rentang' ? 'flex' : 'none';
   document.getElementById('analytics-filter-month-wrap').style.display = filterType === 'bulan' ? 'flex' : 'none';
   document.getElementById('analytics-filter-year-wrap').style.display = filterType === 'tahun' ? 'flex' : 'none';
   fetchAndUpdateAnalytics();
@@ -4919,6 +4927,12 @@ async function fetchAndUpdateAnalytics() {
       startDate = dateVal;
       endDate = dateVal;
     }
+  } else if (filterType === 'rentang') {
+    const sVal = document.getElementById('analytics-filter-start-date')?.value || todayStr;
+    const eVal = document.getElementById('analytics-filter-end-date')?.value || todayStr;
+    needCloud = true;
+    startDate = sVal;
+    endDate = eVal;
   } else if (filterType === 'bulan') {
     const monthVal = document.getElementById('analytics-filter-month')?.value || todayStr.slice(0, 7);
     const isThisMonth = monthVal === todayStr.slice(0, 7);
@@ -4956,6 +4970,16 @@ function getAnalyticsFilteredTxs() {
   if (filterType === 'hari') {
     const dateVal = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
     return source.filter(tx => tx.waktu && parseTxDateStr(tx.waktu) === dateVal);
+  } else if (filterType === 'rentang') {
+    const sVal = document.getElementById('analytics-filter-start-date')?.value || '';
+    const eVal = document.getElementById('analytics-filter-end-date')?.value || '';
+    return source.filter(tx => {
+      if (!tx.waktu) return false;
+      const d = parseTxDateStr(tx.waktu);
+      if (sVal && d < sVal) return false;
+      if (eVal && d > eVal) return false;
+      return true;
+    });
   } else if (filterType === 'bulan') {
     const monthVal = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
     return source.filter(tx => tx.waktu && parseTxDateStr(tx.waktu).slice(0, 7) === monthVal);
@@ -5287,6 +5311,10 @@ function updateAnalytics() {
     if (filterType === 'hari') {
       const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
       labelEl.textContent = `(${formatDateIndo(d)})`;
+    } else if (filterType === 'rentang') {
+      const s = document.getElementById('analytics-filter-start-date')?.value || '';
+      const e = document.getElementById('analytics-filter-end-date')?.value || '';
+      labelEl.textContent = `(${formatDateIndo(s)} - ${formatDateIndo(e)})`;
     } else if (filterType === 'bulan') {
       const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
       const [yr, mo] = m.split('-');
@@ -5538,6 +5566,10 @@ function updateAnalytics() {
         if (filterType === 'hari') {
           const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
           match = (pDateStr === d);
+        } else if (filterType === 'rentang') {
+          const s = document.getElementById('analytics-filter-start-date')?.value || '';
+          const e = document.getElementById('analytics-filter-end-date')?.value || '';
+          match = (!s || pDateStr >= s) && (!e || pDateStr <= e);
         } else if (filterType === 'bulan') {
           const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
           match = (pDateStr.slice(0, 7) === m);
@@ -5565,6 +5597,10 @@ function updateAnalytics() {
       if (filterType === 'hari') {
         const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
         match = (eDateStr === d);
+      } else if (filterType === 'rentang') {
+        const s = document.getElementById('analytics-filter-start-date')?.value || '';
+        const e = document.getElementById('analytics-filter-end-date')?.value || '';
+        match = (!s || eDateStr >= s) && (!e || eDateStr <= e);
       } else if (filterType === 'bulan') {
         const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
         match = (eDateStr.slice(0, 7) === m);
@@ -5605,6 +5641,10 @@ function updateAnalytics() {
           if (filterType === 'hari') {
             const dateVal = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
             match = (bDateStr === dateVal);
+          } else if (filterType === 'rentang') {
+            const s = document.getElementById('analytics-filter-start-date')?.value || '';
+            const e = document.getElementById('analytics-filter-end-date')?.value || '';
+            match = (!s || bDateStr >= s) && (!e || bDateStr <= e);
           } else if (filterType === 'bulan') {
             const monthVal = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
             match = (bDateStr.slice(0, 7) === monthVal);
@@ -5632,6 +5672,10 @@ function updateAnalytics() {
       if (filterType === 'hari') {
         const dateVal = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
         match = (txDateStr === dateVal);
+      } else if (filterType === 'rentang') {
+        const s = document.getElementById('analytics-filter-start-date')?.value || '';
+        const e = document.getElementById('analytics-filter-end-date')?.value || '';
+        match = (!s || txDateStr >= s) && (!e || txDateStr <= e);
       } else if (filterType === 'bulan') {
         const monthVal = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
         match = (txDateStr.slice(0, 7) === monthVal);
@@ -6521,6 +6565,10 @@ function openVoucherAnalyticsModal() {
     if (filterType === 'hari') {
       const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
       subtitleEl.textContent = `Daftar pelanggan yang mengambil/menukarkan voucher pada tanggal ${d} beserta rincian barang belanjaannya.`;
+    } else if (filterType === 'rentang') {
+      const s = document.getElementById('analytics-filter-start-date')?.value || '';
+      const e = document.getElementById('analytics-filter-end-date')?.value || '';
+      subtitleEl.textContent = `Daftar pelanggan yang mengambil/menukarkan voucher pada rentang tanggal ${s} s/d ${e} beserta rincian barang belanjaannya.`;
     } else if (filterType === 'bulan') {
       const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
       subtitleEl.textContent = `Daftar pelanggan yang mengambil/menukarkan voucher pada bulan ${m} beserta rincian barang belanjaannya.`;
@@ -6660,6 +6708,10 @@ function printVoucherAnalyticsReport() {
   if (filterType === 'hari') {
     const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
     periodLabel = `Tanggal: ${d}`;
+  } else if (filterType === 'rentang') {
+    const s = document.getElementById('analytics-filter-start-date')?.value || '';
+    const e = document.getElementById('analytics-filter-end-date')?.value || '';
+    periodLabel = `Rentang: ${s} s/d ${e}`;
   } else if (filterType === 'bulan') {
     const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
     periodLabel = `Bulan: ${m}`;
@@ -10826,6 +10878,10 @@ function shareRevenueToWhatsApp() {
   if (filterType === 'hari') {
     const dateVal = document.getElementById('analytics-filter-date')?.value;
     periodText = dateVal ? `Hari Ini (${dateVal})` : 'Hari Ini';
+  } else if (filterType === 'rentang') {
+    const s = document.getElementById('analytics-filter-start-date')?.value;
+    const e = document.getElementById('analytics-filter-end-date')?.value;
+    periodText = `Rentang (${s} s/d ${e})`;
   } else if (filterType === 'bulan') {
     const monthVal = document.getElementById('analytics-filter-month')?.value;
     periodText = monthVal ? `Bulan (${monthVal})` : 'Bulan Ini';
@@ -16257,6 +16313,11 @@ function printDailyReport() {
     const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
     periodLabel = `Tanggal: ${formatDateIndo(d)}`;
     targetDateForStock = d;
+  } else if (filterType === 'rentang') {
+    const s = document.getElementById('analytics-filter-start-date')?.value || '';
+    const e = document.getElementById('analytics-filter-end-date')?.value || '';
+    periodLabel = `Rentang: ${formatDateIndo(s)} s/d ${formatDateIndo(e)}`;
+    targetDateForStock = e || getLocalISODate(new Date()).slice(0, 10);
   } else if (filterType === 'bulan') {
     const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
     const [yr, mo] = m.split('-');
@@ -16348,6 +16409,10 @@ function printDailyReport() {
         if (filterType === 'hari') {
           const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
           match = (pDateStr === d);
+        } else if (filterType === 'rentang') {
+          const s = document.getElementById('analytics-filter-start-date')?.value || '';
+          const e = document.getElementById('analytics-filter-end-date')?.value || '';
+          match = (!s || pDateStr >= s) && (!e || pDateStr <= e);
         } else if (filterType === 'bulan') {
           const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
           match = (pDateStr.slice(0, 7) === m);
@@ -16378,6 +16443,10 @@ function printDailyReport() {
       if (filterType === 'hari') {
         const d = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
         match = (eDateStr === d);
+      } else if (filterType === 'rentang') {
+        const s = document.getElementById('analytics-filter-start-date')?.value || '';
+        const e = document.getElementById('analytics-filter-end-date')?.value || '';
+        match = (!s || eDateStr >= s) && (!e || eDateStr <= e);
       } else if (filterType === 'bulan') {
         const m = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
         match = (eDateStr.slice(0, 7) === m);
@@ -16421,6 +16490,10 @@ function printDailyReport() {
           if (filterType === 'hari') {
             const dateVal = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
             match = (bDateStr === dateVal);
+          } else if (filterType === 'rentang') {
+            const s = document.getElementById('analytics-filter-start-date')?.value || '';
+            const e = document.getElementById('analytics-filter-end-date')?.value || '';
+            match = (!s || bDateStr >= s) && (!e || bDateStr <= e);
           } else if (filterType === 'bulan') {
             const monthVal = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
             match = (bDateStr.slice(0, 7) === monthVal);
@@ -16451,6 +16524,10 @@ function printDailyReport() {
       if (filterType === 'hari') {
         const dateVal = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
         match = (txDateStr === dateVal);
+      } else if (filterType === 'rentang') {
+        const s = document.getElementById('analytics-filter-start-date')?.value || '';
+        const e = document.getElementById('analytics-filter-end-date')?.value || '';
+        match = (!s || txDateStr >= s) && (!e || txDateStr <= e);
       } else if (filterType === 'bulan') {
         const monthVal = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
         match = (txDateStr.slice(0, 7) === monthVal);
@@ -29941,10 +30018,16 @@ function calculateProfitLossData() {
 
   let periodText = 'Hari Ini';
   let datePrefix = '';
+  let rangeStart = '';
+  let rangeEnd = '';
   if (filterType === 'hari') {
     const dateVal = document.getElementById('analytics-filter-date')?.value || getLocalISODate(new Date()).slice(0, 10);
-    periodText = `Hari Ini (${dateVal})`;
+    periodText = `Hari Ini (${formatDateIndo(dateVal)})`;
     datePrefix = dateVal;
+  } else if (filterType === 'rentang') {
+    rangeStart = document.getElementById('analytics-filter-start-date')?.value || '';
+    rangeEnd = document.getElementById('analytics-filter-end-date')?.value || '';
+    periodText = `Rentang (${formatDateIndo(rangeStart)} s/d ${formatDateIndo(rangeEnd)})`;
   } else if (filterType === 'bulan') {
     const monthVal = document.getElementById('analytics-filter-month')?.value || getLocalISODate(new Date()).slice(0, 7);
     periodText = `Bulan (${monthVal})`;
@@ -30010,7 +30093,9 @@ function calculateProfitLossData() {
     expenses.forEach(e => {
       const eDate = e.tanggal ? parseTxDateStr(e.tanggal) : '';
       let match = false;
-      if (!datePrefix) {
+      if (filterType === 'rentang') {
+        match = (!rangeStart || eDate >= rangeStart) && (!rangeEnd || eDate <= rangeEnd);
+      } else if (!datePrefix) {
         match = true;
       } else {
         match = eDate.startsWith(datePrefix);

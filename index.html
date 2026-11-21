@@ -323,6 +323,7 @@
                 <i data-lucide="calendar" class="icon-sm"></i>
                 <select id="analytics-filter-type" onchange="onAnalyticsFilterTypeChange()">
                   <option value="hari">Per Hari</option>
+                  <option value="rentang">Rentang Tanggal</option>
                   <option value="bulan">Per Bulan</option>
                   <option value="tahun">Per Tahun</option>
                   <option value="semua">Semua Waktu</option>
@@ -330,6 +331,17 @@
               </div>
               <div id="analytics-filter-date-wrap" class="analytics-filter-val-wrap">
                 <input type="date" id="analytics-filter-date" value="" oninput="fetchAndUpdateAnalytics()">
+              </div>
+              <div id="analytics-filter-range-wrap" class="analytics-filter-val-wrap analytics-filter-range-container" style="display:none;">
+                <div class="analytics-range-item">
+                  <span class="analytics-range-label">Dari</span>
+                  <input type="date" id="analytics-filter-start-date" value="" oninput="fetchAndUpdateAnalytics()" title="Tanggal Awal">
+                </div>
+                <span class="analytics-range-sep">s/d</span>
+                <div class="analytics-range-item">
+                  <span class="analytics-range-label">Sampai</span>
+                  <input type="date" id="analytics-filter-end-date" value="" oninput="fetchAndUpdateAnalytics()" title="Tanggal Akhir">
+                </div>
               </div>
               <div id="analytics-filter-month-wrap" class="analytics-filter-val-wrap" style="display:none;">
                 <input type="month" id="analytics-filter-month" value="" oninput="fetchAndUpdateAnalytics()">

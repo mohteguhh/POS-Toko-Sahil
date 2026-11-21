@@ -369,23 +369,27 @@ svg.icon-empty, [data-lucide].icon-empty, svg.lucide.icon-empty {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.25rem;
+  gap: 1rem;
 }
 .analytics-header h2 {
   font-weight: 800;
   font-size: 1.25rem;
+  white-space: nowrap;
 }
 
 /* Analytics Header — Filter & Action Layout */
 .analytics-table-actions {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
 }
 .analytics-filter-group {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  flex-shrink: 0;
 }
 .analytics-filter-type-box {
   display: flex;
@@ -416,10 +420,59 @@ svg.icon-empty, [data-lucide].icon-empty, svg.lucide.icon-empty {
   color: var(--text-main, #111);
   cursor: pointer;
 }
+
+/* Styling Khusus Input Rentang Tanggal Analisis */
+.analytics-filter-range-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--bg-card, #fff);
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: var(--border-radius-sm, 8px);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.analytics-range-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.analytics-range-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+  white-space: nowrap;
+  user-select: none;
+}
+.analytics-filter-range-container input[type="date"] {
+  border: 1px solid var(--border-color, #e5e7eb) !important;
+  border-radius: 6px !important;
+  padding: 0.2rem 0.3rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  width: 118px !important;
+  max-width: 118px !important;
+  box-sizing: border-box;
+}
+.analytics-range-sep {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted, #94a3b8);
+  user-select: none;
+  padding: 0 0.1rem;
+}
 .analytics-btn-group {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+.analytics-btn-action {
+  white-space: nowrap !important;
+  padding: 0.35rem 0.55rem !important;
+  font-size: 0.8rem !important;
 }
 
 .metrics-grid {
@@ -3504,8 +3557,28 @@ tr:hover td {
   }
   .analytics-filter-group {
     width: 100%;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 0.45rem;
+  }
+  .analytics-filter-range-container {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    box-sizing: border-box;
+    padding: 0.3rem 0.45rem;
+  }
+  .analytics-filter-range-container .analytics-range-item {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .analytics-filter-range-container input[type="date"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 0.35rem 0.3rem !important;
+    font-size: 0.78rem !important;
+    box-sizing: border-box !important;
   }
   .analytics-filter-type-box {
     flex: 0 0 auto;
