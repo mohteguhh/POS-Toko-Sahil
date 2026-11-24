@@ -5698,8 +5698,8 @@ function updateAnalytics() {
 
   console.log(`💵 [Cash Revenue Breakdown (${filterType})] Total Kas: Rp ${formatRupiah(effectiveCashRevenue)} | Penjualan Kas: Rp ${formatRupiah(revenue)} (dari ${todayTxs.length} tx) | Pelunasan Hutang: Rp ${formatRupiah(totalDebtRepaid)} | Kas Masuk Laci: Rp ${formatRupiah(totalKasMasukLaci)} | Kas Keluar Laci: Rp ${formatRupiah(totalKasKeluarLaci)} | Bayar Sales: Rp ${formatRupiah(totalSalesPaidFromCash)} | Hutang Manual: Rp ${formatRupiah(totalManualDebtFromCash)}`);
 
-  // Total Modal HPP = Total Modal Pokok Pembelian Barang Terjual
-  const totalPenjualanHpp = grossHpp > 0 ? grossHpp : Math.max(0, revenue - netProfit);
+  // Total Penjualan HPP / Modal = Penghasilan Tunai dikurangi Laba Bersih
+  const totalPenjualanHpp = Math.max(0, effectiveCashRevenue - netProfit);
   
   // Update Metrik Hari Ini di UI
   document.getElementById('stat-revenue').textContent = `Rp ${formatRupiah(effectiveCashRevenue)}`;
