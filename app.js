@@ -5353,13 +5353,13 @@ function updateAnalytics() {
   const methodsBreakdown = {
     'Tunai': 0,
     'QRIS': 0,
-    'Debit': 0,
+
     'Transfer': 0,
     'Tabungan': 0
   };
   
   // Metode non-tunai: uang tidak langsung masuk laci (hanya laba bersih dihitung ke stat revenue jika tidak diganti cash)
-  const nonCashMethods = ['QRIS', 'Transfer', 'Debit'];
+  const nonCashMethods = ['QRIS', 'Transfer'];
   
   todayTxs.forEach(tx => {
     // Transaksi hutang manual (pinjaman dana) BUKAN penjualan barang dagangan
@@ -10666,12 +10666,99 @@ async function shareReceiptToWhatsApp(tx, items) {
   window.open(waUrl, '_blank');
 }
 
-// Helper untuk tombol nota aktif
-function shareCurrentReceiptToWhatsApp() {
-  if (currentActiveReceiptTx) {
-    shareReceiptToWhatsApp(currentActiveReceiptTx, currentActiveReceiptItems);
-  } else {
+// Helper untuk tombol nota aktif — capture sebagai JPG lalu kirim ke WA
+async function shareCurrentReceiptToWhatsApp() {
+  if (!currentActiveReceiptTx) {
     alert('Tidak ada nota transaksi yang sedang terbuka.');
+    return;
+  }
+
+  // Tentukan elemen yang akan di-capture
+  // Pilih konten yang sedang aktif (HTML graphic atau plain text)
+  const htmlContent  = document.getElementById('receipt-html-content');
+  const textContent  = document.getElementById('receipt-text-content');
+  const captureTarget = (textContent && textContent.style.display !== 'none') ? textContent : htmlContent;
+
+  if (!captureTarget) {
+    // Fallback ke teks jika html2canvas tidak tersedia
+    shareReceiptToWhatsApp(currentActiveReceiptTx, currentActiveReceiptItems);
+    return;
+  }
+
+  // Sembunyikan elemen no-print (tombol aksi) agar tidak ikut ter-capture
+  const noPrintEls = document.querySelectorAll('#receipt-card-print .no-print');
+  noPrintEls.forEach(el => { el._prevDisplay = el.style.display; el.style.display = 'none'; });
+
+  try {
+    // Gunakan html2canvas untuk capture
+    const canvas = await html2canvas(captureTarget, {
+      backgroundColor: '#ffffff',
+      scale: 2,           // resolusi 2x agar teks tajam
+      useCORS: true,
+      logging: false,
+      removeContainer: true
+    });
+
+    // Konversi ke JPG base64 (kualitas 92%)
+    const jpgDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+    // Buat nama file: nota_{tx.id}_{tanggal}.jpg
+    const txId     = (currentActiveReceiptTx.id || 'nota').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const dateStr  = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const fileName = `nota_${txId}_${dateStr}.jpg`;
+
+    // --- Simpan via Electron IPC jika tersedia ---
+    if (window.desktopAPI && typeof window.desktopAPI.saveNotaJpg === 'function') {
+      const result = await window.desktopAPI.saveNotaJpg(jpgDataUrl, fileName);
+      if (result.canceled) return;
+      if (!result.success) throw new Error(result.error || 'Gagal menyimpan file');
+
+      // Setelah file tersimpan, buka WhatsApp Web agar user bisa lampirkan gambar
+      const waUrl = `https://web.whatsapp.com/`;
+      window.open(waUrl, '_blank');
+
+      // Tampilkan panduan
+      setTimeout(() => {
+        alert(
+          `✅ Nota sudah disimpan sebagai:\n${result.filePath}\n\n` +
+          `📱 Langkah selanjutnya di WhatsApp Web:\n` +
+          `1. Pilih kontak / grup tujuan\n` +
+          `2. Klik ikon 📎 (lampiran)\n` +
+          `3. Pilih "Photos & Videos" atau "Document"\n` +
+          `4. Cari file: ${fileName}\n` +
+          `5. Kirim 🚀`
+        );
+      }, 800);
+    } else {
+      // Fallback: download via browser anchor tag (PWA / non-Electron)
+      const a = document.createElement('a');
+      a.href = jpgDataUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Buka WhatsApp Web
+      setTimeout(() => {
+        window.open('https://web.whatsapp.com/', '_blank');
+        alert(
+          `✅ Nota sudah diunduh sebagai: ${fileName}\n\n` +
+          `📱 Langkah selanjutnya di WhatsApp Web:\n` +
+          `1. Pilih kontak / grup tujuan\n` +
+          `2. Klik ikon 📎 (lampiran)\n` +
+          `3. Pilih file nota yang baru diunduh\n` +
+          `4. Kirim 🚀`
+        );
+      }, 400);
+    }
+  } catch (err) {
+    console.error('Gagal capture nota ke JPG:', err);
+    // Fallback ke teks jika terjadi error
+    alert('⚠️ Gagal membuat gambar nota. Mengirim sebagai teks...');
+    shareReceiptToWhatsApp(currentActiveReceiptTx, currentActiveReceiptItems);
+  } finally {
+    // Kembalikan elemen no-print
+    noPrintEls.forEach(el => { el.style.display = el._prevDisplay !== undefined ? el._prevDisplay : ''; });
   }
 }
 
@@ -10933,7 +11020,7 @@ function shareRevenueToWhatsApp() {
   let netProfit = 0;
   let grossHpp = 0;
   const methodsBreakdown = { 'Tunai': 0, 'QRIS': 0, 'Debit': 0, 'Transfer': 0 };
-  const nonCashMethods = ['QRIS', 'Transfer', 'Debit'];
+  const nonCashMethods = ['QRIS', 'Transfer'];
 
   filteredTxs.forEach(tx => {
     if (tx.is_manual_debt) return;
@@ -15113,13 +15200,18 @@ function reprintReceipt(txId) {
   showReceipt(tx, tx.items || []);
 }
 
-function shareReceiptFromList(txId) {
+async function shareReceiptFromList(txId) {
   const tx = transactions.find(t => t.id === txId);
   if (!tx) {
     alert("Transaksi tidak ditemukan!");
     return;
   }
-  shareReceiptToWhatsApp(tx, tx.items || []);
+  // Buka modal nota terlebih dahulu agar elemen ter-render
+  showReceipt(tx, tx.items || []);
+  // Tunggu sebentar agar DOM ter-render sebelum di-capture
+  await new Promise(resolve => setTimeout(resolve, 300));
+  // Capture dan kirim sebagai JPG
+  await shareCurrentReceiptToWhatsApp();
 }
 
 function openEditTransactionModal(txId) {
@@ -16419,7 +16511,7 @@ function printDailyReport() {
     'Debit': { count: 0, total: 0 },
     'Transfer': { count: 0, total: 0 }
   };
-  const nonCashMethods = ['QRIS', 'Transfer', 'Debit'];
+  const nonCashMethods = ['QRIS', 'Transfer'];
   
   const sellCounts = {};
   const sellRevenue = {};
