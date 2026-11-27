@@ -11,6 +11,5 @@ contextBridge.exposeInMainWorld('desktopAPI', {
   selectBackupFolder: () => ipcRenderer.invoke('select-backup-folder'),
   saveBackupFile: (fileName, content) => ipcRenderer.invoke('save-backup-file', fileName, content),
   checkDeviceActivation: () => ipcRenderer.invoke('check-device-activation'),
-  activateDevice: (key) => ipcRenderer.invoke('activate-device', key),
-  saveNotaJpg: (base64Data, fileName) => ipcRenderer.invoke('save-nota-jpg', base64Data, fileName)
+  activateDevice: (key) => ipcRenderer.invoke('activate-device', key)
 });

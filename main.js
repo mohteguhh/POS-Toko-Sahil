@@ -358,34 +358,4 @@ ipcMain.handle('activate-device', (event, activationKey) => {
   return saveDeviceActivation(activationKey);
 });
 
-// 11. Simpan Gambar Nota JPG ke Folder Dokumen / Downloads & Buka Folder
-ipcMain.handle('save-nota-jpg', async (event, base64Data, fileName) => {
-  try {
-    // Hapus prefix data URL jika ada
-    const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(cleanBase64, 'base64');
-
-    // Gunakan dialog Save As agar user bisa pilih lokasi
-    const result = await dialog.showSaveDialog(mainWindow, {
-      title: 'Simpan Nota sebagai Gambar',
-      defaultPath: path.join(app.getPath('downloads'), fileName || 'nota.jpg'),
-      filters: [{ name: 'Gambar JPEG', extensions: ['jpg', 'jpeg'] }]
-    });
-
-    if (result.canceled || !result.filePath) {
-      return { canceled: true };
-    }
-
-    fs.writeFileSync(result.filePath, buffer);
-
-    // Buka folder yang berisi file
-    shell.showItemInFolder(result.filePath);
-
-    return { success: true, filePath: result.filePath };
-  } catch (err) {
-    console.error('Gagal menyimpan nota JPG:', err);
-    return { success: false, error: err.message };
-  }
-});
-
 
