@@ -3912,12 +3912,20 @@
       <div class="modal-body edit-tx-body">
         <!-- Search Bar Minimalis -->
         <div class="edit-tx-search-container">
-          <div class="edit-tx-search-box">
-            <svg viewBox="0 0 24 24" class="edit-tx-search-icon" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.3-4.3"/>
-            </svg>
-            <input type="text" id="edit-tx-search-input" placeholder="Tambah barang (nama / barcode)..." autocomplete="off" oninput="filterEditTxSearch()">
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <div class="edit-tx-search-box" style="flex: 1;">
+              <svg viewBox="0 0 24 24" class="edit-tx-search-icon" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.3-4.3"/>
+              </svg>
+              <input type="text" id="edit-tx-search-input" placeholder="Tambah barang (nama / barcode)..." autocomplete="off" oninput="filterEditTxSearch()">
+            </div>
+            <button type="button" class="btn-scan-camera" onclick="openCameraScanner('edit_tx')" title="Scan Barcode Pakai Kamera HP" style="padding: 0.5rem 0.85rem; border-radius: 12px; height: 38px; display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; font-weight: 700; background: var(--bg-card); border: 1.5px solid var(--border-color); color: var(--color-primary); cursor: pointer; white-space: nowrap;">
+              <svg viewBox="0 0 24 24" style="width: 16px; height: 16px;" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 12h8M12 8v8"/>
+              </svg>
+              <span>Kamera</span>
+            </button>
           </div>
           <div class="floating-results edit-tx-floating-results" id="edit-tx-floating-results"></div>
         </div>
@@ -6365,6 +6373,14 @@
           <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/><path d="M12 11h6m-3-3v6"/></svg>
         </div>
         <span>Sales &amp; Kulak</span>
+      </button>
+
+      <!-- Item Belanja Mandiri (Akses Langsung Mobile) -->
+      <button type="button" class="m3-sheet-item" onclick="closeMobileMoreSheet(); switchTab('kulak'); if (canAccessTab('kulak')) switchSalesSubTab('kulak-manual');">
+        <div class="m3-sheet-icon" style="background:#e0f2fe; color:#0284c7;">
+          <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        </div>
+        <span>Belanja Mandiri</span>
       </button>
 
       <!-- Item Pelanggan -->

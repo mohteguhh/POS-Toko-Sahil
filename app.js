@@ -4459,9 +4459,13 @@ function switchTab(tabName) {
   if (tabName === 'pos') {
     closeFloatingResults();
     const sInput = document.getElementById('search-input');
-    if (sInput) sInput.value = '';
+    if (sInput) {
+      sInput.value = '';
+      sInput.focus(); // Langsung fokuskan kursor instan tanpa jeda
+    }
     renderCart();
     if (typeof applyPosGridConfig === 'function') applyPosGridConfig();
+    if (typeof updateHeldCartsUI === 'function') updateHeldCartsUI();
     focusSearchInput(true);
   } else if (tabName === 'products') {
     lastScannedProductId = null;
@@ -4483,7 +4487,9 @@ function switchTab(tabName) {
     closeKulakForm();
     if (typeof renderSalesTable === 'function') renderSalesTable();
     if (typeof updateSalesDropdowns === 'function') updateSalesDropdowns();
-    focusKulakSearch();
+    if (typeof currentActiveSalesSubTab !== 'undefined' && currentActiveSalesSubTab === 'kulak-manual') {
+      focusKulakSearch();
+    }
   } else if (tabName === 'transactions') {
     const txSearch = document.getElementById('transaction-list-search');
     if (txSearch) txSearch.value = '';
@@ -4611,6 +4617,9 @@ function focusSearchInput(forceFocus = false) {
     }
   };
 
+  // Langsung fokus secara instan tanpa jeda/delay
+  doFocus();
+
   requestAnimationFrame(() => {
     doFocus();
   });
@@ -4689,7 +4698,10 @@ function updateMobileCartBadge() {
 
 // Fokuskan kursor ke input Kulak (Instan tanpa jeda)
 function focusKulakSearch() {
+  if (typeof isMobileMode === 'function' && isMobileMode()) return;
   requestAnimationFrame(() => {
+    const kulakPane = document.getElementById('subpane-kulak-manual');
+    if (kulakPane && kulakPane.style.display === 'none') return;
     const input = document.getElementById('kulak-search-input');
     if (input && activeTab === 'kulak') {
       const activeModal = document.querySelector('.modal.active, .modal-overlay.active');
@@ -4717,6 +4729,12 @@ function focusProductListSearch() {
 
 // Fokuskan input sesuai tab aktif
 function focusActiveTabSearch() {
+  const editModal = document.getElementById('edit-transaction-modal');
+  if (editModal && editModal.style.display !== 'none' && editModal.classList.contains('active')) {
+    const editInput = document.getElementById('edit-tx-search-input');
+    if (editInput) editInput.focus();
+    return;
+  }
   if (activeTab === 'pos') focusSearchInput(true);
   else if (activeTab === 'products') focusProductListSearch();
   else if (activeTab === 'kulak') focusKulakSearch();
@@ -7246,6 +7264,25 @@ function onScanSuccess(decodedText, decodedResult) {
     } else {
       if (input) input.value = searchVal;
       filterProductListTable();
+      alert(`Barcode "${searchVal}" tidak terdaftar di inventaris!`);
+    }
+    closeCameraScanner();
+    return;
+  }
+
+  if (scannerMode === 'edit_tx') {
+    if (exactMatch) {
+      if (exactMatch.stok > 0 || appConfig.allowZeroStock) {
+        addEditTxItem(exactMatch);
+      } else {
+        alert(`Stok "${exactMatch.nama}" habis!`);
+      }
+    } else {
+      const editInput = document.getElementById('edit-tx-search-input');
+      if (editInput) {
+        editInput.value = searchVal;
+        filterEditTxSearch();
+      }
       alert(`Barcode "${searchVal}" tidak terdaftar di inventaris!`);
     }
     closeCameraScanner();
@@ -14213,6 +14250,33 @@ function handleGlobalKeydowns(e) {
         }
       }
     } else if (isPaymentOpen) {
+      // Navigasi Arrow Up & Arrow Down untuk memilih Metode Pembayaran (Tunai, QRIS, Debit, Transfer)
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const custDropdown = document.getElementById('customer-dropdown-list');
+        const isCustDropdownOpen = custDropdown && custDropdown.style.display !== 'none';
+        const isFocusOnCustInput = document.activeElement && document.activeElement.id === 'customer-name-input';
+        
+        // Jika sedang aktif mencari customer di dropdown autocomplete, biarkan navigasi dropdown customer
+        if (isCustDropdownOpen && isFocusOnCustInput) {
+          return;
+        }
+
+        const methodSelect = document.getElementById('payment-method-select');
+        if (methodSelect && !methodSelect.disabled) {
+          e.preventDefault();
+          const optionsCount = methodSelect.options.length;
+          let newIndex = methodSelect.selectedIndex;
+          if (e.key === 'ArrowDown') {
+            newIndex = (newIndex + 1) % optionsCount;
+          } else if (e.key === 'ArrowUp') {
+            newIndex = (newIndex - 1 + optionsCount) % optionsCount;
+          }
+          methodSelect.selectedIndex = newIndex;
+          onPaymentMethodChange(methodSelect.value);
+          return;
+        }
+      }
+
       if (e.key === 'Shift' && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
         setQuickCash('pass');
